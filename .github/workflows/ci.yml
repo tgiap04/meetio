@@ -47,6 +47,44 @@ jobs:
   build-and-test:
     name: install, typecheck, lint, test, build
     runs-on: ubuntu-latest
+
+    # Real Postgres and Redis rather than mocks. This schema lives on HNSW
+    # indexes, an expression-based trigram index, CITEXT, PG enums, partial
+    # indexes and cascade rules — none of which a mock can prove. The image
+    # matches docker-compose.yml so CI and local dev exercise the same engine.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: meetio
+          POSTGRES_PASSWORD: meetio
+          POSTGRES_DB: meetio
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U meetio"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Throwaway CI values. The secrets are meaningless outside this job — the
+      # tests only need them to be present and non-empty.
+      DATABASE_URL: postgresql://meetio:meetio@localhost:5432/meetio
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-only-access-secret
+      JWT_REFRESH_SECRET: ci-only-refresh-secret
+      NODE_ENV: test
+
     steps:
       - uses: actions/checkout@v4
 
@@ -66,8 +104,22 @@ jobs:
       - name: Lint
         run: yarn lint
 
+      # The first migration installs vector, unaccent and pg_trgm, so this also
+      # stands in for the init script docker-compose mounts locally. Service
+      # containers cannot mount volumes, so the extensions have to arrive here.
+      - name: Run migrations
+        run: yarn workspace @meetio/api run migration:run
+
       - name: Test
         run: yarn test
 
       - name: Build
         run: yarn build
+
+      # Gated because it broke silently once: the generator ran TypeScript source
+      # through tsx while the app runs compiled output, so a value imported from
+      # @meetio/shared resolved in one path and not the other. Nothing caught it
+      # because this command was not in CI, and openapi.json went stale for
+      # several phases.
+      - name: Generate OpenAPI document
+        run: yarn workspace @meetio/api run openapi:generate

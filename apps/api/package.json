@@ -13,9 +13,9 @@
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "openapi:generate": "nest build && node dist/generate-openapi.js",
-    "migration:run": "node --env-file=../../.env --import tsx src/database/migrate.ts up",
+    "migration:run": "node --env-file-if-exists=../../.env --import tsx src/database/migrate.ts up",
     "migration:revert": "node --env-file=../../.env --import tsx src/database/migrate.ts down",
-    "db:seed": "node --env-file=../../.env --import tsx src/database/seed.ts",
+    "db:seed": "node --env-file-if-exists=../../.env --import tsx src/database/seed.ts",
     "start:local": "node dist/main.js"
   },
   "dependencies": {
