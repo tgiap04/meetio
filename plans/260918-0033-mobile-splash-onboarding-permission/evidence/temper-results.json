@@ -1,0 +1,60 @@
+{
+  "commands": [
+    {
+      "command": "yarn typecheck",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "TypeScript clean across all workspaces",
+      "ts": "2026-09-17T18:18:21Z"
+    },
+    {
+      "command": "yarn lint",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "eslint . --max-warnings=0 clean",
+      "ts": "2026-09-17T18:18:21Z"
+    },
+    {
+      "command": "yarn workspace @meetio/api run test",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "96 passed, 96 total (12 suites) against real Postgres",
+      "ts": "2026-09-17T18:18:21Z"
+    },
+    {
+      "command": "yarn workspace @meetio/mobile run test",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "127 passed, 127 total (27 suites)",
+      "ts": "2026-09-17T18:18:21Z"
+    },
+    {
+      "command": "make build-app",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "expo prebuild + pod install; both platforms verified ready by app-verify",
+      "ts": "2026-09-17T18:18:21Z"
+    },
+    {
+      "command": "plutil -extract NSMicrophoneUsageDescription raw ios/Meetio/Info.plist",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "Vietnamese microphone usage string present in the generated Info.plist",
+      "ts": "2026-09-17T18:18:21Z"
+    },
+    {
+      "command": "grep android.permission.RECORD_AUDIO android/app/src/main/AndroidManifest.xml",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "RECORD_AUDIO and MODIFY_AUDIO_SETTINGS injected by the expo-audio plugin",
+      "ts": "2026-09-17T18:18:21Z"
+    },
+    {
+      "command": "npx expo export --platform ios --no-bytecode --no-minify",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "all six screen copy strings found in the real iOS bundle",
+      "ts": "2026-09-17T18:18:21Z"
+    }
+  ]
+}

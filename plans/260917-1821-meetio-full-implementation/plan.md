@@ -22,8 +22,8 @@ thiết bị, pipeline GraphRAG phía backend, hỏi đáp có trích dẫn ngu�
 **[Thiết kế giao diện](../../design.png)** (14 màn)
 
 **Hiện trạng:** Bộ khung chạy được đã hoàn tất — Phase 01, 02, 03, 06 xong và kiểm chứng độc lập.
-**135 test xanh** (96 API + 39 mobile). Đăng ký/đăng nhập/xoay vòng token chạy thật đầu-cuối;
-13 bảng + index HNSW trên Postgres thật; Swagger phục vụ 7 nhóm endpoint.
+**223 test xanh** (96 API + 127 mobile). Đăng ký/đăng nhập/xoay vòng token chạy thật đầu-cuối;
+13 bảng + index HNSW trên Postgres thật; Swagger phục vụ 7 nhóm endpoint; ba màn đầu (splash, onboarding, permission) dựng xong cùng cổng bootstrap.
 **Tiếp theo:** Phase 04 (API vòng đời cuộc họp) và Phase 00 (spike STT — cổng chặn Phase 07).
 **Stack:** yarn 4 workspaces (`nodeLinker: node-modules`) · monorepo `apps/api` + `apps/mobile` +
 `packages/shared` · **NestJS 12 (ESM thuần)** + TypeORM + `@nestjs/swagger` · Expo/React Native + axios + TanStack
@@ -78,8 +78,8 @@ chạy song song được ngay.
 
 | Màn | Phase | Ghi chú |
 |-----|-------|---------|
-| 1 Splash · 2 Onboarding | 06 | |
-| 3 Quyền truy cập Micro | 07 | Màn đồng ý ghi âm (US-04) đã có ở Phase 06 |
+| 1 Splash · 2 Onboarding | 06 | ✅ **dựng xong** → [260918-0033 plan](../260918-0033-mobile-splash-onboarding-permission/plan.md) |
+| 3 Quyền truy cập Micro | 07 | ✅ **dựng xong** → [260918-0033 plan](../260918-0033-mobile-splash-onboarding-permission/plan.md); màn đồng ý ghi âm (US-04) đã có ở Phase 06 |
 | 4 Trang chủ | 06 · 10 | Danh sách gần đây + nút bắt đầu |
 | 5 Cài đặt ghi âm | 07 · 09 | Nguồn âm, ngôn ngữ, bật dịch, chất lượng |
 | 6 Ghi âm trực tiếp | 07 · 09 | Sóng âm, transcript kèm người nói + bản dịch |

@@ -1,0 +1,34 @@
+{
+  "score": 9.6,
+  "criticalCount": 0,
+  "decision": "SEALED",
+  "contractStatus": "HELD",
+  "acceptanceCovered": [
+    "typecheck, lint and the full test suite pass at the repo root — measured: exit 0 on all four commands, 223 tests (96 API + 127 mobile)",
+    "no test file lives under apps/mobile/app (Expo Router would turn it into a route) — find app -iname '*.test.*' returns empty; a CI job also enforces it",
+    "every new code file stays under 200 lines — wc -l over src and app returns no file above 200",
+    "NSMicrophoneUsageDescription and RECORD_AUDIO exist in the generated native projects — plutil extracted the Vietnamese string; grep found RECORD_AUDIO and MODIFY_AUDIO_SETTINGS",
+    "orange text on light backgrounds uses primaryStrong, never primary — grep over the new screens shows zero colors.primary used for text; primary appears only as fills",
+    "all three permission exits mark the prompt seen and replace to the root route — permission-screen.test.tsx asserts markMicPromptSeen plus replace('/') on allow, deny and defer, and on the back chevron",
+    "Bat dau advances 1-2-3 and completes only on page 3; Bo qua completes from anywhere — onboarding-screen.test.tsx proves page-1 press scrolls without completing, page-3 press completes, and skip completes from page 1"
+  ],
+  "regressionChecked": [
+    "(auth) group layout redirect target changed from /(app) to '/' — auth-group-layout.test.tsx asserts the new target and explicitly asserts it is NOT /(app); this closes a real pre-existing bug that skipped the permission screen forever after first login",
+    "redirect loops across all 8 bootstrap states — bootstrap-route.test.ts covers the full cross-product; the (auth) and (app) guards have mutually exclusive trigger conditions so no cycle is reachable",
+    "permission revoked in Settings after onboarding does not loop back — mic_prompt_seen is set on first visit regardless of grant outcome, so boot never returns to the permission screen",
+    "a rejected Keychain write cannot trap the user — preferences.store sets state synchronously before the fire-and-forget write, proven by a test that rejects the write and asserts state still flipped",
+    "existing suites unaffected — route-guards.test.ts and app-group-layout.test.tsx still pass unmodified; API suite unchanged at 96"
+  ],
+  "refuted": [],
+  "unproven": [],
+  "reachableRegressions": [],
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "location": "apps/mobile/src/hooks/use-microphone-permission.ts:44-51",
+      "summary": "The hook never assigned the 'granted' view state — it called finish() and returned — so the screen carried a branch that could never execute while the type claimed the state existed. Fixed by narrowing the hook's view type to AskOrBlockedView and removing the dead branch.",
+      "disposition": "Accept"
+    }
+  ]
+}

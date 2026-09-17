@@ -1,0 +1,34 @@
+{
+  "task": "Implement screens 1-3 of design.png (Splash, Onboarding pager, Microphone permission) with working logic, plus the boot gate and bootstrap router that decide where the app lands.",
+  "mode": "interactive",
+  "acceptanceCriteria": [
+    "typecheck, lint and the full test suite pass at the repo root",
+    "no test file lives under apps/mobile/app (Expo Router would turn it into a route)",
+    "every new code file stays under 200 lines",
+    "NSMicrophoneUsageDescription and RECORD_AUDIO exist in the generated native projects",
+    "orange text on light backgrounds uses primaryStrong, never primary",
+    "all three permission exits mark the prompt seen and replace to the root route",
+    "Bat dau advances 1-2-3 and completes only on page 3; Bo qua completes from anywhere"
+  ],
+  "touchpoints": [
+    "apps/mobile/app/_layout.tsx",
+    "apps/mobile/app/index.tsx",
+    "apps/mobile/app/onboarding.tsx",
+    "apps/mobile/app/(auth)/_layout.tsx",
+    "apps/mobile/app/(app)/permission.tsx",
+    "apps/mobile/src/navigation/bootstrap-route.ts",
+    "apps/mobile/src/store/preferences.store.ts",
+    "apps/mobile/src/storage/device-preferences.ts",
+    "apps/mobile/src/permissions/microphone-permission.ts",
+    "apps/mobile/src/hooks/use-microphone-permission.ts",
+    "apps/mobile/src/components/illustrations/",
+    "apps/mobile/app.json"
+  ],
+  "blastRadius": "Mobile app only. No API endpoint, schema or backend behaviour changes. The (auth) group layout redirect target changes, which affects every post-login navigation. expo-audio is a new native dependency, so native projects must be regenerated before the app runs on a device.",
+  "contracts": [
+    "resolveBootstrapRoute({authStatus, onboardingCompleted, micPromptSeen}) is pure and is the single routing decision point",
+    "every completion path calls router.replace('/') and never a hardcoded screen",
+    "preferences.store sets state synchronously before the persistence write",
+    "resolveMicPermissionView maps PermissionResponse to ask | blocked | granted"
+  ]
+}
