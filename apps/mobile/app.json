@@ -9,7 +9,13 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Meetio cần quyền truy cập microphone để ghi âm cuộc họp và chuyển giọng nói thành văn bản."
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,

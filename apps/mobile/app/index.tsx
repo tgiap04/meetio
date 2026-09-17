@@ -1,11 +1,17 @@
 import { Redirect } from 'expo-router';
-import { APP_HOME_ROUTE } from '../src/navigation/route-guards';
+import { useSessionStore } from '../src/store/session.store';
+import { usePreferencesStore } from '../src/store/preferences.store';
+import { resolveBootstrapRoute } from '../src/navigation/bootstrap-route';
 
 /**
- * Entry route. Always points at `(app)` — the `(app)` group layout is the
- * single place that decides whether that is actually reachable, bouncing to
- * `(auth)/login` when the session is not authenticated.
+ * The single decision point for where the app lands. Every screen that
+ * finishes a step replaces to `'/'` and comes back here — see
+ * `resolveBootstrapRoute` for the invariant this depends on.
  */
 export default function IndexScreen() {
-  return <Redirect href={APP_HOME_ROUTE} />;
+  const authStatus = useSessionStore((state) => state.authStatus);
+  const onboardingCompleted = usePreferencesStore((state) => state.onboardingCompleted);
+  const micPromptSeen = usePreferencesStore((state) => state.micPromptSeen);
+
+  return <Redirect href={resolveBootstrapRoute({ authStatus, onboardingCompleted, micPromptSeen })} />;
 }

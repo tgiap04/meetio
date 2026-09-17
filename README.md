@@ -8,6 +8,17 @@ See [`user_stories.md`](user_stories.md), [`docs/system-architecture.md`](docs/s
 full specification. Implementation plan lives under
 [`plans/260917-1821-meetio-full-implementation/`](plans/260917-1821-meetio-full-implementation/plan.md).
 
+## Interface design
+
+![Meetio — 14 screens](design.png)
+
+[`design.png`](design.png) is the visual source for the whole app. The master plan's
+"Thiết kế giao diện" section maps each of the 14 screens to the phase that builds it, and the
+palette in `apps/mobile/src/theme/colors.ts` is sampled from this file rather than chosen by eye.
+
+Screens 1–3 (splash, onboarding, microphone permission) are built — see
+[`plans/260918-0033-mobile-splash-onboarding-permission/`](plans/260918-0033-mobile-splash-onboarding-permission/plan.md).
+
 ## Monorepo layout
 
 ```
@@ -71,7 +82,10 @@ output, generated from `app.json` plus the installed config plugins, and are git
 `expo start` alone is enough while the JavaScript changes. **Adding or upgrading a
 library with native code is different** — the native project has to be regenerated and
 the app reinstalled on the device, or the new module simply will not exist at runtime.
-This matters from Phase 07 onward, where on-device speech recognition is a native module.
+This already applies today: `expo-audio` (microphone permission) is a native module, added
+via a config plugin that auto-injects the Android `RECORD_AUDIO` permission — run
+`make build-app` after pulling changes that touch it. It matters even more from Phase 07
+onward, where on-device speech recognition is itself a native module.
 
 | Command | Does |
 |---------|------|

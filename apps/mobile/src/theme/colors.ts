@@ -31,6 +31,14 @@ export const colors = {
   primaryTint: '#FEF3E6',
   /** On solid `primary` fills. See the contrast note above. */
   primaryText: '#FFFFFF',
+  /**
+   * measured — the orange fills in the design are a diagonal gradient, not flat:
+   * lighter at the top-left, deeper at the bottom-right, with the brand `primary`
+   * sitting between the two ends. Sampled along the diagonal of the splash icon
+   * tile in design.png. Used for the icon tile and the round mic buttons.
+   */
+  primaryGradientFrom: '#FD8021',
+  primaryGradientTo: '#F56904',
 
   // --- Neutrals ----------------------------------------------------------
   /** Cards and sheets sit on pure white above `surface`. */

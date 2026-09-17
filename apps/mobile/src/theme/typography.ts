@@ -31,6 +31,10 @@ export const fontFamily = Platform.select({
 });
 
 export const typography = {
+  /** Splash wordmark ("Meetio"), the single largest text in the app. */
+  display: { fontFamily, fontSize: 40, fontWeight: '700' as const },
+  /** Two-line headings on onboarding and the microphone-permission screen. */
+  heading: { fontFamily, fontSize: 22, fontWeight: '700' as const },
   title: { fontFamily, fontSize: 24, fontWeight: '600' as const },
   body: { fontFamily, fontSize: 16, fontWeight: '400' as const },
   caption: { fontFamily, fontSize: 13, fontWeight: '400' as const },

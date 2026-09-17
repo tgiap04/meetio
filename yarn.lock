@@ -2835,7 +2835,9 @@ __metadata:
     axios: "npm:^1.20.0"
     babel-preset-expo: "npm:~57.0.12"
     expo: "npm:~57.0.23"
+    expo-audio: "npm:~57.0.5"
     expo-constants: "npm:~57.0.18"
+    expo-linear-gradient: "npm:~57.0.2"
     expo-linking: "npm:~57.0.10"
     expo-router: "npm:~57.0.21"
     expo-secure-store: "npm:~57.0.4"
@@ -7232,6 +7234,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"expo-audio@npm:~57.0.5":
+  version: 57.0.5
+  resolution: "expo-audio@npm:57.0.5"
+  peerDependencies:
+    expo: "*"
+    expo-asset: "*"
+    react: "*"
+    react-native: "*"
+  checksum: 10c0/16ccdf92608282c3877aa69aed72dff810fe0773fcfed0aa604ed8229c2ededaa0a091ef0823f15fc8cbd52ec9c685bae88e921a1c6c977a75c68d5363a2ccaf
+  languageName: node
+  linkType: hard
+
 "expo-constants@npm:~57.0.18":
   version: 57.0.18
   resolution: "expo-constants@npm:57.0.18"
@@ -7285,6 +7299,17 @@ __metadata:
     expo: "*"
     react: "*"
   checksum: 10c0/2e7cd81adea1c62f49f4e9ba76b606960969779222626abc90c6b4cd872c0e47c062eebb5e1688550676f55300677348252d9fe8a7c95d03e1320496a2c136ca
+  languageName: node
+  linkType: hard
+
+"expo-linear-gradient@npm:~57.0.2":
+  version: 57.0.2
+  resolution: "expo-linear-gradient@npm:57.0.2"
+  peerDependencies:
+    expo: "*"
+    react: "*"
+    react-native: "*"
+  checksum: 10c0/fe04012c67eb4312868fa74da4f0c70896e4e480e37b6795a5e2bc585d4e3c7e69f28605a1e941e07a8b13a5976b120a9ed4a47b9c7b9d27b8605a6e39f8ad4d
   languageName: node
   linkType: hard
 

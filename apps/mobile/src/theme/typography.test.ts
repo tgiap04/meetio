@@ -1,4 +1,18 @@
-import { isRenderableVietnameseText } from './typography';
+import { isRenderableVietnameseText, typography } from './typography';
+
+describe('typography tokens', () => {
+  it('defines display for the splash wordmark with a bold weight', () => {
+    expect(typography.display.fontFamily).toBeTruthy();
+    expect(typography.display.fontWeight).toBe('700');
+    expect(typography.display.fontSize).toBeGreaterThan(typography.title.fontSize);
+  });
+
+  it('defines heading for the two-line onboarding/permission titles with a bold weight', () => {
+    expect(typography.heading.fontFamily).toBeTruthy();
+    expect(typography.heading.fontWeight).toBe('700');
+    expect(typography.heading.fontSize).toBeGreaterThan(0);
+  });
+});
 
 describe('isRenderableVietnameseText', () => {
   it('accepts Vietnamese strings using the full range of diacritics used in the app', () => {

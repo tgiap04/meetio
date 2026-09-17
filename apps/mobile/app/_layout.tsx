@@ -3,24 +3,30 @@ import { Slot } from 'expo-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient, wireQueryClientToAppState } from '../src/query/query-client';
 import { useHydrateSession } from '../src/hooks/use-hydrate-session';
+import { useHydratePreferences } from '../src/hooks/use-hydrate-preferences';
+import { useMinimumSplashDelay } from '../src/hooks/use-minimum-splash-delay';
 import { useSessionStore } from '../src/store/session.store';
-import { LoadingState } from '../src/components/loading-state';
+import { usePreferencesStore } from '../src/store/preferences.store';
+import { AppSplash } from '../src/components/splash/app-splash';
 
 /**
- * Root layout. Wires the TanStack Query provider for the whole app and holds
- * the app on a loading screen until the session has finished hydrating from
- * secure storage (US-02) — routing decisions in `(auth)`/`(app)` group layouts
- * assume `authStatus` is no longer `'hydrating'` by the time they run.
+ * Root layout. Wires the TanStack Query provider and holds the app on the
+ * splash (design screen 1) until all three boot-gate conditions clear —
+ * session hydrated, preferences hydrated, and a 900ms floor so the splash
+ * reads as a moment rather than a flicker (decisions.md §1). Only then does
+ * `<Slot/>` mount, so no child route gets the chance to fire a redirect and
+ * be yanked back.
  */
 export default function RootLayout() {
   useHydrateSession();
+  useHydratePreferences();
   const authStatus = useSessionStore((state) => state.authStatus);
+  const preferencesStatus = usePreferencesStore((state) => state.status);
+  const minimumElapsed = useMinimumSplashDelay(900);
 
   useEffect(() => wireQueryClientToAppState(), []);
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      {authStatus === 'hydrating' ? <LoadingState label="Đang khởi động…" /> : <Slot />}
-    </QueryClientProvider>
-  );
+  const isBooting = authStatus === 'hydrating' || preferencesStatus !== 'ready' || !minimumElapsed;
+
+  return <QueryClientProvider client={queryClient}>{isBooting ? <AppSplash /> : <Slot />}</QueryClientProvider>;
 }

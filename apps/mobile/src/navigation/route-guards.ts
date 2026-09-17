@@ -8,6 +8,9 @@ import type { AuthStatus } from '../store/session.store';
  */
 export const LOGIN_ROUTE = '/(auth)/login';
 export const APP_HOME_ROUTE = '/(app)';
+export const ROOT_ROUTE = '/';
+export const ONBOARDING_ROUTE = '/onboarding';
+export const MIC_PERMISSION_ROUTE = '/(app)/permission';
 
 /** `(app)` group: redirect to login unless a session is confirmed authenticated. */
 export function shouldRedirectFromAppGroup(authStatus: AuthStatus): boolean {
