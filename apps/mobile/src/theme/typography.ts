@@ -1,0 +1,57 @@
+import { Platform } from 'react-native';
+
+/**
+ * Font choice for Meetio's mobile shell.
+ *
+ * Decision: use each platform's SYSTEM font (San Francisco on iOS, Roboto on
+ * Android) rather than bundling a custom typeface.
+ *
+ * Why this covers Vietnamese correctly: Vietnamese text needs the base Latin
+ * block plus Latin Extended-A/B and, critically, Latin Extended Additional
+ * (U+1E00–U+1EFF) for the stacked tone-mark + base-diacritic combinations in
+ * letters like "ệ", "ườ", "ấ", "ỡ". Both San Francisco and Roboto ship full
+ * coverage of that block as part of the OS-level font — this is exactly the
+ * shared reason iOS and Android are able to render Vietnamese natively in
+ * every system app without any app bundling its own font. A custom bundled
+ * font is unnecessary complexity here (YAGNI) and risks being the one thing
+ * that HASN'T been checked for full diacritic coverage; the platform default
+ * has already been checked, by the platform vendor, for every OS release.
+ *
+ * What automated tests below verify: that our Vietnamese copy strings are
+ * composed of characters within the Unicode blocks system fonts are known to
+ * cover, i.e. that nothing in this codebase's Vietnamese strings depends on a
+ * glyph outside that guarantee. Actual glyph *rendering* is a platform
+ * concern Jest cannot exercise — that is confirmed by on-device/simulator
+ * visual QA, called out in the hand-back as a manual step.
+ */
+export const fontFamily = Platform.select({
+  ios: 'System',
+  android: 'sans-serif',
+  default: 'System',
+});
+
+export const typography = {
+  title: { fontFamily, fontSize: 24, fontWeight: '600' as const },
+  body: { fontFamily, fontSize: 16, fontWeight: '400' as const },
+  caption: { fontFamily, fontSize: 13, fontWeight: '400' as const },
+  button: { fontFamily, fontSize: 16, fontWeight: '600' as const },
+};
+
+/**
+ * Vietnamese text is well-formed for system-font rendering when every
+ * character falls in the Basic Latin, Latin-1 Supplement, Latin Extended-A/B,
+ * or Latin Extended Additional blocks (the blocks San Francisco and Roboto
+ * guarantee), or is plain whitespace/punctuation.
+ */
+const SUPPORTED_VIETNAMESE_RANGES: Array<[number, number]> = [
+  [0x0000, 0x024f], // Basic Latin + Latin-1 Supplement + Latin Extended-A/B
+  [0x1e00, 0x1eff], // Latin Extended Additional (Vietnamese tone-stacked letters)
+  [0x2010, 0x2027], // General punctuation used in Vietnamese prose (dashes, quotes)
+];
+
+export function isRenderableVietnameseText(text: string): boolean {
+  return Array.from(text).every((char) => {
+    const codePoint = char.codePointAt(0) ?? 0;
+    return SUPPORTED_VIETNAMESE_RANGES.some(([start, end]) => codePoint >= start && codePoint <= end);
+  });
+}
