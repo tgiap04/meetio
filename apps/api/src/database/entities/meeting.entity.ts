@@ -1,0 +1,74 @@
+import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { User } from './user.entity.js';
+import { MeetingStatus } from '../enums/meeting-status.enum.js';
+
+/**
+ * One recorded/processed meeting session. See docs/data-model.md §2.
+ *
+ * The GIN trigram index on `unaccent(lower(title))` (idx_meetings_title_trgm)
+ * is an expression index TypeORM's decorator API cannot express — it is
+ * created with raw SQL in the initial-schema migration, not here.
+ */
+@Entity('meetings')
+@Index('idx_meetings_user_created', ['user_id', 'created_at'], { where: 'deleted_at IS NULL' })
+@Index('idx_meetings_status', ['status'], {
+  where: "status IN ('recording','queued','processing')",
+})
+export class Meeting {
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
+
+  @Column({ name: 'user_id', type: 'uuid' })
+  user_id!: string;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
+
+  @Column({ type: 'text' })
+  title!: string;
+
+  @Column({
+    type: 'enum',
+    enum: MeetingStatus,
+    enumName: 'meeting_status',
+    default: MeetingStatus.RECORDING,
+  })
+  status!: MeetingStatus;
+
+  @Column({ name: 'source_language', type: 'text' })
+  source_language!: string;
+
+  @Column({ name: 'translate_to', type: 'text', nullable: true })
+  translate_to!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  summary!: string | null;
+
+  @Column({ name: 'summary_citations', type: 'jsonb', nullable: true })
+  summary_citations!: unknown[] | null;
+
+  @Column({ name: 'started_at', type: 'timestamptz', nullable: true })
+  started_at!: Date | null;
+
+  @Column({ name: 'ended_at', type: 'timestamptz', nullable: true })
+  ended_at!: Date | null;
+
+  @Column({ name: 'duration_sec', type: 'int', nullable: true })
+  duration_sec!: number | null;
+
+  @Column({ name: 'failure_reason', type: 'text', nullable: true })
+  failure_reason!: string | null;
+
+  @Column({ name: 'last_activity_at', type: 'timestamptz', nullable: true })
+  last_activity_at!: Date | null;
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  created_at!: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  updated_at!: Date;
+
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
+  deleted_at!: Date | null;
+}
