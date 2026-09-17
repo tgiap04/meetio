@@ -26,14 +26,34 @@ const __dirname = dirname(thisFile);
 // to whichever extension this file itself has.
 const migrationExtension = thisFile.endsWith('.ts') ? 'ts' : 'js';
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL is required to build the TypeORM DataSource');
+/**
+ * Throws a readable error when `DATABASE_URL` is missing.
+ *
+ * Deliberately NOT called while this module is being imported. Constructing a
+ * `DataSource` does not open a connection, so nothing here needs the URL until
+ * something actually initializes it — and a module-level throw made merely
+ * *importing* this file fatal. That broke two things:
+ *
+ * - `schema.integration.spec.ts` guards itself with `describe.skip` when there
+ *   is no database, but the guard never ran: the import blew up first, so the
+ *   suite failed instead of skipping.
+ * - `nest start` died before Nest could report the problem itself.
+ *
+ * The entry points that really need a connection (`migrate.ts`, `seed.ts`) call
+ * this first, so they keep the clear message. The running app does not rely on
+ * it: `database.module.ts` validates `DATABASE_URL` in its own factory.
+ */
+export function assertDatabaseUrl(env: NodeJS.ProcessEnv = process.env): string {
+  const url = env.DATABASE_URL;
+  if (!url) {
+    throw new Error('DATABASE_URL is required to build the TypeORM DataSource');
+  }
+  return url;
 }
 
 /**
- * The single TypeORM DataSource for the API, used both by the Nest module
- * and the `typeorm` CLI (migration:run / migration:revert / seed).
+ * The single TypeORM DataSource for the API, used by the migration runner and
+ * the seed script.
  *
  * `synchronize: false` is permanent — see phase-02-database-schema.md and
  * docs/data-model.md. TypeORM's schema sync does not know the HNSW indexes
@@ -41,7 +61,7 @@ if (!databaseUrl) {
  */
 export const AppDataSource = new DataSource({
   type: 'postgres',
-  url: databaseUrl,
+  url: process.env.DATABASE_URL,
   synchronize: false,
   migrationsRun: false,
   logging: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],

@@ -1,7 +1,7 @@
 import 'reflect-metadata';
-// Must precede every import that reads process.env — see load-env.ts.
-// `database/data-source.ts` throws during module evaluation if DATABASE_URL is
-// missing, which happens before Nest constructs anything.
+// Loads the workspace .env before anything reads process.env — see load-env.ts.
+// ConfigModule resolves its envFilePath against the CWD, which is apps/api under
+// `nest start`, where no .env exists.
 import './load-env.js';
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';

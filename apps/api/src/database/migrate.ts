@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { AppDataSource, registerPgVectorTypes } from './data-source.js';
+import { AppDataSource, assertDatabaseUrl, registerPgVectorTypes } from './data-source.js';
 
 /**
  * Thin migration runner used by `yarn migration:run` / `yarn migration:revert`.
@@ -15,6 +15,9 @@ async function main(): Promise<void> {
   if (direction !== 'up' && direction !== 'down') {
     throw new Error("Usage: tsx src/database/migrate.ts <up|down>");
   }
+
+  // Fail with a readable message before TypeORM reports a vaguer connection error.
+  assertDatabaseUrl();
 
   await AppDataSource.initialize();
   await registerPgVectorTypes(AppDataSource);

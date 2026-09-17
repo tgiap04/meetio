@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import argon2 from 'argon2';
-import { AppDataSource, registerPgVectorTypes } from './data-source.js';
+import { AppDataSource, assertDatabaseUrl, registerPgVectorTypes } from './data-source.js';
 import { User } from './entities/user.entity.js';
 import { Meeting } from './entities/meeting.entity.js';
 import { TranscriptSegment } from './entities/transcript-segment.entity.js';
@@ -33,6 +33,8 @@ function seedEmbedding(seed: string): number[] {
 }
 
 async function seed(): Promise<void> {
+  assertDatabaseUrl();
+
   await AppDataSource.initialize();
   await registerPgVectorTypes(AppDataSource);
 

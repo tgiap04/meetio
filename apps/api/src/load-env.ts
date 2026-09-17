@@ -12,13 +12,14 @@ import { fileURLToPath } from 'node:url';
  *   where node never sees it.
  * - `NODE_OPTIONS=--env-file=…` is rejected outright: node answers
  *   "--env-file= is not allowed in NODE_OPTIONS".
- * - `ConfigModule.forRoot()` is too late. `database/data-source.ts` reads
- *   `DATABASE_URL` while the module graph is still being *imported*, long before
- *   Nest constructs any provider — which is exactly where `nest start --watch`
- *   used to die with "DATABASE_URL is required to build the TypeORM DataSource".
+ * - `ConfigModule.forRoot({ envFilePath: '.env' })` resolves that path against
+ *   the process CWD. Under `nest start` the CWD is `apps/api`, which has no
+ *   `.env` — the workspace one lives at the repo root — so Nest comes up with no
+ *   configuration at all and fails on the first provider that needs it.
  *
- * So the load has to happen as the first thing the process does. Import this
- * module before anything that touches `process.env`.
+ * So the load happens as the first thing the process does, resolved from this
+ * module's own location rather than the CWD. Import it before anything that
+ * touches `process.env`.
  *
  * `process.loadEnvFile()` never overwrites a variable that is already set, so the
  * precedence stays **real environment > workspace `.env`**. A deployed container

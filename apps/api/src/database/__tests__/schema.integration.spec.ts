@@ -11,10 +11,20 @@ import { MeetingStatus } from '../enums/meeting-status.enum.js';
 import { EntityType } from '../enums/entity-type.enum.js';
 
 /**
- * Runs against the real Postgres started by `docker compose up -d` — no
- * mocks, per phase-02-database-schema.md. Skips (rather than fails) when
- * DATABASE_URL isn't reachable, so `yarn test` still works offline for the
- * rest of the suite.
+ * Runs against the real Postgres started by `make up` — no mocks, per
+ * phase-02-database-schema.md.
+ *
+ * Skips when `DATABASE_URL` is unset, so `yarn test` still works for the rest
+ * of the suite without a database configured.
+ *
+ * A `DATABASE_URL` that is set but unreachable deliberately FAILS rather than
+ * skips. Saying where the database is and being wrong is a real problem: in CI
+ * it would mean the service container never came up, and silently skipping
+ * would turn that into a green build that tested nothing.
+ *
+ * The guard only works because `data-source.ts` no longer throws while being
+ * imported — it used to, which made this suite fail before `describe.skip`
+ * could run at all.
  */
 const hasDb = Boolean(process.env.DATABASE_URL);
 const maybeDescribe = hasDb ? describe : describe.skip;
