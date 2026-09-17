@@ -1,4 +1,4 @@
-# GraphMeet — Đặc tả API
+# Meetio — Đặc tả API
 
 **Base URL:** `/api` · **Xác thực:** Bearer JWT trên mọi endpoint trừ mục 1  
 **Cập nhật:** 2026-09-17  
@@ -41,10 +41,14 @@ Access token sống 15 phút, refresh token 60 ngày và xoay vòng mỗi lần 
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| GET | `/users/me` | Hồ sơ, cài đặt lưu trữ, mức tiêu thụ tháng hiện tại |
+| GET | `/users/me` | Hồ sơ, cài đặt lưu trữ, **cài đặt thông báo**, mức tiêu thụ tháng hiện tại |
 | PATCH | `/users/me` | Sửa `display_name`, `retention_days`, cài đặt thông báo |
 | POST | `/users/me/consent` | Ghi nhận mốc đồng ý ghi âm ([US-04](../user_stories.md#us-04--thông-báo-và-ghi-nhận-sự-đồng-ý-ghi-âm)) |
 | DELETE | `/users/me` | Body `{password}`. Đặt `deleted_at`, xóa vật lý sau 30 ngày |
+
+`GET /users/me` **phải** trả `notification_settings` cùng với hồ sơ. Bản trước cho `PATCH` ghi cài
+đặt thông báo nhưng không có đường đọc lại — màn hình cài đặt buộc phải đoán giá trị mặc định thay
+vì hiển thị đúng thứ server đang giữ. Mọi trường `PATCH` sửa được thì `GET` phải đọc lại được.
 
 ---
 
@@ -173,9 +177,11 @@ chưa thực sự an toàn.
 
 | Mã | HTTP | Khi nào |
 |----|------|---------|
+| `VALIDATION_ERROR` | 400 | Body hoặc query không hợp lệ. `details` chứa lỗi theo từng field |
 | `UNAUTHORIZED` | 401 | Thiếu hoặc sai token |
 | `TOKEN_EXPIRED` | 401 | Access token hết hạn — client tự refresh |
-| `MEETING_NOT_FOUND` | 404 | Không tồn tại **hoặc** không thuộc sở hữu |
+| `MEETING_NOT_FOUND` | 404 | Cuộc họp không tồn tại **hoặc** không thuộc sở hữu |
+| `NOT_FOUND` | 404 | Tài nguyên khác không tồn tại, hoặc route không khớp. **Mặc định cho mọi 404 chưa phân loại** |
 | `INVALID_STATE_TRANSITION` | 409 | Ví dụ gọi `end` trên cuộc họp đã `ended` |
 | `SEGMENTS_PENDING` | 409 | Gọi `end` khi còn segment chưa đồng bộ |
 | `MEETING_NOT_READY` | 409 | Hỏi đáp trên cuộc họp chưa xử lý xong |
@@ -183,6 +189,13 @@ chưa thực sự an toàn.
 | `QUOTA_EXCEEDED` | 429 | Vượt hạn mức token tháng ([NFR-07](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)) |
 | `RATE_LIMITED` | 429 | Quá tần suất cho phép |
 | `AI_SERVICE_UNAVAILABLE` | 503 | Nhà cung cấp AI lỗi — có thể thử lại |
+| `INTERNAL_ERROR` | 500 | Lỗi không lường trước. **Mặc định cho mọi lỗi chưa phân loại** |
+
+**Quy tắc mã mặc định.** Mã theo miền nghiệp vụ (`MEETING_NOT_FOUND`, `PROCESSING_FAILED`,
+`SEGMENTS_PENDING`…) chỉ được phát khi tầng nghiệp vụ **chủ động** ném ra. Bộ lọc ngoại lệ toàn cục
+không bao giờ được đoán mã theo miền từ HTTP status — 404 chưa phân loại là `NOT_FOUND`, không phải
+`MEETING_NOT_FOUND`; lỗi chưa phân loại là `INTERNAL_ERROR`, không phải `PROCESSING_FAILED`.
+Đoán sai mã khiến client đi nhầm nhánh xử lý: báo "pipeline lỗi" trong khi thực ra server sập.
 
 ---
 

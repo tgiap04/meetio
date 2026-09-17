@@ -1,4 +1,4 @@
-# GraphMeet — Kiến trúc hệ thống
+# Meetio — Kiến trúc hệ thống
 
 **Cập nhật:** 2026-09-17  
 **Liên quan:** [User Stories](../user_stories.md) · [Mô hình dữ liệu](data-model.md) · [Đặc tả API](api-spec.md)

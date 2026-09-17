@@ -25,8 +25,12 @@ lần/phút/IP cho nhóm `/auth/*`.
 Module `AuthModule` + `UsersModule`. Chiến lược JWT của Passport cho access token; refresh token lưu
 dạng băm trong bảng riêng và **xoay vòng mỗi lần dùng** (dùng lại token cũ → thu hồi cả chuỗi).
 
-Phân quyền theo chủ sở hữu hiện thực bằng một lớp repository cơ sở: mọi truy vấn cuộc họp bắt buộc
-nhận `userId` làm tham số. Không có đường nào truy vấn mà quên lọc, vì chữ ký hàm không cho phép.
+Phân quyền theo chủ sở hữu hiện thực bằng một lớp repository cơ sở bọc TypeORM `Repository<T>`: mọi
+truy vấn cuộc họp bắt buộc nhận `userId` làm tham số. Không có đường nào truy vấn mà quên lọc, vì
+chữ ký hàm không cho phép.
+
+DTO của `/auth/*` và `/users/me` nằm trong `apps/api`, `implements` interface tương ứng ở
+`packages/shared`, và mang `@ApiProperty()` + `class-validator` — xem [Phase 01](phase-01-monorepo-foundation.md).
 
 ## File liên quan
 **Tạo:** `apps/api/src/auth/` (module, service, controller, chiến lược, guard) ·
@@ -37,7 +41,8 @@ nhận `userId` làm tham số. Không có đường nào truy vấn mà quên l
 ## Các bước thực hiện
 1. `AuthService`: đăng ký, đăng nhập, refresh có xoay vòng, đăng xuất. Băm argon2id.
 2. Chiến lược JWT + `JwtAuthGuard` gắn toàn cục, trừ nhóm `/auth/*`.
-3. `ScopedRepository`: lớp cơ sở ép mọi truy vấn mang `userId`; các module sau kế thừa từ đây.
+3. `ScopedRepository`: lớp cơ sở bọc TypeORM `Repository<T>`, ép mọi truy vấn mang `userId`; các
+   module sau kế thừa từ đây. Không expose `Repository` gốc ra ngoài.
 4. Bộ lọc ngoại lệ chuyển lỗi quyền sở hữu thành `404 MEETING_NOT_FOUND`, đồng thời ghi log cảnh báo.
 5. `UsersController`: xem/sửa hồ sơ, ghi nhận đồng ý, đặt `retention_days`.
 6. Xóa tài khoản: xác nhận mật khẩu → đặt `deleted_at` → chặn đăng nhập ngay lập tức.
@@ -65,7 +70,7 @@ nhận `userId` làm tham số. Không có đường nào truy vấn mà quên l
 ## Rủi ro
 | Rủi ro | Đối sách |
 |--------|----------|
-| Module sau quên dùng ScopedRepository | Quy tắc lint cấm gọi thẳng Prisma client ngoài lớp repository |
+| Module sau quên dùng ScopedRepository | Quy tắc lint cấm inject `Repository<T>` / gọi `getRepository` của TypeORM ngoài tầng repository |
 | Refresh token bị đánh cắp | Xoay vòng + phát hiện dùng lại → thu hồi cả chuỗi |
 | Xóa tài khoản không dọn hết dữ liệu | Test đếm số dòng còn lại trên mọi bảng sau khi xóa |
 

@@ -15,6 +15,11 @@ Cắt transcript thành chunk, nhúng vector, và mở tìm kiếm ngữ nghĩa 
   Phase 14 và 15 đều vô nghĩa.
 - Chồng lấn giữa các chunk giữ cho câu bị cắt ngang không mất ngữ cảnh.
 - Lọc `user_id` phải nằm **trong** câu lệnh tìm vector, không phải lọc sau khi đã lấy kết quả về.
+- **⚠️ Mang từ Phase 02: planner KHÔNG tự chọn index HNSW ở quy mô nhỏ.** Đo thật trên 10.003 chunk:
+  planner chọn `Seq Scan` (20,7ms); ép `enable_seqscan=off` thì dùng `Index Scan using
+  idx_chunks_embedding` (**0,245ms — nhanh hơn 80 lần**). Seq scan tăng tuyến tính, nên 1 triệu chunk
+  sẽ mất khoảng 2 giây. **Mọi phép đo hiệu năng vector ở phase này phải khẳng định `EXPLAIN` hiện
+  `Index Scan`, không chỉ đo thời gian** — xem [Phase 02](phase-02-database-schema.md).
 
 ## Yêu cầu
 **Chức năng:** cắt chunk theo token có chồng lấn; nhúng theo lô; endpoint tìm kiếm ngữ nghĩa xuyên

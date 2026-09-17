@@ -9,17 +9,30 @@ blockedBy: []
 blocks: []
 ---
 
-# GraphMeet — Kế hoạch triển khai
+# Meetio — Kế hoạch triển khai
 
 Xây dựng trọn vẹn ứng dụng trợ lý phòng họp AI: ghi âm + nhận diện giọng nói thời gian thực trên
 thiết bị, pipeline GraphRAG phía backend, hỏi đáp có trích dẫn nguồn xuyên nhiều cuộc họp.
 
 **Nguồn đặc tả:** [user_stories.md](../../user_stories.md) (41 stories / 6 epics) ·
 [Kiến trúc](../../docs/system-architecture.md) · [Mô hình dữ liệu](../../docs/data-model.md) ·
-[API](../../docs/api-spec.md) · [Biên bản tư vấn](../reports/brainstorm-2026-09-17-user-stories-review.md)
+[API](../../docs/api-spec.md) · [Biên bản rà soát stories](../reports/brainstorm-2026-09-17-user-stories-review.md) ·
+[Biên bản chốt stack](../reports/brainstorm-2026-09-17-codebase-stack-and-scaffold.md) ·
+[Kiểm chứng stack](../reports/researcher-2026-09-17-stack-verification.md)
 
-**Hiện trạng:** greenfield — repo chưa có dòng code nào.
-**Stack:** Expo/React Native · NestJS · PostgreSQL + pgvector · BullMQ/Redis · Google Gemini.
+**Hiện trạng:** Bộ khung chạy được đã hoàn tất — Phase 01, 02, 03, 06 xong và kiểm chứng độc lập.
+**85 test xanh** (54 API + 31 mobile). Đăng ký/đăng nhập/xoay vòng token chạy thật đầu-cuối;
+13 bảng + index HNSW trên Postgres thật; Swagger phục vụ 7 nhóm endpoint.
+**Tiếp theo:** Phase 04 (API vòng đời cuộc họp) và Phase 00 (spike STT — cổng chặn Phase 07).
+**Stack:** yarn 4 workspaces (`nodeLinker: node-modules`) · monorepo `apps/api` + `apps/mobile` +
+`packages/shared` · **NestJS 12 (ESM thuần)** + TypeORM + `@nestjs/swagger` · Expo/React Native + axios + TanStack
+Query + Zustand · PostgreSQL 15 + pgvector · BullMQ/Redis · Google Gemini.
+
+**Bất biến của stack** (chốt ở [biên bản chốt stack](../reports/brainstorm-2026-09-17-codebase-stack-and-scaffold.md)):
+`packages/shared` chỉ chứa kiểu, **0 runtime dependency** · DTO class nằm trong `apps/api` và
+`implements` interface của shared · TypeORM `synchronize: false` vĩnh viễn · JSON giữ `snake_case`
+đúng api-spec · Zustand không bao giờ giữ dữ liệu server · **bộ lọc ngoại lệ không bao giờ đoán mã
+theo miền từ HTTP status** (api-spec §9).
 
 ---
 
@@ -38,12 +51,12 @@ chạy song song được ngay.
 | # | Phase | Phụ thuộc | Stories | Trạng thái |
 |---|-------|-----------|---------|------------|
 | 00 | [Spike khả thi STT](phase-00-spike-stt-feasibility.md) — **GATE** | — | US-11 | ⬜ pending |
-| 01 | [Nền tảng monorepo & CI](phase-01-monorepo-foundation.md) | — | — | ⬜ pending |
-| 02 | [Schema cơ sở dữ liệu](phase-02-database-schema.md) | 01 | — | ⬜ pending |
-| 03 | [Xác thực & tài khoản](phase-03-auth-and-account.md) | 02 | US-01→06 | ⬜ pending |
+| 01 | [Nền tảng monorepo & CI](phase-01-monorepo-foundation.md) | — | — | ✅ **xong** |
+| 02 | [Schema cơ sở dữ liệu](phase-02-database-schema.md) | 01 | — | ✅ **xong** (kèm cảnh báo HNSW) |
+| 03 | [Xác thực & tài khoản](phase-03-auth-and-account.md) | 02 | US-01→06 | ✅ **xong** |
 | 04 | [API vòng đời cuộc họp](phase-04-meeting-lifecycle-api.md) | 03 | US-07,09,16 | ⬜ pending |
 | 05 | [Gateway transcript realtime](phase-05-realtime-transcript-gateway.md) | 04 | US-14 (server) | ⬜ pending |
-| 06 | [Nền tảng mobile](phase-06-mobile-foundation.md) | 03 | US-02,04 | ⬜ pending |
+| 06 | [Nền tảng mobile](phase-06-mobile-foundation.md) | 03 | US-02,04 | ✅ **xong** (trừ 3 mục hoãn sang 03/07) |
 | 07 | [Ghi âm & nhận diện](phase-07-recording-and-stt.md) | **00**, 05, 06 | US-07→13,16 | ⬜ pending |
 | 08 | [Hàng đợi ngoại tuyến & phục hồi](phase-08-offline-queue-and-recovery.md) | 07 | US-14,15 | ⬜ pending |
 | 09 | [Dịch song song](phase-09-translation-pipeline.md) | 05, 07 | US-17→19 | ⬜ pending |

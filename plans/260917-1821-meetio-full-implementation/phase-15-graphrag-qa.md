@@ -15,6 +15,11 @@ Tính năng khác biệt của sản phẩm: hỏi bằng ngôn ngữ tự nhiê
   thì chẳng khác gì RAG thường, và phần "Graph" thành thừa.
 - **Không có ngữ cảnh thì không gọi LLM.** Gọi rồi bảo nó "đừng bịa" là đặt cược vào lời hứa của mô hình.
 - Trích dẫn là bắt buộc, không phải trang trí. Câu trả lời không dẫn được nguồn phải bị hạ độ tin cậy.
+- **⚠️ Mang từ Phase 02: planner KHÔNG tự chọn index HNSW ở quy mô nhỏ.** Đo thật trên 10.003 chunk:
+  planner chọn `Seq Scan` (20,7ms); ép `enable_seqscan=off` thì dùng `Index Scan using
+  idx_chunks_embedding` (**0,245ms — nhanh hơn 80 lần**). Seq scan tăng tuyến tính, nên 1 triệu chunk
+  sẽ mất khoảng 2 giây. **Mọi phép đo hiệu năng vector ở phase này phải khẳng định `EXPLAIN` hiện
+  `Index Scan`, không chỉ đo thời gian** — xem [Phase 02](phase-02-database-schema.md).
 
 ## Yêu cầu
 **Chức năng:** hỏi trong một cuộc họp; hỏi xuyên cuộc họp có lọc thời gian và lọc theo thực thể; giữ

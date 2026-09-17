@@ -21,32 +21,49 @@ Bộ khung app: điều hướng, client API, lưu trữ an toàn, luồng xác 
 **Phi chức năng:** khởi động lạnh dưới 2 giây; hoạt động tốt với tiếng Việt có dấu.
 
 ## Kiến trúc
-Expo Router với hai nhóm route: `(auth)` và `(app)`. TanStack Query cho trạng thái từ server,
-Zustand cho trạng thái phiên ghi cục bộ.
+Expo Router với hai nhóm route: `(auth)` và `(app)`.
 
-Client API là một lớp bọc `fetch` có interceptor: gắn access token, bắt `401 TOKEN_EXPIRED`, refresh
-một lần rồi thử lại. Các request đồng thời cùng gặp 401 phải dùng chung **một** lượt refresh duy
-nhất — không thì sẽ có nhiều lượt xoay vòng token đá nhau.
+**Ba tầng, ranh giới không được lẫn:**
+
+| Tầng | Công cụ | Giữ cái gì |
+|------|---------|-----------|
+| Vận chuyển | **axios** | instance + interceptor; không giữ state |
+| Dữ liệu server | **TanStack Query v5** | cache, dedup, `useInfiniteQuery`, invalidation |
+| State cục bộ | **Zustand** | phiên ghi (seq counter, hàng đợi local, trạng thái mic, gap), token auth |
+
+**Zustand không bao giờ giữ dữ liệu server.** Vi phạm ranh giới này là mở đường cho hai nguồn sự
+thật về cùng một cuộc họp.
+
+Client API là một axios instance có interceptor: request gắn access token; response bắt
+`401 TOKEN_EXPIRED`, refresh một lần rồi thử lại. Các request đồng thời cùng gặp 401 phải dùng chung
+**một** promise refresh duy nhất (single-flight) — không thì sẽ có nhiều lượt xoay vòng token đá nhau.
+
+Kiểu request/response import trực tiếp từ `@meetio/shared` — không khai lại, không sinh lại.
 
 ## File liên quan
-**Tạo:** `apps/mobile/app/(auth)/` · `apps/mobile/app/(app)/` · `apps/mobile/src/api/client.ts` ·
-`src/api/auth.ts` · `src/store/session.ts` · `src/storage/secure-store.ts` ·
+**Tạo:** `apps/mobile/app/(auth)/` · `apps/mobile/app/(app)/` ·
+`apps/mobile/src/api/axios-client.ts` (instance + interceptor) · `src/api/refresh-single-flight.ts` ·
+`src/api/auth.ts` · `src/query/query-client.ts` (TanStack provider + `onlineManager`/`AppState`) ·
+`src/store/session.store.ts` (Zustand) · `src/storage/secure-store.ts` ·
 `src/components/` (nút, ô nhập, trạng thái rỗng, trạng thái lỗi) · `src/theme/`
 
 ## Các bước thực hiện
 1. Bố cục Expo Router, phân nhánh theo trạng thái đăng nhập.
 2. `secure-store.ts` bọc `expo-secure-store` để lưu và đọc token.
-3. Client API + interceptor refresh, gom các lượt refresh đồng thời về một.
-4. Màn hình đăng ký / đăng nhập, xử lý lỗi theo bảng mã ở [api-spec §9](../../docs/api-spec.md#9-mã-lỗi).
-5. Màn hình đồng ý ghi âm: giải thích dữ liệu đi đâu, gọi `POST /users/me/consent`.
-6. Màn hình cài đặt: hồ sơ, chính sách lưu trữ, bật/tắt thông báo, xóa tài khoản.
-7. Bộ component dùng chung: trạng thái tải, trạng thái rỗng, trạng thái lỗi có nút thử lại.
-8. Chọn phông chữ hiển thị đúng đủ dấu tiếng Việt, kiểm trên cả hai nền tảng.
+3. axios instance + interceptor refresh, gom các lượt refresh đồng thời về một promise.
+4. `QueryClientProvider` của TanStack Query; nối `onlineManager` với `AppState` của React Native.
+5. Màn hình đăng ký / đăng nhập, xử lý lỗi theo bảng mã ở [api-spec §9](../../docs/api-spec.md#9-mã-lỗi).
+6. Màn hình đồng ý ghi âm: giải thích dữ liệu đi đâu, gọi `POST /users/me/consent`.
+7. Màn hình cài đặt: hồ sơ, chính sách lưu trữ, bật/tắt thông báo, xóa tài khoản.
+8. Bộ component dùng chung: trạng thái tải, trạng thái rỗng, trạng thái lỗi có nút thử lại.
+9. Chọn phông chữ hiển thị đúng đủ dấu tiếng Việt, kiểm trên cả hai nền tảng.
 
 ## Todo
 - [ ] Bố cục Expo Router + phân nhánh xác thực
 - [ ] Lưu trữ an toàn cho token
-- [ ] Client API + interceptor refresh gom lượt
+- [ ] axios instance + interceptor refresh gom lượt
+- [ ] TanStack Query provider + nối AppState/onlineManager
+- [ ] Zustand session store (chỉ state cục bộ, không dữ liệu server)
 - [ ] Màn hình đăng ký / đăng nhập
 - [ ] Màn hình đồng ý ghi âm
 - [ ] Màn hình cài đặt (lưu trữ, thông báo, xóa tài khoản)
@@ -57,6 +74,7 @@ nhất — không thì sẽ có nhiều lượt xoay vòng token đá nhau.
 - Đăng nhập rồi đóng app, mở lại vẫn ở trạng thái đăng nhập.
 - Access token hết hạn được refresh im lặng, người dùng không thấy gì.
 - Ba request đồng thời cùng gặp 401 chỉ tạo ra một lượt refresh.
+- Không có store Zustand nào giữ dữ liệu trả về từ API.
 - Không thể vào nhóm route `(app)` khi chưa đăng nhập.
 - Nút Bắt đầu bị khóa cho tới khi người dùng xác nhận đồng ý ghi âm.
 

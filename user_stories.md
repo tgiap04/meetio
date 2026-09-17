@@ -1,6 +1,6 @@
-# GraphMeet — User Stories
+# Meetio — User Stories
 
-**Dự án:** GraphMeet — Trợ lý phòng họp AI  
+**Dự án:** Meetio — Trợ lý phòng họp AI  
 **Nền tảng:** Mobile App (Android & iOS)  
 **Cập nhật:** 2026-09-17
 

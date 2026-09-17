@@ -24,7 +24,8 @@ từng đoạn; đổi tiêu đề; xóa có hoàn tác 10 giây; xuất Markdow
 Server: endpoint `PATCH /segments/:id` đánh dấu `is_edited`, xác định các chunk bị ảnh hưởng qua
 `segment_start_seq`/`segment_end_seq`, và xếp việc chạy lại có phạm vi.
 
-Client: danh sách dùng TanStack Query có phân trang vô hạn. Xuất PDF render từ HTML bằng
+Client: danh sách dùng TanStack Query `useInfiniteQuery` trên axios client của
+[Phase 06](phase-06-mobile-foundation.md), phân trang con trỏ theo `next_cursor`. Xuất PDF render từ HTML bằng
 `expo-print`, chia sẻ bằng cơ chế sẵn có của hệ điều hành — file không đi qua bất kỳ nơi lưu trữ nào.
 
 ## File liên quan
