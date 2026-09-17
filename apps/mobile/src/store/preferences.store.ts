@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import type { DevicePreferences } from '../storage/device-preferences';
-import { writeMicPromptSeen, writeOnboardingCompleted } from '../storage/device-preferences';
+import {
+  clearDevicePreferences,
+  writeMicPromptSeen,
+  writeOnboardingCompleted,
+} from '../storage/device-preferences';
 
 /**
  * Zustand preferences store — DEVICE-LOCAL STATE ONLY.
@@ -20,6 +24,7 @@ interface PreferencesState {
   finishHydration: (prefs: DevicePreferences) => void;
   markOnboardingCompleted: () => void;
   markMicPromptSeen: () => void;
+  reset: () => Promise<void>;
 }
 
 export const usePreferencesStore = create<PreferencesState>((set) => ({
@@ -43,5 +48,20 @@ export const usePreferencesStore = create<PreferencesState>((set) => ({
   markMicPromptSeen: () => {
     set({ micPromptSeen: true });
     writeMicPromptSeen().catch(() => {});
+  },
+  /**
+   * Sends the app back to the top of the flow: onboarding, then the mic
+   * prompt. State flips synchronously for the same reason as the `mark*`
+   * actions — the caller navigates to `/` immediately after, and
+   * `resolveBootstrapRoute` reads this state, not the Keychain.
+   *
+   * The returned promise is deliberately NOT swallowed here, unlike the
+   * `mark*` writes. Those fail harmlessly (a screen shows once more); a failed
+   * delete leaves the flags set, so the reset silently un-does itself on the
+   * next launch. The caller is the only one who can report that.
+   */
+  reset: () => {
+    set({ onboardingCompleted: false, micPromptSeen: false });
+    return clearDevicePreferences();
   },
 }));

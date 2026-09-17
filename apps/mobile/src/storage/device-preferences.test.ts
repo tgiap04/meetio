@@ -1,4 +1,9 @@
-import { readDevicePreferences, writeMicPromptSeen, writeOnboardingCompleted } from './device-preferences';
+import {
+  clearDevicePreferences,
+  readDevicePreferences,
+  writeMicPromptSeen,
+  writeOnboardingCompleted,
+} from './device-preferences';
 
 const secureStore = jest.requireMock('expo-secure-store') as {
   getItemAsync: jest.Mock<Promise<string | null>, [string]>;
@@ -46,3 +51,31 @@ describe('device-preferences', () => {
   });
 });
 
+describe('clearDevicePreferences', () => {
+  it('sends a fully-onboarded device back to both false', async () => {
+    await writeOnboardingCompleted();
+    await writeMicPromptSeen();
+
+    await clearDevicePreferences();
+
+    await expect(readDevicePreferences()).resolves.toEqual({
+      onboardingCompleted: false,
+      micPromptSeen: false,
+    });
+  });
+
+  it('is a no-op on a device that never completed onboarding', async () => {
+    await expect(clearDevicePreferences()).resolves.toBeUndefined();
+  });
+
+  it('rejects rather than reporting a success it did not achieve', async () => {
+    // A swallowed failure here is the worst outcome: the caller navigates to
+    // onboarding, the flag stays in the Keychain, and the next launch skips it
+    // again with nothing to explain why.
+    secureStore.deleteItemAsync.mockImplementationOnce(() =>
+      Promise.reject(new Error('keychain unavailable')),
+    );
+
+    await expect(clearDevicePreferences()).rejects.toThrow('keychain unavailable');
+  });
+});

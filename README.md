@@ -117,6 +117,23 @@ make app-ios       # rebuild and reinstall on the device
 
 Swagger UI: <http://localhost:3000/api/docs>
 
+### Replaying onboarding
+
+The onboarding and microphone-permission screens each set a flag in
+`expo-secure-store`, so they show once per device and never again. On iOS that store
+is the **Keychain, which survives deleting the app** — reinstalling does not bring the
+screens back. (Android keeps them in `EncryptedSharedPreferences`, which the uninstall
+does wipe, so the two platforms behave differently here.)
+
+Development builds therefore carry a dashed **"Đặt lại onboarding (DEV)"** button on
+the login and settings screens — the two screens reachable once the flow is done,
+signed out and signed in respectively. It clears both flags and replaces to `/`, and
+the bootstrap resolver sends you back to the start of the flow.
+
+The button is behind `__DEV__`, which Metro substitutes and dead-code eliminates, so
+it cannot reach a release build; `src/components/dev/dev-reset-button.test.tsx` asserts
+that it renders nothing when the flag is false.
+
 ### Swagger access (`SWAGGER_ENABLED`)
 
 Swagger publishes every route, schema and auth scheme, so serving it is opt-in and

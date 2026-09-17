@@ -1,19 +1,26 @@
 jest.mock('../storage/device-preferences', () => ({
   writeOnboardingCompleted: jest.fn(),
   writeMicPromptSeen: jest.fn(),
+  clearDevicePreferences: jest.fn(),
 }));
 
-import { writeMicPromptSeen, writeOnboardingCompleted } from '../storage/device-preferences';
+import {
+  clearDevicePreferences,
+  writeMicPromptSeen,
+  writeOnboardingCompleted,
+} from '../storage/device-preferences';
 import { usePreferencesStore } from './preferences.store';
 
 const mockedWriteOnboarding = writeOnboardingCompleted as jest.Mock;
 const mockedWriteMicPrompt = writeMicPromptSeen as jest.Mock;
+const mockedClear = clearDevicePreferences as jest.Mock;
 
 describe('usePreferencesStore', () => {
   beforeEach(() => {
     usePreferencesStore.setState({ status: 'hydrating', onboardingCompleted: false, micPromptSeen: false });
     mockedWriteOnboarding.mockReset().mockResolvedValue(undefined);
     mockedWriteMicPrompt.mockReset().mockResolvedValue(undefined);
+    mockedClear.mockReset().mockResolvedValue(undefined);
   });
 
   it('starts in the hydrating status', () => {
@@ -69,4 +76,35 @@ describe('usePreferencesStore', () => {
     expect(usePreferencesStore.getState().micPromptSeen).toBe(true);
   });
 
+  it('reset clears both flags synchronously and wipes the stored values', () => {
+    usePreferencesStore.setState({ onboardingCompleted: true, micPromptSeen: true });
+
+    usePreferencesStore.getState().reset();
+
+    // Asserted before any await: `app/index.tsx` routes off this state, so it
+    // has to be right the instant reset returns.
+    expect(usePreferencesStore.getState()).toMatchObject({
+      onboardingCompleted: false,
+      micPromptSeen: false,
+    });
+    expect(mockedClear).toHaveBeenCalledTimes(1);
+  });
+
+  it('reset leaves the status alone, so the app never drops back to the splash', () => {
+    usePreferencesStore.setState({ status: 'ready', onboardingCompleted: true });
+
+    usePreferencesStore.getState().reset();
+
+    expect(usePreferencesStore.getState().status).toBe('ready');
+  });
+
+  it('reset surfaces a failed delete instead of swallowing it like the mark* writes', async () => {
+    mockedClear.mockRejectedValue(new Error('keychain unavailable'));
+    usePreferencesStore.setState({ onboardingCompleted: true });
+
+    // The mark* actions swallow; this one must not — a reset that silently
+    // fails to persist un-does itself on the next launch.
+    await expect(usePreferencesStore.getState().reset()).rejects.toThrow('keychain unavailable');
+    expect(usePreferencesStore.getState().onboardingCompleted).toBe(false);
+  });
 });

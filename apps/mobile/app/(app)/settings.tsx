@@ -7,6 +7,7 @@ import {
 } from '../../src/hooks/use-account-mutations';
 import { useLogoutMutation } from '../../src/hooks/use-auth-mutations';
 import { getErrorMessage } from '../../src/api/error-messages';
+import { DevResetButton } from '../../src/components/dev/dev-reset-button';
 import { LoadingState } from '../../src/components/loading-state';
 import { ErrorState } from '../../src/components/error-state';
 import { PrimaryButton } from '../../src/components/primary-button';
@@ -110,6 +111,8 @@ export default function SettingsScreen() {
           onPress={handleDeleteAccount}
         />
       </View>
+
+      <DevResetButton />
     </ScrollView>
   );
 }

@@ -51,3 +51,22 @@ export async function writeMicPromptSeen(): Promise<void> {
   await SecureStore.setItemAsync(MIC_PROMPT_SEEN_KEY, TRUE_VALUE);
 }
 
+/**
+ * Deletes both flags, sending the next boot back to the start of the flow.
+ *
+ * This is the only way back to onboarding on iOS: `expo-secure-store` is backed
+ * by the Keychain there, and Keychain items SURVIVE app deletion — reinstalling
+ * does not clear them. (Android uses EncryptedSharedPreferences, which is wiped
+ * with the app data, so uninstalling does reset it on that platform. The
+ * asymmetry is the reason this function exists rather than "just reinstall".)
+ *
+ * Unlike `readDevicePreferences`, this one rejects on failure. A silent failure
+ * would tell the caller the reset worked while the flags stay in the Keychain,
+ * and they would be stuck again on the next launch with no signal why.
+ */
+export async function clearDevicePreferences(): Promise<void> {
+  await Promise.all([
+    SecureStore.deleteItemAsync(ONBOARDING_COMPLETED_KEY),
+    SecureStore.deleteItemAsync(MIC_PROMPT_SEEN_KEY),
+  ]);
+}

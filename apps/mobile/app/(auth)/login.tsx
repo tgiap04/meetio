@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { useLoginMutation } from '../../src/hooks/use-auth-mutations';
 import { getErrorMessage } from '../../src/api/error-messages';
+import { DevResetButton } from '../../src/components/dev/dev-reset-button';
 import { PrimaryButton } from '../../src/components/primary-button';
 import { TextField } from '../../src/components/text-field';
 import { colors } from '../../src/theme/colors';
@@ -44,6 +45,8 @@ export default function LoginScreen() {
       <Link href="/(auth)/register" style={styles.link}>
         Chưa có tài khoản? Đăng ký
       </Link>
+
+      <DevResetButton />
     </View>
   );
 }
