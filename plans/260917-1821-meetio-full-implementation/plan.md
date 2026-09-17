@@ -18,10 +18,11 @@ thiết bị, pipeline GraphRAG phía backend, hỏi đáp có trích dẫn ngu�
 [Kiến trúc](../../docs/system-architecture.md) · [Mô hình dữ liệu](../../docs/data-model.md) ·
 [API](../../docs/api-spec.md) · [Biên bản rà soát stories](../reports/brainstorm-2026-09-17-user-stories-review.md) ·
 [Biên bản chốt stack](../reports/brainstorm-2026-09-17-codebase-stack-and-scaffold.md) ·
-[Kiểm chứng stack](../reports/researcher-2026-09-17-stack-verification.md)
+[Kiểm chứng stack](../reports/researcher-2026-09-17-stack-verification.md) ·
+**[Thiết kế giao diện](../../design.png)** (14 màn)
 
 **Hiện trạng:** Bộ khung chạy được đã hoàn tất — Phase 01, 02, 03, 06 xong và kiểm chứng độc lập.
-**85 test xanh** (54 API + 31 mobile). Đăng ký/đăng nhập/xoay vòng token chạy thật đầu-cuối;
+**135 test xanh** (96 API + 39 mobile). Đăng ký/đăng nhập/xoay vòng token chạy thật đầu-cuối;
 13 bảng + index HNSW trên Postgres thật; Swagger phục vụ 7 nhóm endpoint.
 **Tiếp theo:** Phase 04 (API vòng đời cuộc họp) và Phase 00 (spike STT — cổng chặn Phase 07).
 **Stack:** yarn 4 workspaces (`nodeLinker: node-modules`) · monorepo `apps/api` + `apps/mobile` +
@@ -68,6 +69,39 @@ chạy song song được ngay.
 | 15 | [Hỏi đáp GraphRAG](phase-15-graphrag-qa.md) | 13 | US-35→37 | ⬜ pending |
 | 16 | [Siết yêu cầu phi chức năng](phase-16-nfr-hardening.md) | 11 | NFR-01→13 | ⬜ pending |
 | 17 | [Kiểm thử & nghiệm thu](phase-17-testing-and-acceptance.md) | mọi phase | toàn bộ | ⬜ pending |
+
+---
+
+## Thiết kế giao diện
+
+`design.png` ở gốc repo là nguồn hình ảnh cho toàn bộ app — 14 màn, ánh xạ thẳng vào các phase:
+
+| Màn | Phase | Ghi chú |
+|-----|-------|---------|
+| 1 Splash · 2 Onboarding | 06 | |
+| 3 Quyền truy cập Micro | 07 | Màn đồng ý ghi âm (US-04) đã có ở Phase 06 |
+| 4 Trang chủ | 06 · 10 | Danh sách gần đây + nút bắt đầu |
+| 5 Cài đặt ghi âm | 07 · 09 | Nguồn âm, ngôn ngữ, bật dịch, chất lượng |
+| 6 Ghi âm trực tiếp | 07 · 09 | Sóng âm, transcript kèm người nói + bản dịch |
+| 7 Sau khi kết thúc | 11 | Đúng US-28: trạng thái từng bước pipeline |
+| 8 Tổng quan cuộc họp | 10 · 14 | Tab Tóm tắt / Action Items / Transcript / Graph |
+| 9 Transcript | 10 | Tìm trong transcript, sửa nội dung (US-24) |
+| 10 Knowledge Graph | 13 | Node theo loại thực thể |
+| 12 Hỏi đáp AI | 15 | |
+| 13 Tìm kiếm | 12 | Tìm ngữ nghĩa (US-22) |
+| 14 Cài đặt | 06 | |
+
+**Màu đã lấy mẫu trực tiếp từ ảnh** và chốt trong `apps/mobile/src/theme/colors.ts`:
+cam thương hiệu `#F68001` · nền kem ấm `#F9F6F0` · peach `#FEF3E6` · chữ `#212F3C` ·
+mint `#DEF7EB`. Nền app là kem ấm, **không phải trắng tinh** — và không có màu đen thuần ở đâu cả.
+
+> **Cảnh báo tương phản.** Chữ trắng trên cam thương hiệu chỉ đạt **2,62:1**, dưới cả ngưỡng AA
+> (4,5:1) lẫn ngưỡng 3:1 cho thành phần UI. Thiết kế vẽ như vậy và đó là màu thương hiệu, nên app
+> giữ nguyên — nhưng **chữ cam trên nền sáng phải dùng `primaryStrong`** (`#B75F01`, 4,52:1), không
+> dùng `primary`. Ràng buộc này có test khoá ở `colors.test.ts`.
+
+Màu cho node đồ thị (Person / Task / Project) **chưa** đưa vào token — để Phase 13 chốt khi màn đó
+thực sự được dựng, thay vì đoán trước rồi phải nuôi giá trị không ai render.
 
 ---
 
