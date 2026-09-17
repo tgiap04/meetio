@@ -1,0 +1,7 @@
+node_modules
+dist
+build
+.expo
+coverage
+apps/api/openapi.json
+yarn.lock

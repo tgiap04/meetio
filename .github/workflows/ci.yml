@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  assert-shared-has-no-runtime-deps:
+    name: packages/shared has zero runtime dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert dependencies field is empty or absent
+        run: |
+          DEPS=$(node -e "const pkg = require('./packages/shared/package.json'); const deps = pkg.dependencies || {}; console.log(Object.keys(deps).length)")
+          if [ "$DEPS" != "0" ]; then
+            echo "packages/shared/package.json has $DEPS runtime dependencies — it must stay types-only."
+            node -e "console.log(require('./packages/shared/package.json').dependencies)"
+            exit 1
+          fi
+          echo "packages/shared has 0 runtime dependencies."
+
+  assert-no-tests-in-expo-router-app-dir:
+    name: apps/mobile/app contains routes only
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert no test files under apps/mobile/app
+        run: |
+          # Expo Router turns EVERY file under app/ into a route. A test file there
+          # collides with the route it sits next to and pulls Jest globals into the
+          # app bundle, crashing the running app with "Property 'jest' doesn't exist".
+          # Typecheck, lint and the test suite all stay green, so only this catches it.
+          FOUND=$(find apps/mobile/app -type f \( -name '*.test.*' -o -name '*.spec.*' \) 2>/dev/null || true)
+          if [ -n "$FOUND" ]; then
+            echo "Test files found under apps/mobile/app — move them to apps/mobile/src:"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "apps/mobile/app contains routes only."
+
+  build-and-test:
+    name: install, typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable corepack (yarn 4)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Test
+        run: yarn test
+
+      - name: Build
+        run: yarn build
