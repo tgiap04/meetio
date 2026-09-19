@@ -59,9 +59,15 @@ export class AuthService {
     const user = await this.users.findOne({ where: { email: dto.email, deleted_at: IsNull() } });
 
     if (!user) {
-      // Burn the same argon2 verify cost a real user would, so response
-      // timing cannot be used to tell "no such email" from "wrong password".
-      await argon2.verify(await this.timingSafetyHash, dto.password).catch(() => false);
+      await this.burnTimingSafetyCost(dto.password);
+      throw this.invalidCredentials();
+    }
+
+    if (!user.password_hash) {
+      // Google-only account: pay the same argon2 cost as every other failure
+      // branch below, or the login endpoint answers "does this email have a
+      // password?" through timing alone (decisions.md §16).
+      await this.burnTimingSafetyCost(dto.password);
       throw this.invalidCredentials();
     }
 
@@ -71,6 +77,13 @@ export class AuthService {
     }
 
     return this.issueTokenPairWithUser(user);
+  }
+
+  /** Burns the same argon2 verify cost a real password check would pay, so
+   * response timing cannot distinguish "no such email", "wrong password", and
+   * "Google-only account" from one another (decisions.md §16). */
+  private async burnTimingSafetyCost(password: string): Promise<void> {
+    await argon2.verify(await this.timingSafetyHash, password).catch(() => false);
   }
 
   async refresh(rawRefreshToken: string): Promise<RefreshTokenResponse> {
@@ -114,6 +127,10 @@ export class AuthService {
     await this.refreshTokens.update({ id: jti, user_id: userId, revoked_at: IsNull() }, { revoked_at: new Date() });
   }
 
+  /** The single source for every `login()` failure response. Unknown email,
+   * wrong password, and a Google-only account all return this exact object —
+   * splitting the message per branch would resurrect the account-enumeration
+   * oracle this method exists to close (decisions.md §16). */
   private invalidCredentials(): UnauthorizedException {
     return new UnauthorizedException({
       code: ApiErrorCode.UNAUTHORIZED,
@@ -128,7 +145,11 @@ export class AuthService {
     });
   }
 
-  private async issueTokenPairWithUser(user: User): Promise<AuthTokenPair> {
+  /** Public seam consumed by `GoogleAuthService` (phase 03): every login path
+   * — password or Google — issues tokens through this exact method, so
+   * rotation, family revocation, and TTLs never diverge into a second
+   * parallel token-issuing path. */
+  public async issueTokenPairWithUser(user: User): Promise<AuthTokenPair> {
     const refreshToken = await this.createRefreshToken(user.id);
     const access_token = this.signAccessToken(user.id, refreshToken.id);
     return { access_token, refresh_token: refreshToken.rawToken, user: toPublicUser(user) };

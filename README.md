@@ -48,10 +48,31 @@ corepack enable
 make setup       # .env + yarn install + Postgres/Redis + migrations + seed
 ```
 
-`make setup` generates a **working** `.env` for local dev (matching the docker-compose
-credentials, with freshly generated JWT secrets) — no hand-filling required. Only
-`GEMINI_API_KEY` is left blank, because it is a real secret. An existing `.env` is never
-overwritten.
+`make setup` generates **two** env files: a **working** `.env` at the repo root for local dev
+(matching the docker-compose credentials, with freshly generated JWT secrets — no hand-filling
+required, only `GEMINI_API_KEY` is left blank because it is a real secret), and
+`apps/mobile/.env`, which is **derived** from it — `make env` extracts every `^EXPO_PUBLIC_` line
+out of the root `.env` and writes only those into `apps/mobile/.env`. The second file exists
+because Expo's config loader (`@expo/env`) resolves `.env` relative to the Expo project root
+(`apps/mobile/`) and does not walk up to the repo root, so the root `.env` alone never reaches
+the mobile bundler.
+
+The root `.env` is never overwritten once it exists — it holds hand-entered secrets and randomly
+generated JWT keys. `apps/mobile/.env` is the opposite: it holds no secret of its own, so
+**`make env` always regenerates it from the root file, every time, even if it already exists.**
+Never hand-edit `apps/mobile/.env` — any edit is lost on the next `make env`, and it would leave a
+second, disagreeing copy of a fact that only the root `.env` should hold. To change a value (e.g.
+pointing the app at a LAN IP to test on a real device), edit the `EXPO_PUBLIC_*` lines in the
+**root** `.env` and re-run `make env`. Never add a non-`EXPO_PUBLIC_*` key under that prefix in
+the root `.env` either — it is inlined straight into the client bundle, so anything under it must
+be treated as public.
+
+> **If you already have a root `.env` from before this change:** check its
+> `EXPO_PUBLIC_API_URL` line. The backend listens with a global route prefix, so the correct value
+> is `http://localhost:3000/api` (with the `/api` suffix) — an older `.env` without the suffix
+> will send every mobile request to a 404. `make env` will not fix this for you, by design: it
+> never touches a root `.env` that already exists, because that file also holds your JWT secrets.
+> Fix that one line by hand, then run `make env` to regenerate `apps/mobile/.env` from it.
 
 Run `make` on its own to list every command.
 
@@ -117,6 +138,64 @@ make app-ios       # rebuild and reinstall on the device
 
 Swagger UI: <http://localhost:3000/api/docs>
 
+### Google Sign-In setup
+
+Google sign-in ships **disabled by default** — every key below is blank in `make env`'s
+output, the server logs `Google sign-in DISABLED` at boot, and `make build-app` produces the
+exact same native project as before this feature existed. Enabling it needs a project in
+[Google Cloud Console](https://console.cloud.google.com/) and four values filled into `.env`.
+
+1. **Create a project, enable the OAuth consent screen.** Google Cloud Console →
+   "APIs & Services" → "OAuth consent screen". Internal or External (Testing) is fine for
+   development.
+2. **Create a Web application OAuth client ID.** This single value does double duty:
+   - mobile: `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`
+   - server: `GOOGLE_OAUTH_AUDIENCES`
+
+   **Why the same client ID on both platforms:** the native SDK always mints its ID token
+   with `webClientId` set as the audience (`aud` claim) — including on iOS — because that is
+   the only client type the token-issuing flow recognizes as the app's identity. Skip
+   `webClientId` on either platform and `GoogleSignin` never returns an `idToken`.
+3. **Create an iOS OAuth client ID**, bundle ID `com.tobi-04.meetio`. It gives you two values:
+   - the client ID itself → `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
+   - the **reversed client ID** (e.g. `com.googleusercontent.apps.123-abc`, shown right next
+     to the client ID in the console) → `EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME`
+4. **Create an Android OAuth client ID**, package `com.tobi_04.meetio`, plus the SHA-1 of the
+   signing key. Get the debug one with:
+
+   ```bash
+   keytool -list -v -alias androiddebugkey -keystore ~/.android/debug.keystore \
+           -storepass android -keypass android
+   ```
+
+   or `cd apps/mobile/android && ./gradlew signingReport`. The Android client ID value itself
+   is **never referenced anywhere in the code** — only its existence, registered against the
+   right SHA-1, matters. And **every signing configuration needs its own Android client**:
+   debug, release, EAS Build, and Play App Signing are four different certificates, so a
+   release build signed with a key whose SHA-1 was never registered fails exactly like an
+   unconfigured one.
+5. **Fill the four keys into `.env`**: `GOOGLE_OAUTH_AUDIENCES` plus the three
+   `EXPO_PUBLIC_GOOGLE_*` keys `make env` already left blank for you.
+6. **`make build-app`, then `make app-ios` / `make app-android`.** The config plugin only
+   injects the URL scheme into `Info.plist` (and links the native module) at prebuild time —
+   editing `.env` alone does nothing until you regenerate the native projects.
+
+#### Khi hỏng thì xem gì (troubleshooting)
+
+| Symptom | Cause |
+|---|---|
+| Android `DEVELOPER_ERROR` (code 10) | the SHA-1 of the signing key you built with was never registered on an Android OAuth client for `com.tobi_04.meetio` — see step 4 |
+| iOS crashes with `NSInvalidArgumentException` mentioning URL schemes | the reversed client ID never made it into `Info.plist`. Run `make app-verify` — it greps for exactly this and fails loudly if the scheme is missing after prebuild |
+| `GoogleSignin` resolves but `idToken` is `null` | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` is missing — `webClientId` is required on **both** platforms to get an ID token, not just the platform-specific client |
+| `POST /auth/google` returns `500 INTERNAL_ERROR` saying the server is not configured | `GOOGLE_OAUTH_AUDIENCES` is empty on the API side — fill it with the **same** Web client ID from step 2 and restart the API |
+
+**Client IDs are public identifiers, not secrets** — they ship inside the mobile bundle, inside
+the generated `Info.plist`, and inside `.env.example`, and that is correct. Do not move them to
+a secrets store: that only breaks the native build, since the config plugin reads them from
+`.env` at prebuild time. `GOOGLE_OAUTH_AUDIENCES`, on the other hand, **is** a security boundary
+on the server: leaving it blank fails safe (Google sign-in off); filling it with the wrong
+client ID means the server accepts ID tokens minted for a different application.
+
 ### Replaying onboarding
 
 The onboarding and microphone-permission screens each set a flag in
@@ -161,6 +240,9 @@ CI keeps working in every environment.
 ```bash
 yarn install
 cp .env.example .env        # then fill in every value by hand
+grep -E '^EXPO_PUBLIC_' .env > apps/mobile/.env   # @expo/env does not walk up to the repo root
+                                                   # — see Setup above; re-run after any change
+                                                   # to an EXPO_PUBLIC_* line in the root .env
 docker compose up -d --wait
 yarn workspace @meetio/api run migration:run
 yarn workspace @meetio/api run start:dev

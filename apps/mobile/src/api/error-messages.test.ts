@@ -40,4 +40,22 @@ describe('getErrorMessage', () => {
       'Không thể kết nối máy chủ. Kiểm tra kết nối mạng và thử lại.',
     );
   });
+
+  it('falls back to a retry prompt for GOOGLE_TOKEN_INVALID', () => {
+    const error = makeAxiosError({
+      data: { error: { code: 'GOOGLE_TOKEN_INVALID', message: '', details: {} } },
+    });
+
+    expect(getErrorMessage(error)).toBe('Đăng nhập Google thất bại, vui lòng thử lại.');
+  });
+
+  it('getErrorMessage trả câu hướng dẫn xác minh email cho GOOGLE_EMAIL_UNVERIFIED', () => {
+    const error = makeAxiosError({
+      data: { error: { code: 'GOOGLE_EMAIL_UNVERIFIED', message: '', details: {} } },
+    });
+
+    expect(getErrorMessage(error)).toBe(
+      'Tài khoản Google này chưa xác minh email. Hãy xác minh email với Google rồi thử lại.',
+    );
+  });
 });

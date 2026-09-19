@@ -1,12 +1,21 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThanOrEqual, Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { ApiErrorCode, type GetMeResponse, type RecordConsentResponse } from '@meetio/shared';
 import { User, UsageRecord } from '../database/entities/index.js';
+import { GoogleTokenVerifier } from '../auth/google-token-verifier.js';
 import { toPublicUser, type PublicUserDto } from './dto/public-user.dto.js';
 import type { UpdateMeDto } from './dto/update-me.dto.js';
 import { assertBooleanValues } from './dto/update-me.dto.js';
+import type { DeleteMeDto } from './dto/delete-me.dto.js';
+import { checkExactlyOneDeleteCredential } from './delete-credential.js';
 
 function startOfCurrentMonthUtc(): Date {
   const now = new Date();
@@ -18,6 +27,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(UsageRecord) private readonly usageRecords: Repository<UsageRecord>,
+    private readonly googleTokenVerifier: GoogleTokenVerifier,
   ) {}
 
   async getMe(userId: string): Promise<GetMeResponse> {
@@ -55,23 +65,83 @@ export class UsersService {
     return { recording_consent_at: saved.recording_consent_at!.toISOString() };
   }
 
-  /** Soft-deletes the account after verifying the password — hard delete
+  /** Soft-deletes the account after a step-up credential check — hard delete
    * follows 30 days later via the scheduled job (jobs/account-deletion.job.ts).
    * Setting `deleted_at` here is what makes `AuthService.login` refuse this
-   * account immediately (api-spec: "chặn đăng nhập ngay lập tức"). */
-  async deleteMe(userId: string, password: string): Promise<void> {
+   * account immediately (api-spec: "chặn đăng nhập ngay lập tức").
+   *
+   * Which credential is required is decided by the ACCOUNT's `password_hash`
+   * (server-side truth), never by which field the caller chose to send — a
+   * linked account (both `password_hash` and `google_sub` set) always stays
+   * on the password branch (phase-12 "Other requirements"). */
+  async deleteMe(userId: string, dto: DeleteMeDto): Promise<void> {
+    checkExactlyOneDeleteCredential(dto);
     const user = await this.findActiveUserOrFail(userId);
 
-    const passwordOk = await argon2.verify(user.password_hash, password).catch(() => false);
+    if (user.password_hash) {
+      await this.verifyPasswordCredential(user.password_hash, dto.password);
+    } else {
+      await this.verifyGoogleCredential(user, dto.google_id_token);
+    }
+
+    user.deleted_at = new Date();
+    await this.users.save(user);
+  }
+
+  private async verifyPasswordCredential(passwordHash: string, password: string | undefined): Promise<void> {
+    if (password === undefined) {
+      throw new BadRequestException({
+        code: ApiErrorCode.VALIDATION_ERROR,
+        message: 'Cần mật khẩu để xóa tài khoản này',
+        details: { password: ['required'] },
+      });
+    }
+
+    const passwordOk = await argon2.verify(passwordHash, password).catch(() => false);
     if (!passwordOk) {
       throw new UnauthorizedException({
         code: ApiErrorCode.UNAUTHORIZED,
         message: 'Mật khẩu không đúng',
       });
     }
+  }
 
-    user.deleted_at = new Date();
-    await this.users.save(user);
+  /**
+   * `verify()` only proves Google signed this token for SOME account. The
+   * `claims.sub === user.google_sub` check is what proves it is signed for
+   * THIS account — skipping it would let any valid Google ID token delete
+   * any Google-only account (phase-12 §Bảo mật, the load-bearing line).
+   * Matched by `sub`, never by `claims.email` — email is not identity here.
+   */
+  private async verifyGoogleCredential(user: User, googleIdToken: string | undefined): Promise<void> {
+    if (googleIdToken === undefined) {
+      throw new BadRequestException({
+        code: ApiErrorCode.VALIDATION_ERROR,
+        message: 'Tài khoản này đăng nhập bằng Google, cần google_id_token để xóa',
+        details: { google_id_token: ['required_for_google_account'] },
+      });
+    }
+
+    // Mirrors the same guard in `GoogleAuthService.signIn` — without it, an
+    // unconfigured server (`GOOGLE_OAUTH_AUDIENCES` empty) makes `verify()`
+    // fail with an empty audience list, and the catch below would relabel
+    // that as "your token is invalid" when the true cause is "this server
+    // has no Google configuration". That is a safe failure but a dishonest
+    // one; this makes it honest instead.
+    if (!this.googleTokenVerifier.isConfigured()) {
+      throw new InternalServerErrorException({
+        code: ApiErrorCode.INTERNAL_ERROR,
+        message: 'Xóa tài khoản bằng Google chưa được cấu hình trên máy chủ',
+      });
+    }
+
+    const claims = await this.googleTokenVerifier.verify(googleIdToken);
+    if (claims.sub !== user.google_sub) {
+      throw new UnauthorizedException({
+        code: ApiErrorCode.UNAUTHORIZED,
+        message: 'Tài khoản Google không khớp',
+      });
+    }
   }
 
   private async findActiveUserOrFail(userId: string): Promise<User> {

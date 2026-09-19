@@ -13,8 +13,17 @@ export class User {
   @Column('citext')
   email!: string;
 
-  @Column({ name: 'password_hash', type: 'text' })
-  password_hash!: string;
+  /** NULL for an account that has only ever signed in with Google
+   * (decisions.md §2 — no `provider` column; `chk_users_has_credential`
+   * requires at least one of this or `google_sub` to be set). */
+  @Column({ name: 'password_hash', type: 'text', nullable: true })
+  password_hash!: string | null;
+
+  /** Google's `sub` claim — stable per-account, unlike email (decisions.md §1).
+   * NULL for a password-only account that has never linked Google. */
+  @Index('idx_users_google_sub', { unique: true })
+  @Column({ name: 'google_sub', type: 'text', nullable: true })
+  google_sub!: string | null;
 
   @Column({ name: 'display_name', type: 'text' })
   display_name!: string;

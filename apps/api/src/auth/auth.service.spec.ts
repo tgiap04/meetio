@@ -40,6 +40,7 @@ function fakeUser(overrides: Partial<User> = {}): User {
     id: 'user-1',
     email: 'a@example.com',
     password_hash: '',
+    google_sub: null,
     display_name: 'A',
     retention_days: null,
     recording_consent_at: null,

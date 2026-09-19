@@ -27,13 +27,23 @@
 |-----|------|---------|
 | `id` | UUID | PK |
 | `email` | CITEXT | UNIQUE |
-| `password_hash` | TEXT | argon2id |
+| `password_hash` | TEXT | argon2id. NULL khi tài khoản chỉ đăng nhập Google |
+| `google_sub` | TEXT | Claim `sub` của Google — khóa nối, không phải email (email có thể đổi). NULL khi chưa liên kết Google. `UNIQUE` |
 | `display_name` | TEXT | |
 | `retention_days` | INT | NULL = giữ vĩnh viễn ([US-06](../user_stories.md#us-06--xem-và-đặt-chính-sách-lưu-trữ)) |
 | `recording_consent_at` | TIMESTAMPTZ | Mốc xác nhận đã thông báo cho người tham dự ([US-04](../user_stories.md#us-04--thông-báo-và-ghi-nhận-sự-đồng-ý-ghi-âm)) |
 | `monthly_token_budget` | BIGINT | [NFR-07](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr) |
 | `notification_settings` | JSONB | Mặc định `{}`. Bản đặc tả cũ cho `PATCH /users/me` sửa "cài đặt thông báo" nhưng không có cột nào lưu — client ghi được mà không đọc lại được |
 | `created_at` / `updated_at` / `deleted_at` | TIMESTAMPTZ | `deleted_at` phục vụ xóa mềm 30 ngày ([US-05](../user_stories.md#us-05--xóa-tài-khoản-và-toàn-bộ-dữ-liệu)) |
+
+```sql
+ALTER TABLE users ADD CONSTRAINT chk_users_has_credential
+  CHECK (password_hash IS NOT NULL OR google_sub IS NOT NULL);
+```
+
+Không có cột `provider` riêng — cố ý. Tài khoản đăng nhập được bằng mật khẩu hay bằng Google (hay cả
+hai) suy trực tiếp từ hai cột trên; một cột thứ ba chỉ thêm một nguồn sự thật có thể lệch khỏi hai
+cột kia. `CHECK` ở trên là ràng buộc bảo đảm mọi hàng luôn còn ít nhất một lối vào.
 
 ### `refresh_tokens`
 `id` UUID PK · `user_id` FK · `token_hash` TEXT · `expires_at` · `revoked_at` · `device_label` TEXT

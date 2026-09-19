@@ -27,7 +27,13 @@ export interface RecordConsentResponse {
   recording_consent_at: string;
 }
 
-/** `DELETE /users/me` — soft-deletes the account; hard delete follows after 30 days. */
+/**
+ * `DELETE /users/me` — soft-deletes the account; hard delete follows after 30 days.
+ *
+ * Exactly ONE of the two fields must be present; the server picks which one
+ * is required based on whether the account has a `password_hash` set.
+ */
 export interface DeleteMeRequest {
-  password: string;
+  password?: string;
+  google_id_token?: string;
 }

@@ -10,7 +10,7 @@ import { useSessionStore } from '../store/session.store';
  * dropped here rather than cached in Zustand; screens read the profile via
  * `useMeQuery` (TanStack Query) instead.
  */
-async function persistSession(tokens: AuthTokenPair): Promise<void> {
+export async function persistSession(tokens: AuthTokenPair): Promise<void> {
   await writeTokens({ accessToken: tokens.access_token, refreshToken: tokens.refresh_token });
   useSessionStore.getState().setTokens({
     accessToken: tokens.access_token,

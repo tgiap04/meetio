@@ -12,6 +12,9 @@ const FALLBACK_MESSAGES: Record<ApiErrorCode, string> = {
   [ApiErrorCode.VALIDATION_ERROR]: 'Dữ liệu nhập không hợp lệ.',
   [ApiErrorCode.UNAUTHORIZED]: 'Email hoặc mật khẩu không đúng.',
   [ApiErrorCode.TOKEN_EXPIRED]: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.',
+  [ApiErrorCode.GOOGLE_TOKEN_INVALID]: 'Đăng nhập Google thất bại, vui lòng thử lại.',
+  [ApiErrorCode.GOOGLE_EMAIL_UNVERIFIED]:
+    'Tài khoản Google này chưa xác minh email. Hãy xác minh email với Google rồi thử lại.',
   [ApiErrorCode.MEETING_NOT_FOUND]: 'Không tìm thấy cuộc họp.',
   [ApiErrorCode.NOT_FOUND]: 'Không tìm thấy tài nguyên yêu cầu.',
   [ApiErrorCode.INVALID_STATE_TRANSITION]: 'Thao tác không hợp lệ ở trạng thái hiện tại.',

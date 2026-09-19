@@ -41,6 +41,6 @@ export class UsersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Soft-delete the account; hard delete follows after 30 days' })
   async deleteMe(@CurrentUser() user: AuthenticatedUser, @Body() dto: DeleteMeDto): Promise<void> {
-    await this.usersService.deleteMe(user.userId, dto.password);
+    await this.usersService.deleteMe(user.userId, dto);
   }
 }

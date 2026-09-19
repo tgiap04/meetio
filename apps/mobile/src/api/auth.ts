@@ -1,5 +1,6 @@
 import type {
   AuthTokenPair,
+  GoogleSignInRequest,
   LoginRequest,
   LogoutRequest,
   RefreshTokenRequest,
@@ -34,4 +35,9 @@ export async function refresh(body: RefreshTokenRequest): Promise<RefreshTokenRe
 
 export async function logout(body: LogoutRequest = {}): Promise<void> {
   await apiClient.post('/auth/logout', body);
+}
+
+export async function signInWithGoogle(body: GoogleSignInRequest): Promise<AuthTokenPair> {
+  const { data } = await apiClient.post<AuthTokenPair>('/auth/google', body);
+  return data;
 }

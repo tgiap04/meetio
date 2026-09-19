@@ -6,6 +6,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD } from '@nestjs/core';
 import { User, RefreshToken } from '../database/entities/index.js';
 import { AuthService } from './auth.service.js';
+import { GoogleAuthService } from './google-auth.service.js';
+import { GoogleTokenVerifier } from './google-token-verifier.js';
 import { AuthController } from './auth.controller.js';
 import { JwtStrategy } from './jwt.strategy.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
@@ -33,7 +35,18 @@ import { JwtAuthGuard } from './jwt-auth.guard.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, { provide: APP_GUARD, useClass: JwtAuthGuard }],
-  exports: [AuthService],
+  providers: [
+    AuthService,
+    GoogleAuthService,
+    GoogleTokenVerifier,
+    JwtStrategy,
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ],
+  // Only `GoogleTokenVerifier` is exported to other modules (UsersModule,
+  // for the phase-12 account-deletion step-up check) — never
+  // `GoogleAuthService`, which depends on `UsersModule`'s own repositories
+  // and would otherwise create a module import cycle (file-ownership.md
+  // §Rủi ro).
+  exports: [AuthService, GoogleTokenVerifier],
 })
 export class AuthModule {}

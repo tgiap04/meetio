@@ -1,32 +1,9 @@
 import { jest } from '@jest/globals';
-import { NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
-import * as argon2 from 'argon2';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { UsersService } from './users.service.js';
-import type { User, UsageRecord } from '../database/entities/index.js';
-
-function fakeUser(overrides: Partial<User> = {}): User {
-  return {
-    id: 'user-1',
-    email: 'a@example.com',
-    password_hash: '',
-    display_name: 'A',
-    retention_days: null,
-    recording_consent_at: null,
-    monthly_token_budget: null,
-    notification_settings: {},
-    created_at: new Date('2026-01-01T00:00:00Z'),
-    updated_at: new Date('2026-01-01T00:00:00Z'),
-    deleted_at: null,
-    ...overrides,
-  } as User;
-}
-
-function createUsersRepoMock() {
-  return {
-    findOne: jest.fn(async (): Promise<User | null> => null),
-    save: jest.fn(async (entity: unknown) => entity as User),
-  };
-}
+import type { UsageRecord } from '../database/entities/index.js';
+import type { GoogleTokenVerifier } from '../auth/google-token-verifier.js';
+import { fakeUser, createUsersRepoMock, createGoogleVerifierMock } from './users.service.test-helpers.js';
 
 function createUsageRepoMock() {
   return { find: jest.fn(async (): Promise<Pick<UsageRecord, 'input_tokens' | 'output_tokens'>[]> => []) };
@@ -40,7 +17,8 @@ describe('UsersService', () => {
   beforeEach(() => {
     users = createUsersRepoMock();
     usage = createUsageRepoMock();
-    service = new UsersService(users as never, usage as never);
+    const googleVerifier = createGoogleVerifierMock();
+    service = new UsersService(users as never, usage as never, googleVerifier as unknown as GoogleTokenVerifier);
   });
 
   describe('getMe', () => {
@@ -96,23 +74,7 @@ describe('UsersService', () => {
       expect(new Date(result.recording_consent_at).getTime()).toBeGreaterThan(0);
     });
   });
-
-  describe('deleteMe', () => {
-    it('sets deleted_at after verifying the password', async () => {
-      const hash = await argon2.hash('correct-password', { type: argon2.argon2id });
-      users.findOne.mockResolvedValue(fakeUser({ password_hash: hash }));
-
-      await service.deleteMe('user-1', 'correct-password');
-
-      expect(users.save).toHaveBeenCalledWith(expect.objectContaining({ deleted_at: expect.any(Date) }));
-    });
-
-    it('rejects deletion with the wrong password and does not touch deleted_at', async () => {
-      const hash = await argon2.hash('correct-password', { type: argon2.argon2id });
-      users.findOne.mockResolvedValue(fakeUser({ password_hash: hash }));
-
-      await expect(service.deleteMe('user-1', 'wrong-password')).rejects.toThrow(UnauthorizedException);
-      expect(users.save).not.toHaveBeenCalled();
-    });
-  });
 });
+
+// `deleteMe` has its own describe block in ./users.service.delete-me.spec.ts —
+// kept separate so neither spec file crosses the repo's 200-line limit.

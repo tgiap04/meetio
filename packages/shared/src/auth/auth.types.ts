@@ -34,3 +34,10 @@ export interface RefreshTokenResponse {
 
 /** `/auth/logout` takes no body — it revokes the refresh token bound to the current session. */
 export type LogoutRequest = Record<string, never>;
+
+/** `POST /auth/google` — ID token lấy từ SDK Google trên máy.
+ *  Máy chủ **không bao giờ** nhận email hay user id từ client; mọi sự thật
+ *  về danh tính suy ra từ token đã xác minh (xem phase-03 §Bảo mật). */
+export interface GoogleSignInRequest {
+  id_token: string;
+}

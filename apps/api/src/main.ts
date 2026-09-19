@@ -9,6 +9,7 @@ import { AppModule } from './app.module.js';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
 import { SWAGGER_PATH, setupSwagger } from './swagger.js';
 import { buildStartupUrls } from './startup-urls.js';
+import { GoogleTokenVerifier } from './auth/google-token-verifier.js';
 
 const GLOBAL_PREFIX = 'api';
 
@@ -41,6 +42,16 @@ async function bootstrap(): Promise<void> {
     logger.log(`Swagger ${docs}`);
   } else {
     logger.log('Swagger disabled (set SWAGGER_ENABLED=true to serve the docs)');
+  }
+
+  // Reads the same instance the app actually routes requests through, so this
+  // line can never drift from what POST /auth/google will really do
+  // (decisions.md §7 — missing config logs a warning, it never blocks boot).
+  const googleVerifier = app.get(GoogleTokenVerifier);
+  if (googleVerifier.isConfigured()) {
+    logger.log('Google sign-in ENABLED');
+  } else {
+    logger.warn('Google sign-in DISABLED (GOOGLE_OAUTH_AUDIENCES is empty)');
   }
 }
 

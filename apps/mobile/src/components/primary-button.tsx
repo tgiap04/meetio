@@ -1,4 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, type PressableProps } from 'react-native';
+import { BrandFill } from './illustrations/brand-fill';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 
@@ -15,21 +16,24 @@ export function PrimaryButton({ label, loading = false, disabled, ...pressablePr
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled }}
       disabled={isDisabled}
-      style={[styles.button, isDisabled && styles.buttonDisabled]}
+      style={isDisabled && styles.buttonDisabled}
       {...pressableProps}
     >
-      {loading ? (
-        <ActivityIndicator color={colors.primaryText} />
-      ) : (
-        <Text style={styles.label}>{label}</Text>
-      )}
+      <BrandFill style={styles.fill}>
+        {loading ? (
+          <ActivityIndicator color={colors.primaryText} />
+        ) : (
+          <Text style={styles.label}>{label}</Text>
+        )}
+      </BrandFill>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
-    backgroundColor: colors.primary,
+  // `borderRadius` lives on the gradient itself, not this wrapper — a radius
+  // on the Pressable alone would let the gradient's square corners show through.
+  fill: {
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',

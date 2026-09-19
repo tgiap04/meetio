@@ -142,6 +142,29 @@ maybeDescribe('database schema (integration, real Postgres)', () => {
     expect(elapsedMs).toBeLessThan(100);
   }, 30000);
 
+  it('refuses to revert migration 010 while a Google-only account exists', async () => {
+    const googleOnlyUser = await AppDataSource.getRepository(User).save({
+      email: `schema-test-google-only-${Date.now()}@example.com`,
+      password_hash: null,
+      google_sub: `schema-test-google-sub-${Date.now()}`,
+      display_name: 'Google Only Schema Test User',
+      notification_settings: {},
+    });
+
+    try {
+      await expect(AppDataSource.undoLastMigration()).rejects.toThrow(/Google-only account/);
+
+      // The rejected down() must not have left the schema half-reverted —
+      // the CHECK constraint from migration 010 should still be in place.
+      const constraints = await AppDataSource.query(
+        `SELECT conname FROM pg_constraint WHERE conname = 'chk_users_has_credential'`,
+      );
+      expect(constraints).toHaveLength(1);
+    } finally {
+      await AppDataSource.getRepository(User).delete({ id: googleOnlyUser.id });
+    }
+  });
+
   it('reverts the last migration and reapplies it without losing existing data', async () => {
     const usersBefore = await AppDataSource.getRepository(User).count();
 

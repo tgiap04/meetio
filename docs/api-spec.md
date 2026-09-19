@@ -32,6 +32,7 @@
 | POST | `/auth/login` | Đăng nhập. Body `{email, password}` → như trên |
 | POST | `/auth/refresh` | Body `{refresh_token}` → cặp token mới, thu hồi token cũ |
 | POST | `/auth/logout` | Thu hồi refresh token của thiết bị hiện tại |
+| POST | `/auth/google` | Đăng nhập bằng Google. Body `{id_token}` → `{access_token, refresh_token, user}`. Liên kết tự động vào tài khoản mật khẩu cùng email **chỉ khi** `email_verified` là `true` |
 
 Access token sống 15 phút, refresh token 60 ngày và xoay vòng mỗi lần dùng.
 
@@ -44,11 +45,16 @@ Access token sống 15 phút, refresh token 60 ngày và xoay vòng mỗi lần 
 | GET | `/users/me` | Hồ sơ, cài đặt lưu trữ, **cài đặt thông báo**, mức tiêu thụ tháng hiện tại |
 | PATCH | `/users/me` | Sửa `display_name`, `retention_days`, cài đặt thông báo |
 | POST | `/users/me/consent` | Ghi nhận mốc đồng ý ghi âm ([US-04](../user_stories.md#us-04--thông-báo-và-ghi-nhận-sự-đồng-ý-ghi-âm)) |
-| DELETE | `/users/me` | Body `{password}`. Đặt `deleted_at`, xóa vật lý sau 30 ngày |
+| DELETE | `/users/me` | Body `{password}` **hoặc** `{google_id_token}` — đúng một trong hai, tùy tài khoản có `password_hash` hay không. Đặt `deleted_at`, xóa vật lý sau 30 ngày |
 
 `GET /users/me` **phải** trả `notification_settings` cùng với hồ sơ. Bản trước cho `PATCH` ghi cài
 đặt thông báo nhưng không có đường đọc lại — màn hình cài đặt buộc phải đoán giá trị mặc định thay
 vì hiển thị đúng thứ server đang giữ. Mọi trường `PATCH` sửa được thì `GET` phải đọc lại được.
+
+`DELETE /users/me` chọn credential theo **tài khoản**, không theo body: tài khoản có `password_hash`
+(kể cả đã liên kết Google) dùng `password`; tài khoản chỉ-Google dùng `google_id_token` — server so
+`sub` xác minh được với `users.google_sub` của chính người gọi. Gửi cả hai hoặc không gửi trường nào
+đều là `VALIDATION_ERROR`.
 
 ---
 
@@ -180,6 +186,8 @@ chưa thực sự an toàn.
 | `VALIDATION_ERROR` | 400 | Body hoặc query không hợp lệ. `details` chứa lỗi theo từng field |
 | `UNAUTHORIZED` | 401 | Thiếu hoặc sai token |
 | `TOKEN_EXPIRED` | 401 | Access token hết hạn — client tự refresh |
+| `GOOGLE_TOKEN_INVALID` | 401 | ID token Google sai chữ ký / `iss` / `aud` / `exp` / thiếu `sub` |
+| `GOOGLE_EMAIL_UNVERIFIED` | 401 | Email trong ID token Google chưa được Google xác minh (`email_verified !== true`) |
 | `MEETING_NOT_FOUND` | 404 | Cuộc họp không tồn tại **hoặc** không thuộc sở hữu |
 | `NOT_FOUND` | 404 | Tài nguyên khác không tồn tại, hoặc route không khớp. **Mặc định cho mọi 404 chưa phân loại** |
 | `INVALID_STATE_TRANSITION` | 409 | Ví dụ gọi `end` trên cuộc họp đã `ended` |

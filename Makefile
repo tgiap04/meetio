@@ -66,7 +66,7 @@ setup: env install up migrate seed ## Dựng toàn bộ môi trường dev từ 
 	@echo "     Swagger: http://localhost:3000/api/docs"
 	@echo ""
 
-env: ## Sinh .env chạy được ngay (không ghi đè nếu đã có)
+env: ## Sinh .env gốc (không ghi đè) + apps/mobile/.env (luôn sinh lại từ .env gốc)
 	@if [ -f .env ]; then \
 		echo "  .env đã tồn tại — giữ nguyên, không ghi đè."; \
 	else \
@@ -85,6 +85,10 @@ env: ## Sinh .env chạy được ngay (không ghi đè nếu đã có)
 			'CORS_ORIGIN=http://localhost:8081' \
 			'# Swagger tại /api/docs. Để trống = tự tắt ở production.' \
 			'SWAGGER_ENABLED=true' \
+			'# Danh sách audience (client ID) mà server chấp nhận cho Google ID token, phân' \
+			'# tách bằng dấu phẩy. Để trống = tắt đăng nhập Google (fail safe). Xem README' \
+			'# § "Google Sign-In setup" để lấy giá trị.' \
+			'GOOGLE_OAUTH_AUDIENCES=' \
 			'' \
 			'POSTGRES_USER=meetio' \
 			'POSTGRES_PASSWORD=meetio' \
@@ -94,9 +98,28 @@ env: ## Sinh .env chạy được ngay (không ghi đè nếu đã có)
 			'' \
 			'EXPO_PUBLIC_API_URL=http://localhost:3000/api' \
 			'EXPO_PUBLIC_WS_URL=ws://localhost:3000' \
+			'# Google Sign-In: client ID là định danh CÔNG KHAI, không phải bí mật. Để trống' \
+			'# = plugin native không được thêm, đăng nhập Google tắt. Xem README § "Google' \
+			'# Sign-In setup" để lấy ba giá trị này rồi chạy lại `make build-app`.' \
+			'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=' \
+			'EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=' \
+			'EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME=' \
 			> .env; \
 		echo "  ✅ .env đã sinh, JWT secret random. GEMINI_API_KEY để trống — tự điền khi cần."; \
 	fi
+	@echo "  Sinh lại apps/mobile/.env từ .env (đầu ra dẫn xuất — luôn ghi đè)..."
+	@printf '%s\n' \
+		'# Sinh bởi `make env` — đầu ra dẫn xuất, KHÔNG sửa tay, KHÔNG commit.' \
+		'# LUÔN bị ghi đè mỗi lần chạy `make env`: đây là bản trích CHỈ khoá' \
+		'# EXPO_PUBLIC_* từ .env ở gốc repo, không phải nguồn sự thật thứ hai.' \
+		'# Muốn đổi giá trị (vd. trỏ sang IP LAN để test trên máy thật)? Sửa .env' \
+		'# gốc rồi chạy lại `make env` — sửa file này sẽ mất ở lần sinh kế tiếp.' \
+		'# @expo/env không đi ngược lên gốc repo tìm .env, nên file này tồn tại' \
+		'# riêng cho project root của Expo. Tiền tố EXPO_PUBLIC_ nội tuyến thẳng' \
+		'# vào bundle client — KHÔNG BAO GIỜ đặt bí mật vào .env gốc dưới tiền tố này.' \
+		> apps/mobile/.env
+	@grep -E '^EXPO_PUBLIC_' .env >> apps/mobile/.env
+	@echo "  ✅ apps/mobile/.env đã sinh lại từ .env."
 
 install: ## yarn install
 	@yarn install
@@ -215,6 +238,20 @@ app-verify: ## Kiểm tra project native sinh ra có dùng được không
 		echo "       xcode-select -p        (phải trỏ vào Xcode.app, không phải CommandLineTools)"; \
 		echo "       make app-doctor        (thư viện lệch phiên bản SDK)"; \
 		echo "       cd apps/mobile/ios && SDKROOT=\$$(xcrun --sdk macosx --show-sdk-path) pod install"; \
+		ok=0; \
+	fi; \
+	scheme="$${EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME:-$$(grep -E '^EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME=' apps/mobile/.env 2>/dev/null | cut -d= -f2-)}"; \
+	if [ -z "$$scheme" ]; then \
+		echo "  –  ios google — bỏ qua (chưa cấu hình)"; \
+	elif grep -rq 'com\.googleusercontent\.apps\.' apps/mobile/ios/*/Info.plist 2>/dev/null; then \
+		echo "  ✅ ios google — URL scheme đã vào Info.plist"; \
+	else \
+		echo "  ❌ ios google — prebuild làm rơi URL scheme khỏi Info.plist."; \
+		echo "     EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME đã đặt nhưng không thấy"; \
+		echo "     'com.googleusercontent.apps.' trong apps/mobile/ios/*/Info.plist."; \
+		echo "     'expo prebuild' mặc định là clean — nếu plugin không chạy, app sẽ"; \
+		echo "     crash NSInvalidArgumentException trên máy thật. Xem README §"; \
+		echo "     'Google Sign-In setup' → 'Khi hỏng thì xem gì'."; \
 		ok=0; \
 	fi; \
 	[ "$$ok" = "1" ] || { echo "  → Có nền tảng chưa dựng được (xem trên)."; exit 1; }
