@@ -1,0 +1,73 @@
+{
+  "score": 9.2,
+  "criticalCount": 0,
+  "decision": "SEALED",
+  "contractStatus": "HELD",
+  "acceptanceCovered": [
+    "typecheck, lint and the full test suite pass at the repo root — measured: api 134 tests / 18 suites against real Postgres, mobile 225 / 38, typecheck exit 0 in api, mobile and shared, root eslint . exit 0, openapi:generate exit 0",
+    "the server verifies the Google ID token itself and never accepts an email or user id from the client — GoogleSignInDto exposes only id_token; every identity fact comes from the verified TokenPayload via toGoogleIdentity",
+    "the email_verified gate runs before any lookup by email, so an unverified token cannot probe which emails have accounts — toGoogleIdentity throws before returning claims, so signIn reaches neither findOne; mutation-tested by loosening the gate to let a missing claim through, 1 test went red",
+    "the join key is Google's sub, never email — the google_sub lookup runs first and email is only a secondary link/create path; a test asserts the same email with a different sub is still rejected",
+    "POST /auth/google returns the same AuthTokenPair as /auth/login, so refresh rotation and family revocation are one code path, not two — both terminate in AuthService.issueTokenPairWithUser, which phase 02 made public precisely to prevent a parallel path",
+    "a Google-only account pays the same argon2 cost on password login as an unknown email, so response timing does not reveal which accounts are Google-only — mutation-tested by removing the burn: wrong password 33.24ms versus google-only 0.03ms, the test went red",
+    "a Google-only account can still delete itself, and a token from a different Google account cannot delete it — claims.sub === user.google_sub is the gate; mutation-tested by disabling it, 2 tests went red. Linked accounts are force-routed to the password branch so a replayed token cannot reach them",
+    "the new route inherits the controller's 10 req/min/IP throttle rather than overriding it — mutation-tested by adding an overriding @Throttle, the test went red with Received: 10000. The assertion reads real reflect-metadata from a child process because jest cannot import the controller in-process",
+    "no test file lives under apps/mobile/app, which Expo Router would turn into a route — find returns zero, and a CI job enforces it independently",
+    "every code file stays under 200 lines, including specs — zero files over 200 across apps and packages; two spec files were split during the run to hold the line",
+    "packages/shared keeps zero runtime dependencies — dependencies is {}, and a CI job enforces it",
+    "EXPO_PUBLIC_* values actually reach the Metro bundle — babel-preset-expo inlined undefined before the fix and the real value after; a root .env edit was shown to propagate through make env into apps/mobile/.env and into the inlined value",
+    "app-verify fails loudly when Google is configured but the reversed client ID is missing from Info.plist — run in both directions: unconfigured exits 0 with a skip line, misconfigured fails the make target with a message naming the clean-prebuild cause",
+    "exactly one token-persistence path exists — login, register and Google all route through the same exported persistSession; grep finds no other writeTokens or setTokens caller outside the axios refresh interceptor",
+    "exactly one non-test module imports the Google native library — apps/mobile/src/auth/google-native-signin.ts",
+    "the routing invariant holds — no screen hardcodes a destination; (auth)/_layout.tsx redirects on authStatus to ROOT_ROUTE and resolveBootstrapRoute decides, so the Google and password paths converge automatically"
+  ],
+  "regressionChecked": [
+    "concurrent first Google sign-in racing the google_sub UNIQUE index — 23505 is caught and the winner re-read, and rejectIfDeleted re-runs on the winner so a race cannot issue tokens for a soft-deleted account",
+    "soft-deleted accounts rejected on BOTH the google_sub and the email lookup branches",
+    "migration 010 down() refuses rather than corrupting when Google-only rows exist, and the pre-existing undoLastMigration revert test stays green",
+    "the Google library's own error text never leaks to the client — the verifier spec asserts the response body does not match /aud|iss|Token used too late|Wrong recipient/i",
+    "PrimaryButton's gradient conversion touches five already-accepted screens; every pre-existing test stayed green and its props are unchanged",
+    "the double-tap guard on the Google button survives the spec-file split — re-mutation-tested after the split: swapping useRef for useState fires the native wrapper 3 times instead of 1 and the test goes red",
+    "CITEXT case handling does not diverge between register's existing-email check and the Google email lookup — both use the same column"
+  ],
+  "refuted": [],
+  "unproven": [],
+  "reachableRegressions": [],
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "error-boundaries",
+      "location": "apps/api/src/users/users.service.ts:119",
+      "summary": "verifyGoogleCredential called verify() without an isConfigured() check, unlike GoogleAuthService.signIn, so an unconfigured server answered 'Google ID token invalid' when the truth was 'this server has no Google configuration'. Fail-closed but misleading. FIXED: the guard now mirrors GoogleAuthService.signIn and the new test asserts verify() is never reached, not merely that the label is right; mutation-tested by disabling the guard, the test went red.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "medium",
+      "category": "test-coverage",
+      "location": "apps/api/src/users/users.service.delete-me.spec.ts:141",
+      "summary": "No test exercised deleteMe's Google branch with GOOGLE_OAUTH_AUDIENCES unset, leaving one corner of the security surface asserted only by inference. FIXED: test added, api went 133 to 134.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "medium",
+      "category": "test-coverage",
+      "location": "apps/mobile/src/hooks/use-google-sign-in.ts:59",
+      "summary": "The error branch of the native result switch was untested — four of five statuses were exercised. FIXED by the tempering pass: two tests added covering the error branch with and without a native code, mobile went 223 to 225.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "low",
+      "category": "craft",
+      "location": "apps/mobile/src/auth/google-native-signin.ts:60-70",
+      "summary": "Every non-SDK-coded error folds into one generic message, including a transient network failure unrelated to the user's action. Acceptable now, and already dev-suffixed with the error code under __DEV__; differentiating is YAGNI until a real report justifies it.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "low",
+      "category": "concurrency",
+      "location": "apps/mobile/src/hooks/use-auth-mutations.ts:21-33",
+      "summary": "Login and register mutations rely on isPending-driven disabled rather than the useRef double-tap guard the Google flow uses, so a very fast double tap before re-render could fire mutate() twice. Pre-existing pattern, outside this plan's touchpoints; worst case is a redundant attempt the server rejects.",
+      "disposition": "Defer"
+    }
+  ]
+}

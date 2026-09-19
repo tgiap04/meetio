@@ -1,0 +1,43 @@
+{
+  "task": "Add Google Sign-In alongside the existing email/password auth, and rebuild the login and register screens in the visual language of the onboarding screens. 13 phases in four waves. User decisions fixed up front: @react-native-google-signin (native sheet) not expo-auth-session; auto-link to an existing password account only when email_verified is true; remake both auth screens; no Google Cloud client IDs exist yet, so client IDs come from env and the README documents the setup.",
+  "mode": "code",
+  "acceptanceCriteria": [
+    "typecheck, lint and the full test suite pass at the repo root",
+    "the server verifies the Google ID token itself and never accepts an email or user id from the client",
+    "the email_verified gate runs before any lookup by email, so an unverified token cannot probe which emails have accounts",
+    "the join key is Google's sub, never email",
+    "POST /auth/google returns the same AuthTokenPair as /auth/login, so refresh rotation and family revocation are one code path, not two",
+    "a Google-only account pays the same argon2 cost on password login as an unknown email, so response timing does not reveal which accounts are Google-only",
+    "a Google-only account can still delete itself, and a token from a different Google account cannot delete it",
+    "the new route inherits the controller's 10 req/min/IP throttle rather than overriding it",
+    "no test file lives under apps/mobile/app, which Expo Router would turn into a route",
+    "every code file stays under 200 lines, including specs",
+    "packages/shared keeps zero runtime dependencies",
+    "EXPO_PUBLIC_* values actually reach the Metro bundle",
+    "app-verify fails loudly when Google is configured but the reversed client ID is missing from Info.plist"
+  ],
+  "touchpoints": [
+    "apps/api/src/auth/google-identity.ts",
+    "apps/api/src/auth/google-token-verifier.ts",
+    "apps/api/src/auth/google-auth.service.ts",
+    "apps/api/src/auth/auth.controller.ts",
+    "apps/api/src/auth/auth.service.ts",
+    "apps/api/src/auth/auth.module.ts",
+    "apps/api/src/users/users.service.ts",
+    "apps/api/src/users/delete-credential.ts",
+    "apps/api/src/database/migrations/1758000000010-AddGoogleIdentityToUsers.ts",
+    "packages/shared/src/auth/auth.types.ts",
+    "packages/shared/src/enums/api-error-code.ts",
+    "apps/mobile/src/auth/google-native-signin.ts",
+    "apps/mobile/src/hooks/use-google-sign-in.ts",
+    "apps/mobile/src/components/auth/",
+    "apps/mobile/app/(auth)/login.tsx",
+    "apps/mobile/app/(auth)/register.tsx",
+    "apps/mobile/app.config.ts",
+    "apps/mobile/scripts/check-public-env.cjs",
+    "Makefile",
+    "README.md"
+  ],
+  "blastRadius": "Authentication for the whole product, on both sides. The migration makes users.password_hash nullable, which reaches every existing reader of that column — two were found, one of which (deleteMe) would otherwise have made Google-only accounts permanently undeletable. PrimaryButton's gradient conversion touches five already-accepted screens. Two pre-existing defects were found and fixed along the way: EXPO_PUBLIC_* never reached the Metro bundle at all, because @expo/env resolves .env against the Expo project root and does not walk up to the repo root, so apiClient.baseURL was undefined in every build made the documented way; and EXPO_PUBLIC_API_URL lacked the /api suffix the server's global prefix requires. Baseline before the work: api 96 tests, mobile 146, zero files over 200 lines.",
+  "contracts": "POST /auth/google takes { id_token } only and returns the existing AuthTokenPair unchanged, so mobile reuses persistSession and there is exactly one token-persistence path. AuthService.issueTokenPairWithUser became public so GoogleAuthService issues sessions through the same rotation and family-revocation code rather than a parallel one. DELETE /users/me accepts exactly one of password or google_id_token. New error codes GOOGLE_TOKEN_INVALID and GOOGLE_EMAIL_UNVERIFIED are thrown explicitly by the business layer; the exception filter still never infers a domain code from an HTTP status. No provider column: the CHECK constraint (password_hash IS NOT NULL OR google_sub IS NOT NULL) is the invariant instead. Accepted risk: nonce is not validated because the native library does not mint one for this flow, so a leaked ID token is replayable within its lifetime, narrowed by TLS-only transport and a no-logging rule."
+}

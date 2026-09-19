@@ -1,0 +1,88 @@
+{
+  "commands": [
+    {
+      "command": "yarn workspace @meetio/api run test",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "134 passed, 18 suites against real Postgres with DATABASE_URL set",
+      "ts": "2026-09-20T00:02:32Z"
+    },
+    {
+      "command": "file split: use-google-sign-in-native-result.spec.tsx created",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "use-google-sign-in.test.tsx: 150 lines | use-google-sign-in-native-result.spec.tsx: 115 lines — both under 200",
+      "ts": "2026-09-20T00:04:00Z"
+    },
+    {
+      "command": "yarn workspace @meetio/mobile run test (run 1 of 3, after split)",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "225 passed, 38 suites — split complete; native-result tests in new file",
+      "ts": "2026-09-20T00:04:10Z"
+    },
+    {
+      "command": "yarn workspace @meetio/mobile run test (run 2 of 3, after split)",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "225 passed, 38 suites — stable on rerun",
+      "ts": "2026-09-20T00:04:20Z"
+    },
+    {
+      "command": "yarn workspace @meetio/mobile run test (run 3 of 3, after split)",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "225 passed, 38 suites — confirmed stable",
+      "ts": "2026-09-20T00:04:30Z"
+    },
+    {
+      "command": "yarn typecheck",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "TypeScript clean across @meetio/api, @meetio/mobile, @meetio/shared",
+      "ts": "2026-09-20T00:03:25Z"
+    },
+    {
+      "command": "yarn eslint . --max-warnings=0",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "eslint clean at repo root",
+      "ts": "2026-09-20T00:03:30Z"
+    },
+    {
+      "command": "yarn workspace @meetio/api run openapi:generate",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "OpenAPI schema generation clean",
+      "ts": "2026-09-20T00:03:35Z"
+    },
+    {
+      "command": "make app-verify",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "CI invariants clean — android and ios both ready",
+      "ts": "2026-09-20T00:03:40Z"
+    },
+    {
+      "command": "packages/shared has zero runtime dependencies",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "Invariant verified: packages/shared/.dependencies is null",
+      "ts": "2026-09-20T00:03:45Z"
+    },
+    {
+      "command": "no test files under apps/mobile/app",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "Invariant verified: no .test.* found in apps/mobile/app/",
+      "ts": "2026-09-20T00:03:50Z"
+    },
+    {
+      "command": "no source files over 200 lines",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "Invariant verified: all .ts/.tsx files in src/ under 200 lines",
+      "ts": "2026-09-20T00:03:55Z"
+    }
+  ]
+}

@@ -22,9 +22,16 @@ thiết bị, pipeline GraphRAG phía backend, hỏi đáp có trích dẫn ngu�
 **[Thiết kế giao diện](../../design.png)** (14 màn)
 
 **Hiện trạng:** Bộ khung chạy được đã hoàn tất — Phase 01, 02, 03, 06 xong và kiểm chứng độc lập.
-**223 test xanh** (96 API + 127 mobile). Đăng ký/đăng nhập/xoay vòng token chạy thật đầu-cuối;
-13 bảng + index HNSW trên Postgres thật; Swagger phục vụ 7 nhóm endpoint; ba màn đầu (splash, onboarding, permission) dựng xong cùng cổng bootstrap.
+**356 test xanh** (133 API / 18 suites + 223 mobile / 37 suites, tăng từ 242 — 96 API + 146 mobile — đo tại `f072b82`; con số 223 ghi ở bản trước đã cũ, nó có từ trước khi ba màn onboarding hoàn tất). Đăng ký/đăng nhập/xoay vòng token chạy thật đầu-cuối; 13 bảng + index HNSW trên Postgres thật; Swagger phục vụ 7 nhóm endpoint; ba màn đầu (splash, onboarding, permission) dựng xong cùng cổng bootstrap; hai màn auth (login/register) dựng lại + **lối đăng nhập Google** thêm vào theo yêu cầu thời gian chạy.
 **Tiếp theo:** Phase 04 (API vòng đời cuộc họp) và Phase 00 (spike STT — cổng chặn Phase 07).
+
+### Phạm vi mở rộng — Google Sign-In (NGOÀI spec 260917)
+
+**Lối đăng nhập thứ hai: email/mật khẩu + Google Sign-In.** Không nằm trong spec 260917 nhưng đã xây dựng hoàn tất (plan [260919-2151-google-auth-and-auth-ui](../260919-2151-google-auth-and-auth-ui/plan.md)): 13 phase tự động + 1 manual (đợi QA máy thật); 37 test mới ở mobile, 12 test mới ở API. Quyết định thiết kế:
+- Khóa nối là Google `sub` (bất biến), không email (có thể đổi).
+- Tự liên kết email khi `email_verified === true` và email tồn tại ở tài khoản mật khẩu.
+- `password_hash` nullable; người chỉ-Google xóa tài khoản bằng ID token verified.
+- `POST /auth/google` dùng lại chuỗi token mà login mật khẩu phát (không kiểu, TTL mới, hay giới hạn riêng).
 **Stack:** yarn 4 workspaces (`nodeLinker: node-modules`) · monorepo `apps/api` + `apps/mobile` +
 `packages/shared` · **NestJS 12 (ESM thuần)** + TypeORM + `@nestjs/swagger` · Expo/React Native + axios + TanStack
 Query + Zustand · PostgreSQL 15 + pgvector · BullMQ/Redis · Google Gemini.
