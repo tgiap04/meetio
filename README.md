@@ -214,6 +214,7 @@ exact same native project as before this feature existed. Enabling it needs a pr
 
 | Symptom | Cause |
 |---|---|
+| `TurboModuleRegistry.getEnforcing(...): 'RNGoogleSignin' could not be found` | you are running in **Expo Go**, which can never contain this library — it is third-party native code, and Expo Go only ships Expo SDK modules. Look for `Using Expo Go` in the startup log. Build and install the dev build with `make app-ios` / `make app-android`; `make mobile` now passes `--dev-client` so it will not silently fall back to Expo Go. The same error on a dev build means the binary predates the dependency — rebuild it |
 | Android `DEVELOPER_ERROR` (code 10) | the SHA-1 of the signing key you built with was never registered on an Android OAuth client for `com.tobi_04.meetio` — see step 4 |
 | iOS crashes with `NSInvalidArgumentException` mentioning URL schemes | the reversed client ID never made it into `Info.plist`. Run `make app-verify` — it greps for exactly this and fails loudly if the scheme is missing after prebuild |
 | `GoogleSignin` resolves but `idToken` is `null` | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` is missing — `webClientId` is required on **both** platforms to get an ID token, not just the platform-specific client |

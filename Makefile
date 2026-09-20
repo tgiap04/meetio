@@ -203,8 +203,19 @@ dev: up migrate ## Bật hạ tầng rồi chạy API ở chế độ watch
 api: ## Chạy API (không watch)
 	@$(API) run start
 
-mobile: env ## Chạy Expo dev server
-	@$(MOBILE) run start
+# `--dev-client`, KHÔNG để Expo Go làm mặc định.
+#
+# Expo Go là app dựng sẵn của Expo: nó chỉ chứa module thuộc Expo SDK. Bốn module
+# native của dự án (expo-audio, expo-linear-gradient, expo-secure-store,
+# reanimated) đều nằm trong đó, nên Expo Go chạy tốt — cho tới khi thêm
+# @react-native-google-signin/google-signin, thư viện bên thứ ba đầu tiên.
+#
+# Khi đó Expo Go nạp bundle rồi chết ở `TurboModuleRegistry.getEnforcing(...):
+# 'RNGoogleSignin' could not be found`, và dòng duy nhất chỉ ra nguyên nhân là
+# "Using Expo Go" trôi qua giữa đống log khởi động. Ép dev build ngay từ đầu để
+# không ai mất một buổi vì nó nữa. Chưa có dev build? Chạy `make app-ios`.
+mobile: env ## Chạy Expo dev server trỏ vào dev build (KHÔNG dùng Expo Go)
+	@$(MOBILE) run start -- --dev-client
 
 openapi: ## Sinh openapi.json
 	@$(API) run openapi:generate
