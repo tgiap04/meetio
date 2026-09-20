@@ -203,7 +203,7 @@ dev: up migrate ## Bật hạ tầng rồi chạy API ở chế độ watch
 api: ## Chạy API (không watch)
 	@$(API) run start
 
-mobile: ## Chạy Expo dev server
+mobile: env ## Chạy Expo dev server
 	@$(MOBILE) run start
 
 openapi: ## Sinh openapi.json
@@ -215,7 +215,7 @@ build-api: ## Build backend ra apps/api/dist
 	@$(API) run build
 	@echo "  ✅ apps/api/dist/main.js"
 
-build-app: ## Sinh lại project native (chạy sau khi thêm thư viện native)
+build-app: env ## Sinh lại project native (chạy sau khi thêm thư viện native)
 	@echo "  Sinh lại ios/ và android/ từ app.json + config plugin..."
 	@$(POD_ENV) $(MOBILE) exec expo prebuild || true
 	@$(MAKE) --no-print-directory app-verify
@@ -257,10 +257,10 @@ app-verify: ## Kiểm tra project native sinh ra có dùng được không
 	fi; \
 	[ "$$ok" = "1" ] || { echo "  → Có nền tảng chưa dựng được (xem trên)."; exit 1; }
 
-app-ios: ## Build + cài + chạy trên iOS (simulator hoặc máy thật)
+app-ios: env ## Build + cài + chạy trên iOS (simulator hoặc máy thật)
 	@$(MOBILE) exec expo run:ios
 
-app-android: ## Build + cài + chạy trên Android
+app-android: env ## Build + cài + chạy trên Android
 	@$(MOBILE) exec expo run:android
 
 app-clean: ## Xoá hẳn ios/ android/ rồi sinh lại (khi native lỗi lạ)
