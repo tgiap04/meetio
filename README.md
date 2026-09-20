@@ -138,6 +138,36 @@ make app-ios       # rebuild and reinstall on the device
 
 Swagger UI: <http://localhost:3000/api/docs>
 
+#### Dọn dung lượng build native
+
+Build native chiếm chỗ ở **hai** nơi, và chỗ lớn hơn nằm **ngoài** thư mục dự án — nên
+`du -sh` trên repo sẽ báo thiếu. Số đo thật trên một máy đã build iOS một lần:
+
+| | |
+|---|---|
+| `apps/mobile/ios` | ~1,2 GB (gần như toàn bộ là Pods) |
+| `apps/mobile/android` | ~1 GB sau lần build Android đầu tiên |
+| `~/Library/Developer/Xcode/DerivedData/Meetio-*` | ~1,7 GB ← ngoài dự án |
+
+```bash
+make disk           # xem đang chiếm bao nhiêu, cả trong lẫn ngoài dự án
+make clean-ios      # xoá ios/ + DerivedData của Meetio
+make clean-android  # xoá android/
+make clean          # cả hai
+```
+
+Mọi thứ các lệnh trên xoá đều **sinh lại được**: `ios/` và `android/` do `expo prebuild`
+dựng và đã nằm trong `.gitignore`; `DerivedData` do Xcode dựng. Không có mã nguồn, không có
+dữ liệu. Cái giá là lần build kế tiếp lâu hơn vì phải `pod install` lại từ đầu — chạy
+`make build-app` khi cần dùng lại.
+
+`make clean` **cố ý không đụng** `~/.gradle` (thường 4 GB+). Đó là cache dùng chung cho mọi
+dự án Android trên máy; xoá nó là bắt các dự án khác tải lại hàng GB. Muốn dọn thì xoá tay,
+và hiểu rõ nó ảnh hưởng tới cái gì.
+
+Khác với `make app-clean`, vốn xoá **rồi dựng lại ngay** để chữa lỗi native lạ, nhóm lệnh
+`clean*` chỉ xoá và dừng — mục đích là lấy lại dung lượng, không phải sửa build.
+
 ### Google Sign-In setup
 
 Google sign-in ships **disabled by default** — every key below is blank in `make env`'s

@@ -43,7 +43,8 @@ MOBILE := yarn workspace @meetio/mobile
 .PHONY: help setup env install up down restart ps logs logs-db logs-redis \
         psql redis-cli migrate migrate-down seed db-reset reset-hard \
         dev api mobile openapi test check build build-api build-app \
-        app-ios app-android app-clean app-doctor app-verify typecheck lint doctor
+        app-ios app-android app-clean app-doctor app-verify typecheck lint doctor \
+        clean clean-ios clean-android disk
 
 # ---------------------------------------------------------------- help -------
 
@@ -275,6 +276,69 @@ app-clean: ## Xoá hẳn ios/ android/ rồi sinh lại (khi native lỗi lạ)
 
 app-doctor: ## Kiểm tra phiên bản thư viện có khớp Expo SDK không
 	@cd apps/mobile && npx expo-doctor
+
+# ------------------------------------------------------------- dọn dẹp ------
+#
+# Build native ăn dung lượng ở HAI nơi, và chỗ to hơn nằm NGOÀI thư mục dự án:
+#   apps/mobile/ios            ~1,2 GB  (gần như toàn bộ là Pods)
+#   apps/mobile/android        ~1 GB    (.gradle + app/build, sau lần build đầu)
+#   ~/Library/.../DerivedData  ~1,7 GB  ← `du -sh` trên repo KHÔNG thấy chỗ này
+#
+# Mọi thứ các target dưới đây xoá đều là đầu ra sinh lại được: `ios/` và
+# `android/` do `expo prebuild` dựng và đã nằm trong .gitignore, DerivedData do
+# Xcode dựng. Không có mã nguồn, không có dữ liệu. Đổi lại, lần build kế tiếp
+# sẽ lâu vì phải `pod install` lại từ đầu.
+#
+# KHÔNG đụng tới ~/.gradle (~4,4 GB): nó là cache DÙNG CHUNG cho mọi dự án
+# Android trên máy, xoá là các dự án khác phải tải lại hàng GB.
+
+DERIVED_DATA := $(HOME)/Library/Developer/Xcode/DerivedData
+
+# $(1) = nhãn in ra, $(2)... = các đường dẫn cần xoá (bỏ qua nếu không tồn tại)
+define purge_paths
+	@freed=0; hit=0; \
+	for p in $(2); do \
+		[ -e "$$p" ] || continue; \
+		kb=$$(du -sk "$$p" 2>/dev/null | cut -f1); \
+		freed=$$((freed + kb)); hit=1; \
+		rm -rf "$$p"; \
+		echo "  🗑  $$p"; \
+	done; \
+	if [ "$$hit" = "1" ]; then \
+		if [ "$$freed" -ge 1024 ]; then size="$$((freed / 1024)) MB"; else size="$$freed KB"; fi; \
+		echo "  ✅ $(1): giải phóng $$size — dựng lại bằng 'make build-app'."; \
+	else \
+		echo "  –  $(1): không có gì để dọn."; \
+	fi
+endef
+
+clean-ios: ## Xoá build iOS (apps/mobile/ios + DerivedData của Meetio)
+	$(call purge_paths,iOS,apps/mobile/ios $(DERIVED_DATA)/Meetio-*)
+
+clean-android: ## Xoá build Android (apps/mobile/android + cache gradle của dự án)
+	$(call purge_paths,Android,apps/mobile/android)
+
+clean: clean-ios clean-android ## Dọn toàn bộ đầu ra build native của dự án
+	@echo ""
+	@echo "  Cache dùng chung KHÔNG bị đụng (cố ý — các dự án khác đang dùng):"
+	@s=$$(du -sh $(HOME)/.gradle 2>/dev/null | cut -f1); \
+	printf "    %-18s %s  xoá tay nếu thật sự cần\n" "~/.gradle" "$${s:-—}"
+	@s=$$(du -sh node_modules 2>/dev/null | cut -f1); \
+	printf "    %-18s %s  dựng lại bằng 'yarn install'\n" "node_modules" "$${s:-—}"
+
+# `du` lỗi nhưng `cut` vẫn thoát 0, nên `|| echo '—'` không bao giờ chạy —
+# phải bắt chuỗi rỗng bằng `$${s:-—}` thay vì dựa vào mã thoát của pipeline.
+disk: ## Xem build native đang chiếm bao nhiêu dung lượng
+	@echo "  Trong dự án:"
+	@for p in apps/mobile/ios apps/mobile/android node_modules; do \
+		s=$$(du -sh "$$p" 2>/dev/null | cut -f1); \
+		printf "    %-26s %s\n" "$$p" "$${s:-—}"; \
+	done
+	@echo "  Ngoài dự án:"
+	@s=$$(du -shc $(DERIVED_DATA)/Meetio-* 2>/dev/null | tail -1 | cut -f1); \
+	printf "    %-26s %s\n" "DerivedData/Meetio-*" "$${s:-—}"
+	@s=$$(du -sh $(HOME)/.gradle 2>/dev/null | cut -f1); \
+	printf "    %-26s %s  (dùng chung, 'make clean' không đụng)\n" "~/.gradle" "$${s:-—}"
 
 # --------------------------------------------------------------- checks -----
 
