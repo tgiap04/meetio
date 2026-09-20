@@ -166,6 +166,19 @@ maybeDescribe('database schema (integration, real Postgres)', () => {
   });
 
   it('reverts the last migration and reapplies it without losing existing data', async () => {
+    // Migration 010 is deliberately not revertible while a Google-only account
+    // exists (the guard is the test above), so "the last migration reverts" is
+    // true on a fresh CI database and false on any machine where someone has
+    // signed in with Google — green in CI, red locally, for whoever is building
+    // that feature. Branch rather than skip: both paths assert something true.
+    const googleOnlyCount = await AppDataSource.query(
+      `SELECT count(*)::int AS n FROM users WHERE password_hash IS NULL`,
+    );
+    if (googleOnlyCount[0].n > 0) {
+      await expect(AppDataSource.undoLastMigration()).rejects.toThrow(/Google-only account/);
+      return;
+    }
+
     const usersBefore = await AppDataSource.getRepository(User).count();
 
     await AppDataSource.undoLastMigration();
