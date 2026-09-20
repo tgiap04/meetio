@@ -88,6 +88,39 @@ describe('khi binary native thiếu RNGoogleSignin', () => {
     expect(factory).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * Metro KHÔNG ném ở lần nạp đầu. `guardedLoadModule` bắt lỗi của factory, gọi
+   * `ErrorUtils.reportFatalError`, rồi trả `undefined`. Các ca ở trên mock require
+   * ném — đó là ngữ nghĩa của Jest, không phải của Metro, nên chúng KHÔNG tái hiện
+   * đường đi thật trên máy. Hai ca dưới đây mới tái hiện.
+   */
+  it('trả NATIVE_MODULE_MISSING khi Metro trả undefined thay vì ném', async () => {
+    jest.doMock('@react-native-google-signin/google-signin', () => undefined);
+    const { signInWithGoogleNative } = loadModule();
+
+    await expect(signInWithGoogleNative()).resolves.toEqual({
+      status: 'error',
+      code: 'NATIVE_MODULE_MISSING',
+    });
+  });
+
+  it('trả NATIVE_MODULE_MISSING khi nhận được object rỗng, không phải SDK dùng được', async () => {
+    // Một module đã hỏng lúc khởi tạo vẫn có thể để lại `exports` là object rỗng.
+    // "Khác undefined" là phép kiểm quá yếu — phải gọi được `signIn` mới tính.
+    jest.doMock('@react-native-google-signin/google-signin', () => ({}));
+    const { signInWithGoogleNative } = loadModule();
+
+    await expect(signInWithGoogleNative()).resolves.toEqual({
+      status: 'error',
+      code: 'NATIVE_MODULE_MISSING',
+    });
+  });
+
+  // Không có ca nào cho "chỉ require một lần khi Metro trả undefined": Jest giữ
+  // registry module riêng, nên factory chạy đúng một lần bất kể code làm gì. Một
+  // ca như vậy sẽ luôn xanh, kể cả khi bộ nhớ đệm hỏng thật — đã đo bằng mutation.
+  // Thà không có test còn hơn có một test không bao giờ đỏ được vì lý do nó nêu.
+
   it('vẫn ưu tiên NOT_CONFIGURED khi chưa điền client ID', async () => {
     delete process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
     const { signInWithGoogleNative } = loadModule();

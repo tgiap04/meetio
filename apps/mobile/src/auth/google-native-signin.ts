@@ -38,15 +38,33 @@ let sdk: Sdk | null | undefined;
  */
 function loadSdk(): Sdk | null {
   if (sdk !== undefined) return sdk;
+
+  let loaded: unknown;
   try {
     // Bắt buộc là `require`: một `import` tĩnh sẽ chạy lúc nạp module — đúng thứ
     // hàm này sinh ra để tránh.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    sdk = require('@react-native-google-signin/google-signin') as Sdk;
+    loaded = require('@react-native-google-signin/google-signin');
   } catch {
-    sdk = null;
+    loaded = undefined;
   }
+
+  // KHÔNG dựa vào `catch` ở trên. Metro bọc lần nạp đầu của mỗi module trong
+  // `guardedLoadModule` (metro-runtime/src/polyfills/require.js): factory ném thì
+  // nó BẮT, gọi `ErrorUtils.reportFatalError(e)`, rồi trả `undefined` — không ném
+  // lại. Nên lần gọi đầu tiên `catch` không hề chạy; chỉ từ lần thứ hai, khi
+  // `module.hasError` đã bật, require mới thật sự ném.
+  //
+  // Vì vậy phải kiểm HÌNH DẠNG thứ nhận được thay vì tin rằng thất bại sẽ ném.
+  sdk = isUsable(loaded) ? loaded : null;
   return sdk;
+}
+
+/** Đủ dùng nghĩa là gọi được `signIn` — không chỉ là "khác undefined". */
+function isUsable(mod: unknown): mod is Sdk {
+  if (typeof mod !== 'object' || mod === null) return false;
+  const candidate = mod as Partial<Sdk>;
+  return typeof candidate.GoogleSignin?.signIn === 'function';
 }
 
 let hasConfigured = false;
