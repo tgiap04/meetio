@@ -29,7 +29,7 @@ import { typography } from '../../theme/typography';
  *
  * The old screen used `colors.primary` for the *entire* footer link — 2.62:1
  * on the light ground, effectively unreadable at body size (see `colors.ts`).
- * Only the action word ("Đăng ký") gets `colors.primaryStrong` (4.52:1); the
+ * Only the action word ("Đăng ký") gets `colors.primaryStrong` (4.57:1 on cream); the
  * question text stays `colors.textMuted`, because it is not itself a tap
  * target and painting the whole line orange would flatten the one thing that
  * actually matters. Same split as `RegisterForm`'s footer, so the two auth
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   // 44pt+ touch target around the text, not just the glyph height.
   link: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
   linkText: { ...typography.body, color: colors.textMuted },
-  // colors.primaryStrong (4.52:1 on white), never colors.primary (2.62:1) — see
+  // colors.primaryStrong (4.57:1 on the cream surface these screens use), never colors.primary (2.62:1) — see
   // colors.ts. Only the action word carries it: the question text is not itself
   // a tap target, so painting the whole line orange would flatten that.
   linkTextStrong: { color: colors.primaryStrong, fontWeight: '600' },

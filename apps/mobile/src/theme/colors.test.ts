@@ -32,6 +32,12 @@ describe('contrast', () => {
     ['text on surface', colors.text, colors.surface],
     ['textMuted on background', colors.textMuted, colors.background],
     ['primaryStrong on background', colors.primaryStrong, colors.background],
+    // `surface` is the ground every screen actually paints on; `background` is
+    // only for cards. Cream is darker than white, so white-only rows let a
+    // sub-AA colour through — which is exactly what happened: primaryStrong
+    // read 4.52 on white and 4.19 on cream, and shipped.
+    ['textMuted on surface', colors.textMuted, colors.surface],
+    ['primaryStrong on surface', colors.primaryStrong, colors.surface],
   ])('%s clears WCAG AA for body text', (_label, fg, bg) => {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(AA_BODY);
   });

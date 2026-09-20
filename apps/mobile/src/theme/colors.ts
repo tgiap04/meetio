@@ -14,8 +14,15 @@
  * trade, not an oversight.
  *
  * Use `primaryStrong` for orange **text and small icons on light backgrounds**:
- * it holds the same hue at 4.52:1 on white, where `primary` itself would be
- * 2.62:1 and effectively unreadable at body size.
+ * it holds the same hue at 4.93:1 on white and 4.57:1 on `surface`, where
+ * `primary` itself would be 2.62:1 and effectively unreadable at body size.
+ *
+ * **Measure against `surface`, not `background`.** Every screen sits on the
+ * cream `surface`; pure white is only for cards. Cream is darker than white, so
+ * a ratio that clears AA on white can still fail on the ground the text is
+ * actually painted on — `primaryStrong` was #B75F01 (4.52 on white, **4.19 on
+ * cream**) and `textMuted` was #6B7683 (4.62 / **4.28**) until both were
+ * measured against the real background. `colors.test.ts` now checks both.
  *
  * Entity colours for the knowledge-graph screen (Person / Task / Project) are
  * deliberately absent. That screen belongs to a later phase, and guessing its
@@ -25,8 +32,9 @@ export const colors = {
   // --- Brand -------------------------------------------------------------
   /** Brand orange. Measured #FE6D01 in the design; this is the exact brand value. */
   primary: '#F68001',
-  /** Same hue, darkened to 4.52:1 on white — for orange text and small icons. */
-  primaryStrong: '#B75F01',
+  /** Same hue, darkened until it clears AA on cream too: 4.57:1 on `surface`,
+   *  4.93:1 on white. For orange text and small icons. */
+  primaryStrong: '#AE5A01',
   /** measured — peach wash behind badges, active pills and highlighted rows. */
   primaryTint: '#FEF3E6',
   /** On solid `primary` fills. See the contrast note above. */
@@ -49,8 +57,8 @@ export const colors = {
   border: '#EAE4DA',
   /** measured — dark slate, 13.7:1 on white. Not pure black; the design never uses it. */
   text: '#212F3C',
-  /** 4.62:1 on white, so secondary copy still clears AA. */
-  textMuted: '#6B7683',
+  /** 4.53:1 on `surface`, 4.88:1 on white — secondary copy clears AA on both. */
+  textMuted: '#68727F',
 
   // --- Semantic ----------------------------------------------------------
   /** Processing complete. */

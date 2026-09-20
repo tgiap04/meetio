@@ -154,6 +154,6 @@ const styles = StyleSheet.create({
   // 44pt+ touch target around the text, not just the glyph height.
   link: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
   linkText: { ...typography.body, color: colors.textMuted },
-  // colors.primaryStrong (4.52:1 on white), never colors.primary (2.62:1) — see colors.ts.
+  // colors.primaryStrong (4.57:1 on the cream surface these screens use), never colors.primary (2.62:1) — see colors.ts.
   linkTextStrong: { color: colors.primaryStrong, fontWeight: '600' },
 });
