@@ -20,6 +20,16 @@ import { typography } from '../src/theme/typography';
 
 const LAST_PAGE_INDEX = ONBOARDING_PAGES.length - 1;
 
+/**
+ * LỆCH design.png CÓ CHỦ Ý — đừng "sửa lại cho khớp thiết kế".
+ *
+ * Màn 2 trong `design.png` vẽ trang 1/3 (chấm đầu đang active) với nhãn "Bắt đầu".
+ * Nhưng ở trang 1 và 2, bấm nút chỉ cuộn sang trang kế chứ không vào app — nhãn
+ * "Bắt đầu" ở đó hứa một việc mà nút không làm. Chỉ trang cuối mới thật sự bắt đầu.
+ */
+const PRIMARY_LABEL_LAST = 'Bắt đầu';
+const PRIMARY_LABEL_ADVANCE = 'Tiếp tục';
+
 export default function OnboardingScreen() {
   const { width } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
@@ -58,7 +68,11 @@ export default function OnboardingScreen() {
         <View style={styles.centered}>
           <PagerDots count={ONBOARDING_PAGES.length} activeIndex={pageIndex} testID="onboarding-pager-dots" />
         </View>
-        <PrimaryButton label="Bắt đầu" onPress={handlePrimaryPress} testID="onboarding-primary-button" />
+        <PrimaryButton
+          label={pageIndex < LAST_PAGE_INDEX ? PRIMARY_LABEL_ADVANCE : PRIMARY_LABEL_LAST}
+          onPress={handlePrimaryPress}
+          testID="onboarding-primary-button"
+        />
         <Pressable
           accessibilityRole="button"
           onPress={complete}

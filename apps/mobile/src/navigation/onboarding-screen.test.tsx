@@ -43,6 +43,18 @@ function pressPrimary(renderer: TestRenderer.ReactTestRenderer) {
   });
 }
 
+/**
+ * Đọc nhãn nút chính. Lọc theo `'label' in props` để lấy đúng composite
+ * `PrimaryButton` — testID được truyền tiếp xuống `Pressable` và cả `View` host
+ * bên dưới, nên `findByProps({testID})` có thể khớp nhiều node.
+ */
+function primaryLabel(renderer: TestRenderer.ReactTestRenderer): string {
+  const matches = renderer.root
+    .findAllByProps({ testID: 'onboarding-primary-button' })
+    .filter((node) => 'label' in node.props);
+  return matches[matches.length - 1].props.label;
+}
+
 function pressSkip(renderer: TestRenderer.ReactTestRenderer) {
   const skip = renderer.root.findByProps({ testID: 'onboarding-skip-button' });
   act(() => {
@@ -70,7 +82,33 @@ describe('OnboardingScreen', () => {
     ScrollView.prototype.scrollTo = mockScrollTo;
   });
 
-  it('advances instead of completing when "Bắt đầu" is pressed on page 1', () => {
+  it('says "Tiếp tục" while there are pages left, and "Bắt đầu" only on the last', () => {
+    // The label used to be hardcoded to "Bắt đầu" on every page, matching
+    // design.png — which draws page 1 of 3 with that label. But on pages 1 and
+    // 2 the button only scrolls to the next page, so the label promised
+    // something the button did not do. A deliberate deviation from the design;
+    // see the note beside PRIMARY_LABEL_ADVANCE in app/onboarding.tsx.
+    const renderer = renderScreen();
+    expect(primaryLabel(renderer)).toBe('Tiếp tục');
+
+    scrollToPage(renderer, 1);
+    expect(primaryLabel(renderer)).toBe('Tiếp tục');
+
+    scrollToPage(renderer, 2);
+    expect(primaryLabel(renderer)).toBe('Bắt đầu');
+  });
+
+  it('goes back to "Tiếp tục" when the user swipes back from the last page', () => {
+    // Swiping is not one-way. A label derived from state rather than set once
+    // has to survive going backwards too.
+    const renderer = renderScreen();
+    scrollToPage(renderer, 2);
+    scrollToPage(renderer, 1);
+
+    expect(primaryLabel(renderer)).toBe('Tiếp tục');
+  });
+
+  it('advances instead of completing when the primary button is pressed on page 1', () => {
     const renderer = renderScreen();
 
     pressPrimary(renderer);
