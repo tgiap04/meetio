@@ -1,6 +1,8 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
+import { StyleSheet } from 'react-native';
 import { PermissionBody } from './permission-body';
+import { colors } from '../../theme/colors';
 import { isRenderableVietnameseText } from '../../theme/typography';
 
 const STRINGS = [
@@ -76,6 +78,34 @@ describe('PermissionBody', () => {
     const primary = renderer.root.findByProps({ testID: 'permission-primary-button' });
 
     expect(primary.props.loading).toBe(true);
+  });
+
+  it('lets the primary button span the content width instead of shrink-wrapping it', () => {
+    const { renderer } = render();
+    const container = renderer.root.findByProps({ testID: 'permission-body' });
+    const style = StyleSheet.flatten(container.props.style);
+
+    // Chốt đúng thuộc tính quyết định bề rộng, không phải "nút có tồn tại".
+    // `alignItems: 'center'` ở container ép mọi con co lại bằng nội dung —
+    // đó chính là thứ làm nút "Cho phép" bó sát chữ thay vì trải hết bề ngang.
+    expect(style.alignItems ?? 'stretch').toBe('stretch');
+
+    // Và nút phải là con TRỰC TIẾP của container: bọc thêm một lớp căn giữa
+    // sẽ dựng lại đúng cái bó-sát-nội-dung ấy ở tầng dưới.
+    const primary = renderer.root.findByProps({ testID: 'permission-primary-button' });
+    expect(primary.parent).toHaveProperty('props.testID', 'permission-body');
+  });
+
+  it('draws the defer link muted grey while keeping a 44pt touch target', () => {
+    const { renderer } = render();
+    const style = StyleSheet.flatten(
+      renderer.root.findByProps({ testID: 'permission-defer-link' }).props.style,
+    );
+
+    expect(style.color).toBe(colors.textMuted);
+    expect(style.color).not.toBe(colors.primaryStrong);
+    // Bỏ màu nhấn thì không được bỏ luôn vùng chạm.
+    expect(Math.max(style.minHeight ?? 0, style.lineHeight ?? 0)).toBeGreaterThanOrEqual(44);
   });
 
   it('renders every Vietnamese string with system-font-renderable characters', () => {

@@ -90,5 +90,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   footer: { paddingHorizontal: 24, paddingBottom: 24, gap: 16 },
   centered: { alignItems: 'center' },
-  skip: { ...typography.body, color: colors.primaryStrong },
+  // Xám câm theo design, không phải cam — khớp với "Không, để sau" ở màn quyền
+  // micro. `lineHeight: 44` giữ vùng chạm ở sàn 44pt: bỏ màu nhấn đi rồi thì
+  // càng không được để link chỉ cao bằng một dòng chữ 16pt.
+  skip: { ...typography.body, color: colors.textMuted, lineHeight: 44 },
 });

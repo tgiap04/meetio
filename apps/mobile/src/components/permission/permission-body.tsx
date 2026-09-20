@@ -29,8 +29,10 @@ const PRIMARY_LABEL: Record<AskOrBlockedView, string> = {
 
 export function PermissionBody({ view, isBusy, onPrimaryPress, onDefer }: PermissionBodyProps) {
   return (
-    <View style={styles.container}>
-      <MicPermissionArt size={220} testID="permission-art" />
+    <View testID="permission-body" style={styles.container}>
+      <View style={styles.art}>
+        <MicPermissionArt size={220} testID="permission-art" />
+      </View>
       <Text style={styles.title}>{'Cần quyền truy cập\nMicrophone'}</Text>
       <BrandedParagraph
         text="Meetio cần quyền truy cập microphone để có thể ghi âm và nhận diện giọng nói."
@@ -60,9 +62,27 @@ export function PermissionBody({ view, isBusy, onPrimaryPress, onDefer }: Permis
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
+  // KHÔNG đặt `alignItems: 'center'` ở đây. Nó ép MỌI đứa con co lại bằng bề
+  // rộng nội dung, kể cả nút "Cho phép" — trong khi design vẽ nút trải hết bề
+  // ngang trong lề 24pt. Căn giữa là việc của từng con: chữ dùng `textAlign`,
+  // hình dùng `art`. (Onboarding/các màn auth không dính vì chúng căn bằng
+  // `paddingHorizontal` và `AuthScreenShell`, không bằng `alignItems`.)
+  container: { flex: 1, justifyContent: 'center', padding: 24, gap: 16 },
+  art: { alignItems: 'center' },
   title: { ...typography.heading, color: colors.text, textAlign: 'center' },
   body: { ...typography.body, color: colors.text, textAlign: 'center' },
   explain: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
-  defer: { ...typography.button, color: colors.primaryStrong },
+  // Xám câm theo design, không phải cam. Mất màu thì không được mất luôn vùng
+  // chạm: `lineHeight` nong hộp dòng lên 44pt (sàn của iOS/Android) và canh
+  // giữa chữ trong đó; `minHeight` giữ sàn ấy kể cả khi ai đó bỏ `lineHeight`.
+  // `alignSelf` để link chỉ rộng bằng chữ: container đã stretch, không thì vùng
+  // chạm trải hết bề ngang ngay dưới nút chính và tay trượt khỏi nút sẽ bấm
+  // nhầm vào "để sau".
+  defer: {
+    ...typography.button,
+    color: colors.textMuted,
+    alignSelf: 'center',
+    minHeight: 44,
+    lineHeight: 44,
+  },
 });
