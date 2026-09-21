@@ -29,6 +29,37 @@ import { EntityType } from '../enums/entity-type.enum.js';
 const hasDb = Boolean(process.env.DATABASE_URL);
 const maybeDescribe = hasDb ? describe : describe.skip;
 
+/** The migration whose down() refuses to run while a Google-only account exists. */
+const GOOGLE_IDENTITY_MIGRATION = 'AddGoogleIdentityToUsers1758000000010';
+
+async function lastAppliedMigration(): Promise<string> {
+  const rows = (await AppDataSource.query(
+    'SELECT name FROM migrations ORDER BY timestamp DESC LIMIT 1',
+  )) as { name: string }[];
+  if (rows.length === 0) {
+    throw new Error('No migrations are applied — the schema under test does not exist.');
+  }
+  return rows[0].name;
+}
+
+/**
+ * Reverts migrations one at a time until `name` is the most recently applied
+ * one, and reports how many came off so the caller can put them back.
+ *
+ * `undoLastMigration()` reverts whichever migration happens to be last. A test
+ * written about one specific migration's `down()` therefore stops testing that
+ * migration the moment anyone adds another one after it — silently, and while
+ * still passing. Walking down to the named migration keeps the subject fixed.
+ */
+async function revertDownTo(name: string): Promise<number> {
+  let reverted = 0;
+  while ((await lastAppliedMigration()) !== name) {
+    await AppDataSource.undoLastMigration();
+    reverted += 1;
+  }
+  return reverted;
+}
+
 function randomEmbedding(): number[] {
   return Array.from({ length: 768 }, () => Math.random() * 2 - 1);
 }
@@ -151,7 +182,12 @@ maybeDescribe('database schema (integration, real Postgres)', () => {
       notification_settings: {},
     });
 
+    let revertedAbove = 0;
     try {
+      // Peel off anything applied after 010 so the assertion below is aimed at
+      // 010's down() and not at whatever migration was added most recently.
+      revertedAbove = await revertDownTo(GOOGLE_IDENTITY_MIGRATION);
+
       await expect(AppDataSource.undoLastMigration()).rejects.toThrow(/Google-only account/);
 
       // The rejected down() must not have left the schema half-reverted —
@@ -162,6 +198,9 @@ maybeDescribe('database schema (integration, real Postgres)', () => {
       expect(constraints).toHaveLength(1);
     } finally {
       await AppDataSource.getRepository(User).delete({ id: googleOnlyUser.id });
+      if (revertedAbove > 0) {
+        await AppDataSource.runMigrations();
+      }
     }
   });
 
@@ -171,10 +210,14 @@ maybeDescribe('database schema (integration, real Postgres)', () => {
     // true on a fresh CI database and false on any machine where someone has
     // signed in with Google — green in CI, red locally, for whoever is building
     // that feature. Branch rather than skip: both paths assert something true.
+    //
+    // The branch is also conditioned on 010 actually BEING the last migration.
+    // Without that, adding any migration after 010 turns this into a test that
+    // demands a rejection from a down() that has every reason to succeed.
     const googleOnlyCount = await AppDataSource.query(
       `SELECT count(*)::int AS n FROM users WHERE password_hash IS NULL`,
     );
-    if (googleOnlyCount[0].n > 0) {
+    if ((await lastAppliedMigration()) === GOOGLE_IDENTITY_MIGRATION && googleOnlyCount[0].n > 0) {
       await expect(AppDataSource.undoLastMigration()).rejects.toThrow(/Google-only account/);
       return;
     }
