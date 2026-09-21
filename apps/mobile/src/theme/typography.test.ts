@@ -22,6 +22,7 @@ describe('isRenderableVietnameseText', () => {
       'Cần xác nhận đồng ý ghi âm trước khi bắt đầu.',
       'Không thể kết nối máy chủ. Kiểm tra kết nối mạng và thử lại.',
       'ườ ệ ấ ỡ ộ ắ ằ ẳ ẵ ặ',
+      'English → Vietnamese',
     ];
 
     samples.forEach((sample) => expect(isRenderableVietnameseText(sample)).toBe(true));

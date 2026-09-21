@@ -38,6 +38,29 @@ describe('contrast', () => {
     // read 4.52 on white and 4.19 on cream, and shipped.
     ['textMuted on surface', colors.textMuted, colors.surface],
     ['primaryStrong on surface', colors.primaryStrong, colors.surface],
+    // success — the mint "Đã xử lý" badge shipped without its text contrast
+    // ever being asserted; closing that gap here.
+    ['success on successTint', colors.success, colors.successTint],
+    ['success on surface', colors.success, colors.surface],
+    ['success on background', colors.success, colors.background],
+    // warning — the amber "Đang xử lý" badge, new this phase.
+    ['warning on warningTint', colors.warning, colors.warningTint],
+    ['warning on surface', colors.warning, colors.surface],
+    ['warning on background', colors.warning, colors.background],
+    // Knowledge-graph node palettes (screen 10) — each measured against its
+    // own tint plus both grounds the app actually paints on.
+    ['entityBlueText on entityBlueTint', colors.entityBlueText, colors.entityBlueTint],
+    ['entityBlueText on surface', colors.entityBlueText, colors.surface],
+    ['entityBlueText on background', colors.entityBlueText, colors.background],
+    ['entityMintText on entityMintTint', colors.entityMintText, colors.entityMintTint],
+    ['entityMintText on surface', colors.entityMintText, colors.surface],
+    ['entityMintText on background', colors.entityMintText, colors.background],
+    ['entityLavenderText on entityLavenderTint', colors.entityLavenderText, colors.entityLavenderTint],
+    ['entityLavenderText on surface', colors.entityLavenderText, colors.surface],
+    ['entityLavenderText on background', colors.entityLavenderText, colors.background],
+    ['entityAmberText on entityAmberTint', colors.entityAmberText, colors.entityAmberTint],
+    ['entityAmberText on surface', colors.entityAmberText, colors.surface],
+    ['entityAmberText on background', colors.entityAmberText, colors.background],
   ])('%s clears WCAG AA for body text', (_label, fg, bg) => {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(AA_BODY);
   });
