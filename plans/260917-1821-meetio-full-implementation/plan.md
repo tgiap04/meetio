@@ -89,7 +89,7 @@ chạy song song được ngay.
 | 3 Quyền truy cập Micro | 07 | ✅ **dựng xong** → [260918-0033 plan](../260918-0033-mobile-splash-onboarding-permission/plan.md); màn đồng ý ghi âm (US-04) đã có ở Phase 06 |
 | 4 Trang chủ | 06 · 10 | Danh sách gần đây + nút bắt đầu |
 | 5 Cài đặt ghi âm | 07 · 09 | Nguồn âm, ngôn ngữ, bật dịch, chất lượng |
-| 6 Ghi âm trực tiếp | 07 · 09 | Sóng âm, transcript kèm người nói + bản dịch |
+| 6 Ghi âm trực tiếp | 07 · 09 | Sóng âm, transcript theo thời gian + bản dịch (**không có tên người nói** — US-13 đã bỏ) |
 | 7 Sau khi kết thúc | 11 | Đúng US-28: trạng thái từng bước pipeline |
 | 8 Tổng quan cuộc họp | 10 · 14 | Tab Tóm tắt / Action Items / Transcript / Graph |
 | 9 Transcript | 10 | Tìm trong transcript, sửa nội dung (US-24) |
@@ -125,7 +125,7 @@ Ba nhánh độc lập sau Phase 04: **mobile** (06 → 07 → 08 → 09), **AI 
 | STT trên thiết bị không chịu nổi cuộc họp dài (OQ-01) | 00 → 07 | Cổng chặn cứng; nhánh dự phòng STT đám mây định nghĩa sẵn ở Phase 00 |
 | Ngưỡng gộp thực thể sai → đồ thị rác (OQ-03) | 13 | Bộ dữ liệu vàng thủ công; ngưỡng là cấu hình, không hardcode |
 | Chi phí LLM vượt kiểm soát (OQ-04) | 09, 16 | Đo token từ Phase 11; dịch tắt mặc định; hạn mức chặn cứng |
-| Không có diarization → gán người phụ trách sai (OQ-02) | 07, 14 | Gán nhãn tay ở US-13; để trống thay vì đoán |
+| Không biết ai nói câu nào → gán người phụ trách sai (OQ-02) | 14 | US-13 đã bỏ; chỉ suy từ nội dung câu nói, không xác định được thì để trống |
 
 ---
 

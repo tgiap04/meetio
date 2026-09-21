@@ -37,7 +37,7 @@ Client: danh sách dùng TanStack Query `useInfiniteQuery` trên axios client c�
 ## Các bước thực hiện
 1. `GET /meetings` với phân trang con trỏ, lọc `q` dùng `unaccent(lower(title))`, lọc khoảng ngày.
 2. `GET /meetings/:id/segments` phân trang theo `seq`.
-3. `PATCH /segments/:id` — sửa `text` hoặc `speaker_label`, đặt `is_edited`.
+3. `PATCH /segments/:id` — sửa `text`, đặt `is_edited`.
 4. `reindex-scope.ts` — từ tập đoạn bị sửa suy ra tập chunk bị ảnh hưởng.
 5. `POST /meetings/:id/reindex` với `scope: changed | full`.
 6. `export.service.ts` — dựng Markdown; client render PDF từ đó.

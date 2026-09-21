@@ -21,3 +21,18 @@ jest.mock('expo-secure-store', () => {
     }),
   };
 });
+
+/**
+ * `react-native-safe-area-context` reads real insets from a native module, so
+ * without this every test that renders a screen has to be wrapped in a
+ * provider or the hook throws "No safe area value available". The library's
+ * own mock supplies static insets and a provider that just renders children.
+ */
+jest.mock('react-native-safe-area-context', () =>
+  // `.default` — v5 puts the mocked module object on the default export, and
+  // requiring the file itself hands back `{ default: ... }`, whose named
+  // exports are all undefined. `require`, not `import`: a jest.mock factory is
+  // hoisted above every import in the file.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('react-native-safe-area-context/jest/mock').default,
+);

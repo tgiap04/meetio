@@ -6,7 +6,10 @@
 ## Tổng quan
 **Ưu tiên:** Cao · **Trạng thái:** ⬜ pending · **Phụ thuộc:** **Phase 00 (cổng chặn)**, 05, 06
 
-Toàn bộ trải nghiệm ghi cuộc họp phía client: bật mic, hiện chữ, gán người nói, chạy nền, kết thúc.
+Toàn bộ trải nghiệm ghi cuộc họp phía client: chọn nguồn âm và chất lượng, bật mic, hiện chữ, chạy
+nền, kết thúc.
+
+**Bối cảnh dùng chính:** điện thoại đặt cạnh laptop đang họp trực tuyến, thu tiếng phát ra từ loa.
 
 > **KHÔNG KHỞI CÔNG khi Phase 00 chưa đóng.** Kết quả spike quyết định phase này giữ nguyên hình hài
 > hay phải viết lại theo hướng STT đám mây.
@@ -15,12 +18,14 @@ Toàn bộ trải nghiệm ghi cuộc họp phía client: bật mic, hiện ch�
 - Engine trên thiết bị **sẽ** tự ngắt. Vòng khởi động lại không phải tính năng phụ, nó là cơ chế cốt lõi.
 - Mọi khoảng gián đoạn phải hiện rõ trong transcript. Nối liền hai đoạn như chưa có gì xảy ra là nói
   dối người dùng về chất lượng dữ liệu họ đang cầm.
-- Không có tách người nói tự động → gán nhãn tay ở US-13 là đường duy nhất để US-32 có ý nghĩa.
+- Âm thanh vào là một luồng trộn lẫn từ loa laptop. Không tách được người nói, và người dùng cũng
+  không bấm chọn được cho người ở đầu bên kia cuộc gọi → **US-13 đã bỏ**, transcript không có tên.
 - Tự cuộn phải nhường quyền cho người dùng: đang đọc ngược lên mà bị giật xuống là lỗi khó chịu bậc nhất.
 
 ## Yêu cầu
 **Chức năng:** bắt đầu / tạm dừng / tiếp tục / kết thúc; hiện chữ thời gian thực có phân biệt phần
-chưa chốt; tự cuộn có nhường quyền; chọn ngôn ngữ; gán nhãn người nói; chạy nền và khóa màn hình;
+chưa chốt; tự cuộn có nhường quyền; chọn ngôn ngữ; chọn nguồn âm (US-42) và chất lượng (US-43);
+chạy nền và khóa màn hình;
 đánh dấu khoảng gián đoạn.
 **Phi chức năng:** chữ hiện trong 2 giây sau khi dứt câu; chạy liên tục 60 phút; khởi động lại trong 500ms.
 
@@ -36,7 +41,7 @@ Danh sách transcript dùng `FlashList` ảo hóa. Đoạn chưa chốt giữ �
 **Tạo:** `apps/mobile/src/recording/stt.service.ts` (lớp bọc engine — điểm hoán đổi) ·
 `recording/recording-machine.ts` · `recording/restart-loop.ts` ·
 `apps/mobile/app/(app)/meeting/record.tsx` · `src/components/transcript-list.tsx` ·
-`src/components/speaker-picker.tsx` · `app.json` (quyền + chế độ chạy nền)
+`src/components/audio-source-picker.tsx` · `app.json` (quyền + chế độ chạy nền)
 
 ## Các bước thực hiện
 1. `stt.service.ts` — giao diện trừu tượng: `start(lang)`, `stop()`, sự kiện `partial`/`final`/`ended`.
@@ -46,7 +51,8 @@ Danh sách transcript dùng `FlashList` ảo hóa. Đoạn chưa chốt giữ �
 4. Màn hình ghi: chỉ báo đang ghi, đồng hồ, trạng thái đồng bộ, danh sách transcript ảo hóa.
 5. Tự cuộn có nhường quyền: người dùng cuộn ngược thì dừng tự cuộn, hiện nút "Xuống dòng mới nhất"
    kèm số đoạn chưa đọc.
-6. Bộ chọn người nói: tạo nhanh tại chỗ, gán cho các đoạn tiếp theo, sửa lại được sau cuộc họp.
+6. Bộ chọn nguồn âm thanh (micro thiết bị / thiết bị Bluetooth ngoài) và mức chất lượng; mất kết nối
+   Bluetooth giữa chừng thì tự chuyển về micro và ghi mốc chuyển, không dừng phiên.
 7. Chọn ngôn ngữ trước khi bắt đầu, chỉ liệt kê ngôn ngữ thiết bị thực sự hỗ trợ.
 8. Chạy nền: foreground service (Android) có nút Kết thúc trên notification; background audio (iOS).
 9. Kết thúc: chờ hàng đợi rỗng → gọi `end` → chuyển sang màn hình chi tiết.
@@ -57,7 +63,7 @@ Danh sách transcript dùng `FlashList` ảo hóa. Đoạn chưa chốt giữ �
 - [ ] Máy trạng thái ghi âm đồng bộ với server
 - [ ] Màn hình ghi + danh sách ảo hóa
 - [ ] Tự cuộn nhường quyền người dùng
-- [ ] Gán nhãn người nói
+- [ ] Chọn nguồn âm thanh + chế độ chất lượng (US-42, US-43)
 - [ ] Chọn ngôn ngữ
 - [ ] Chạy nền trên cả hai nền tảng
 - [ ] Luồng kết thúc có chờ đồng bộ

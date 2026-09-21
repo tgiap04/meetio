@@ -39,6 +39,10 @@ export const typography = {
   body: { fontFamily, fontSize: 16, fontWeight: '400' as const },
   caption: { fontFamily, fontSize: 13, fontWeight: '400' as const },
   button: { fontFamily, fontSize: 16, fontWeight: '600' as const },
+  /** Section headings inside a screen (e.g. "Cuộc họp gần đây", "Nguồn âm thanh"). */
+  sectionTitle: { fontFamily, fontSize: 17, fontWeight: '600' as const },
+  /** Row labels and settings-item titles (e.g. "Ngôn ngữ", "Dịch thuật"). */
+  label: { fontFamily, fontSize: 15, fontWeight: '600' as const },
 };
 
 /**
@@ -51,6 +55,13 @@ const SUPPORTED_VIETNAMESE_RANGES: Array<[number, number]> = [
   [0x0000, 0x024f], // Basic Latin + Latin-1 Supplement + Latin Extended-A/B
   [0x1e00, 0x1eff], // Latin Extended Additional (Vietnamese tone-stacked letters)
   [0x2010, 0x2027], // General punctuation used in Vietnamese prose (dashes, quotes)
+  // Arrows (U+2190-U+21FF): the design uses a literal "→" as UI copy — the
+  // Dịch thuật row's value ("English → Vietnamese") and the knowledge-graph
+  // relation rows ("Nguyễn Văn Anh → phụ trách → API"). Same platform-vendor
+  // guarantee as Latin Extended Additional above: San Francisco and Roboto
+  // both ship full coverage of the basic arrows block as part of the OS-level
+  // font, so this is not a glyph that needs checking case by case.
+  [0x2190, 0x21ff],
 ];
 
 export function isRenderableVietnameseText(text: string): boolean {

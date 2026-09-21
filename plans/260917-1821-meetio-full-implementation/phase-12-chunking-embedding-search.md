@@ -28,7 +28,8 @@ cuộc họp có lọc theo ngày; màn hình kết quả nhảy được tới 
 
 ## Kiến trúc
 Bộ cắt chunk gộp các `transcript_segments` liên tiếp đến khi chạm ~800 token, chồng lấn 15% với
-chunk kế. Ranh giới ưu tiên rơi vào chỗ đổi người nói hoặc khoảng lặng dài — cắt giữa câu là mất ý.
+chunk kế. Ranh giới ưu tiên rơi vào khoảng lặng dài hoặc mốc gián đoạn — cắt giữa câu là mất ý.
+(Không dùng mốc đổi người nói: transcript không có thông tin đó — US-13 đã bỏ.)
 
 Tìm kiếm dùng index HNSW trên `meeting_chunks.embedding`, lọc `user_id` ngay trong câu `WHERE`.
 
@@ -40,7 +41,7 @@ Tìm kiếm dùng index HNSW trên `meeting_chunks.embedding`, lọc `user_id` n
 **Sửa:** `apps/api/src/database/vector.repository.ts`
 
 ## Các bước thực hiện
-1. `chunker.ts`: gộp segment theo ngưỡng token, chồng lấn 15%, ưu tiên cắt ở chỗ đổi người nói.
+1. `chunker.ts`: gộp segment theo ngưỡng token, chồng lấn 15%, ưu tiên cắt ở khoảng lặng dài.
 2. `chunk.processor`: ghi `meeting_chunks` kèm `segment_start_seq`, `segment_end_seq`, `token_count`, `user_id`.
 3. `embed.processor`: nhúng theo lô 20 chunk mỗi lượt, ghi `usage_records`.
 4. `search.service`: nhúng truy vấn → tìm tương đồng có lọc `user_id` và khoảng ngày → trả đoạn trích.
@@ -49,7 +50,7 @@ Tìm kiếm dùng index HNSW trên `meeting_chunks.embedding`, lọc `user_id` n
 7. Đo hiệu năng với 500 cuộc họp giả lập (~7.500 chunk), chỉnh tham số HNSW theo số đo.
 
 ## Todo
-- [ ] Bộ cắt chunk có chồng lấn và ranh giới theo người nói
+- [ ] Bộ cắt chunk có chồng lấn và ranh giới theo khoảng lặng
 - [ ] chunk.processor giữ liên kết truy vết
 - [ ] embed.processor nhúng theo lô
 - [ ] search.service lọc quyền trong câu lệnh

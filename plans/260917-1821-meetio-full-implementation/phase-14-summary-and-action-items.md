@@ -10,7 +10,8 @@ Tóm tắt điều hành có dẫn nguồn, và danh sách việc cần làm có
 ## Nhận định then chốt
 - Mỗi ý trong tóm tắt phải dẫn được về chunk nguồn. Tóm tắt không kiểm chứng được thì người dùng
   không dám tin, và không dám tin thì tính năng vô dụng.
-- Không có tách người nói → gán người phụ trách sẽ sai. **Không xác định được thì để trống**, tuyệt
+- Transcript không có tên người nói (US-13 đã bỏ) → người phụ trách chỉ suy được từ chính nội dung
+  câu nói, ví dụ "Bình làm phần thanh toán nhé". **Không xác định được thì để trống**, tuyệt
   đối không đoán. Đây là [OQ-02](../../user_stories.md#5-câu-hỏi-còn-mở).
 - `action_items` là bảng riêng, không phải JSONB. Chính nó mở ra màn hình "việc của tôi" ở US-34.
 - Cuộc họp quá ngắn hoặc không có nội dung thì nói thẳng, không nặn ra tóm tắt cho có.
@@ -68,7 +69,7 @@ chạy trên đồ thị chứ không phải so chuỗi.
 | Rủi ro | Đối sách |
 |--------|----------|
 | Tóm tắt bịa nội dung không có trong cuộc họp | Bắt buộc `chunk_ids` cho từng ý; ý không dẫn được nguồn thì loại |
-| Gán người phụ trách sai do thiếu diarization | Thà để trống còn hơn gán sai; đo và ghi nhận ở OQ-02 |
+| Gán người phụ trách sai vì không biết ai nói | Thà để trống còn hơn gán sai; đo và ghi nhận ở OQ-02 |
 | Tóm tắt hai tầng làm mất ý quan trọng | So sánh với tóm tắt một tầng trên cuộc họp ngắn để kiểm chứng |
 
 ## Bảo mật

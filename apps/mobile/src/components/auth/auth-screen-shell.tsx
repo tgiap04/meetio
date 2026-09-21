@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppMark } from '../illustrations/app-mark';
 import { ScreenBackdrop } from '../illustrations/screen-backdrop';
 import { colors } from '../../theme/colors';
@@ -72,6 +73,9 @@ export interface AuthScreenShellProps {
 
 export function AuthScreenShell({ title, subtitle, children, testID }: AuthScreenShellProps) {
   const { width } = useWindowDimensions();
+  // The backdrop stays full-bleed behind the status bar; only the content is
+  // inset, or the brand lockup lands under the clock on a short device.
+  const insets = useSafeAreaInsets();
   const subtitleLineHeight = Math.round(
     typography.body.fontSize * SUBTITLE_LINE_HEIGHT_RATIO * PixelRatio.getFontScale(),
   );
@@ -85,7 +89,10 @@ export function AuthScreenShell({ title, subtitle, children, testID }: AuthScree
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: styles.content.paddingVertical + insets.top },
+          ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}

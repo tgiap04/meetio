@@ -10,7 +10,6 @@ export const SEED_USER = {
 };
 
 export interface SeedSegment {
-  speaker: string | null;
   text: string;
   startedAtMs: number;
   endedAtMs: number;
@@ -34,31 +33,26 @@ export const SEED_MEETINGS: SeedMeeting[] = [
       'cơ sở dữ liệu, hạn chót thứ Sáu tuần này.',
     segments: [
       {
-        speaker: 'Giáp',
         text: 'Chào cả nhóm, hôm nay mình họp kick-off dự án Meetio, mục tiêu là thống nhất kiến trúc trước khi code.',
         startedAtMs: 0,
         endedAtMs: 6200,
       },
       {
-        speaker: 'Minh',
         text: 'Mình đề xuất dùng NestJS cho backend và Postgres với extension pgvector để lưu embedding, vì team đã quen TypeScript.',
         startedAtMs: 6500,
         endedAtMs: 14800,
       },
       {
-        speaker: 'Giáp',
         text: 'Đồng ý. Minh phụ trách thiết kế schema cơ sở dữ liệu, cần xong trước thứ Sáu để Lan bắt đầu viết API.',
         startedAtMs: 15000,
         endedAtMs: 22300,
       },
       {
-        speaker: 'Minh',
         text: 'Ok mình nhận việc này. Sẽ ưu tiên bảng transcript_segments và meeting_chunks trước vì đó là lõi của sản phẩm.',
         startedAtMs: 22600,
         endedAtMs: 30100,
       },
       {
-        speaker: 'Lan',
         text: 'Bên mobile thì mình cần biết API trả về format gì để dựng UI song song, tuần sau có thể review được không?',
         startedAtMs: 30400,
         endedAtMs: 37900,
@@ -74,25 +68,21 @@ export const SEED_MEETINGS: SeedMeeting[] = [
       'ràng buộc UNIQUE và xử lý lỗi 409 ở tầng API.',
     segments: [
       {
-        speaker: 'Minh',
         text: 'Tuần này có báo lỗi: khi mất mạng rồi gửi lại transcript, đôi khi bị trùng đoạn văn bản trong transcript_segments.',
         startedAtMs: 0,
         endedAtMs: 8100,
       },
       {
-        speaker: 'Giáp',
         text: 'Đúng như lo ngại lúc thiết kế. Mình cần ràng buộc UNIQUE trên (meeting_id, seq) để insert lại không tạo bản ghi mới.',
         startedAtMs: 8400,
         endedAtMs: 16700,
       },
       {
-        speaker: 'Minh',
         text: 'Mình sẽ thêm migration cho UNIQUE constraint đó, đồng thời API cần bắt lỗi 23505 và trả về 409 thay vì 500.',
         startedAtMs: 17000,
         endedAtMs: 25200,
       },
       {
-        speaker: 'Lan',
         text: 'Ở phía mobile mình sẽ retry khi nhận 409 và coi như thành công, không hiển thị lỗi cho người dùng.',
         startedAtMs: 25500,
         endedAtMs: 32000,
@@ -106,19 +96,16 @@ export const SEED_MEETINGS: SeedMeeting[] = [
     summary: null,
     segments: [
       {
-        speaker: 'Giáp',
         text: 'Chào bạn, giới thiệu qua về kinh nghiệm của bạn với Postgres và TypeORM nhé.',
         startedAtMs: 0,
         endedAtMs: 5400,
       },
       {
-        speaker: null,
         text: 'Dạ em đã dùng TypeORM trong đồ án tốt nghiệp, có làm việc với migration và quan hệ nhiều-nhiều.',
         startedAtMs: 5700,
         endedAtMs: 13200,
       },
       {
-        speaker: 'Minh',
         text: 'Bạn có biết vì sao không nên bật synchronize true trong môi trường production không?',
         startedAtMs: 13500,
         endedAtMs: 18900,
