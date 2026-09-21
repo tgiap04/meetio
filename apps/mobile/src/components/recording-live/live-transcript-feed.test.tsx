@@ -24,7 +24,7 @@ describe('LiveTranscriptFeed', () => {
     const renderer = renderFeed('vi');
     const flattened = flatTexts(renderer);
     for (const line of TRANSCRIPT_LINES) {
-      expect(flattened).toContain(line.speaker);
+      expect(flattened).toContain(line.text);
     }
   });
 

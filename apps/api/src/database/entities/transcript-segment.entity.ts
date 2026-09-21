@@ -32,9 +32,6 @@ export class TranscriptSegment {
   @Column({ name: 'translated_to', type: 'text', nullable: true })
   translated_to!: string | null;
 
-  @Column({ name: 'speaker_label', type: 'text', nullable: true })
-  speaker_label!: string | null;
-
   @Column({ name: 'started_at_ms', type: 'int' })
   started_at_ms!: number;
 

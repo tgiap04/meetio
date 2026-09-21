@@ -5,7 +5,7 @@ export interface InitialsAvatarProps {
   /** 1-2 letters, e.g. "NA" for Nguyễn Văn Anh (screen-14). */
   initials: string;
   size?: number;
-  /** Draws a padded ring around the circle — e.g. the active speaker in a live transcript. */
+  /** Draws a padded ring around the circle — used to mark an emphasised avatar. */
   haloColor?: string;
 }
 

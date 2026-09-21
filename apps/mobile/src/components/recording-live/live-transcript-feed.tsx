@@ -31,8 +31,6 @@ export function LiveTranscriptFeed({ language }: LiveTranscriptFeedProps) {
         return (
           <View key={line.id}>
             <TranscriptEntry
-              speakerInitials={line.initials}
-              speakerName={line.speaker}
               text={primaryText}
               timestamp={line.timestamp}
               translation={translationCard}

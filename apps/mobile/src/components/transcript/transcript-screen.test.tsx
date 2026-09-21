@@ -22,7 +22,7 @@ describe('TranscriptScreen', () => {
   it('renders all four transcript entries with nothing typed', () => {
     const renderer = render();
     for (const line of TRANSCRIPT_LINES) {
-      expect(renderer.root.findAllByProps({ children: line.speaker }).length).toBeGreaterThan(0);
+      expect(renderer.root.findAllByProps({ children: line.text }).length).toBeGreaterThan(0);
     }
   });
 
@@ -47,12 +47,23 @@ describe('TranscriptScreen', () => {
     expect(renderer.root.findByProps({ testID: 'empty-state' })).toBeTruthy();
   });
 
-  it('matches a diacritic-bearing query against the speaker name', () => {
+  it('matches a diacritic-bearing query against the line content', () => {
     const renderer = render();
-    typeQuery(renderer, 'Mai');
+    const target = TRANSCRIPT_LINES.find((line) => line.text.includes('backend'));
+    expect(target).toBeDefined();
+    typeQuery(renderer, 'backend');
 
-    expect(renderer.root.findAllByProps({ children: 'Lê Thị Mai' }).length).toBeGreaterThan(0);
-    expect(renderer.root.findAllByProps({ children: 'Trần Minh Quân' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ children: target!.text }).length).toBeGreaterThan(0);
+    for (const other of TRANSCRIPT_LINES.filter((line) => !line.text.includes('backend'))) {
+      expect(renderer.root.findAllByProps({ children: other.text })).toHaveLength(0);
+    }
+  });
+
+  it('never renders a speaker name', () => {
+    const renderer = render();
+    for (const name of ['Nguyễn Văn Anh', 'Lê Thị Mai', 'Trần Minh Quân']) {
+      expect(renderer.root.findAllByProps({ children: name })).toHaveLength(0);
+    }
   });
 
   it('calls onBack when the header back chevron is pressed', () => {

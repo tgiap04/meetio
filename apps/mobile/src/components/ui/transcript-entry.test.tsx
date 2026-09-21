@@ -11,23 +11,30 @@ function render(props: Parameters<typeof TranscriptEntry>[0]) {
 }
 
 describe('TranscriptEntry', () => {
-  it('renders speaker, timestamp and text', () => {
+  it('renders timestamp and text', () => {
     const renderer = render({
       variant: 'review',
-      speakerInitials: 'NA',
-      speakerName: 'Nguyễn Văn Anh',
       timestamp: '00:02',
       text: 'Hôm nay chúng ta sẽ tập trung vào phần API.',
     });
     const texts = renderer.root.findAllByType(Text).map((n) => n.props.children);
-    expect(texts).toEqual(['NA', 'Nguyễn Văn Anh', '00:02', 'Hôm nay chúng ta sẽ tập trung vào phần API.']);
+    expect(texts).toEqual(['00:02', 'Hôm nay chúng ta sẽ tập trung vào phần API.']);
+  });
+
+  it('renders no speaker name or avatar initials', () => {
+    const renderer = render({
+      variant: 'review',
+      timestamp: '00:02',
+      text: 'Hôm nay chúng ta sẽ tập trung vào phần API.',
+    });
+    const texts = renderer.root.findAllByType(Text).map((n) => n.props.children);
+    expect(texts).not.toContain('Nguyễn Văn Anh');
+    expect(texts).not.toContain('NA');
   });
 
   it('renders the translation block when given', () => {
     const renderer = render({
       variant: 'live',
-      speakerInitials: 'NA',
-      speakerName: 'Nguyễn Văn Anh',
       timestamp: '00:02',
       text: 'Hôm nay chúng ta sẽ tập trung vào phần API.',
       translation: 'Today we will focus on the API.',
@@ -39,11 +46,9 @@ describe('TranscriptEntry', () => {
   it('omits the translation block when none is given', () => {
     const renderer = render({
       variant: 'review',
-      speakerInitials: 'LT',
-      speakerName: 'Lê Thị Mai',
       timestamp: '00:16',
       text: 'Phần backend hiện tại đã hoàn thành khoảng 70%.',
     });
-    expect(renderer.root.findAllByType(Text)).toHaveLength(4);
+    expect(renderer.root.findAllByType(Text)).toHaveLength(2);
   });
 });

@@ -19,9 +19,9 @@ function matchesQuery(line: TranscriptLine, query: string): boolean {
   if (normalizedQuery === '') {
     return true;
   }
-  return (
-    line.text.toLowerCase().includes(normalizedQuery) || line.speaker.toLowerCase().includes(normalizedQuery)
-  );
+  // Content only. There is no speaker name to search against — the recording
+  // is one mixed ambient stream (US-13).
+  return line.text.toLowerCase().includes(normalizedQuery);
 }
 
 /**

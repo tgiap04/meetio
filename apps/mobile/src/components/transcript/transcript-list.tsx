@@ -26,8 +26,6 @@ export function TranscriptList({ lines }: TranscriptListProps) {
         <View key={line.id}>
           {index > 0 ? <View style={styles.divider} /> : null}
           <TranscriptEntry
-            speakerInitials={line.initials}
-            speakerName={line.speaker}
             text={line.text}
             timestamp={line.timestamp}
             variant="review"

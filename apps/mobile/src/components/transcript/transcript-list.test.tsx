@@ -16,7 +16,7 @@ describe('TranscriptList', () => {
     const renderer = render(TRANSCRIPT_LINES);
     const texts = renderer.root.findAllByType(Text).map((node) => node.props.children).flat().join('|');
     for (const line of TRANSCRIPT_LINES) {
-      expect(texts).toContain(line.speaker);
+      expect(texts).toContain(line.text);
       expect(texts).toContain(line.timestamp);
     }
   });

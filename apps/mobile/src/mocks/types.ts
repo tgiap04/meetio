@@ -24,10 +24,12 @@ export interface Meeting {
 
 // --- Transcript (screens 06, 09) -------------------------------------------
 
+/**
+ * A transcript turn. No speaker field: audio comes in as one mixed stream from
+ * a laptop speaker, so nothing can attribute a turn to a person (US-13).
+ */
 export interface TranscriptLine {
   readonly id: string;
-  readonly speaker: string;
-  readonly initials: string;
   /** Verbatim design format, `MM:SS`. */
   readonly timestamp: string;
   readonly text: string;

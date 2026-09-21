@@ -25,7 +25,7 @@ function collectAllStrings(): string[] {
 
   for (const meeting of MEETINGS) strings.push(meeting.title);
   for (const line of TRANSCRIPT_LINES) {
-    strings.push(line.speaker, line.text);
+    strings.push(line.text);
     if (line.translation) strings.push(line.translation);
   }
   strings.push(MEETING_SUMMARY.paragraph);

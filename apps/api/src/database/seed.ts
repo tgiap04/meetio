@@ -80,7 +80,6 @@ async function seed(): Promise<void> {
             meeting_id: meeting.id,
             seq,
             text: seedSegment.text,
-            speaker_label: seedSegment.speaker,
             started_at_ms: seedSegment.startedAtMs,
             ended_at_ms: seedSegment.endedAtMs,
             is_edited: false,
