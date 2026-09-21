@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet} from 'react-native';
+import { ScreenSurface } from '../../src/components/ui/screen-surface';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppIcon } from '../../src/components/icons/app-icon';
 import { ActionItemsSection } from '../../src/components/meeting-detail/action-items-section';
@@ -35,7 +36,10 @@ const TAB_ITEMS = [
  */
 export default function MeetingDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const meeting = useMemo(() => MEETINGS.find((candidate) => candidate.id === id) ?? MEETINGS[0], [id]);
+  const meeting = useMemo(
+    () => MEETINGS.find((candidate) => candidate.id === id) ?? MEETINGS[0],
+    [id],
+  );
   const [activeContentTab, setActiveContentTab] = useState<ContentTabKey>('summary');
   const [checkedIds, setCheckedIds] = useState<ReadonlySet<string>>(new Set());
 
@@ -66,14 +70,19 @@ export default function MeetingDetailScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <ScreenSurface>
       <ScreenHeader
         onBack={() => router.back()}
         title="Chi tiết cuộc họp"
         trailing={
           // The design draws a kebab with no menu behind it (Key Insights §5)
           // — inert and labelled as such, not wired to anything.
-          <Pressable accessibilityLabel="Menu (chưa khả dụng)" accessibilityState={{ disabled: true }} disabled testID="meeting-detail-kebab">
+          <Pressable
+            accessibilityLabel="Menu (chưa khả dụng)"
+            accessibilityState={{ disabled: true }}
+            disabled
+            testID="meeting-detail-kebab"
+          >
             <AppIcon color={colors.text} name="more" size={22} />
           </Pressable>
         }
@@ -81,14 +90,19 @@ export default function MeetingDetailScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <MeetingHero meeting={meeting} />
         <SegmentedTabs activeKey={activeContentTab} items={TAB_ITEMS} onChange={handleTabChange} />
-        {activeContentTab === 'summary' ? <MeetingSummarySection summary={MEETING_SUMMARY} /> : null}
-        <ActionItemsSection checkedIds={checkedIds} items={ACTION_ITEMS} onToggle={toggleActionItem} />
+        {activeContentTab === 'summary' ? (
+          <MeetingSummarySection summary={MEETING_SUMMARY} />
+        ) : null}
+        <ActionItemsSection
+          checkedIds={checkedIds}
+          items={ACTION_ITEMS}
+          onToggle={toggleActionItem}
+        />
       </ScrollView>
-    </View>
+    </ScreenSurface>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface },
   content: { padding: 16, gap: 20 },
 });

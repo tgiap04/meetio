@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
+import { ScreenSurface } from '../../../src/components/ui/screen-surface';
 import { router } from 'expo-router';
 import { useMeQuery } from '../../../src/hooks/use-me-query';
 import {
@@ -58,11 +59,13 @@ export default function SettingsScreen() {
   }
 
   if (meQuery.isError) {
-    return <ErrorState message={getErrorMessage(meQuery.error)} onRetry={() => meQuery.refetch()} />;
+    return (
+      <ErrorState message={getErrorMessage(meQuery.error)} onRetry={() => meQuery.refetch()} />
+    );
   }
 
   const { user } = meQuery.data;
-  const retentionDaysValue = retentionDaysInput ?? (user.retention_days?.toString() ?? '');
+  const retentionDaysValue = retentionDaysInput ?? user.retention_days?.toString() ?? '';
   // Same read-then-override shape as `retentionDaysValue` above. `?? true`
   // covers a user who has never saved a preference — `notification_settings`
   // defaults to `{}` server-side, so `enabled` is simply absent.
@@ -104,29 +107,34 @@ export default function SettingsScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Cài đặt</Text>
+    <ScreenSurface>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>Cài đặt</Text>
 
-      <SettingsProfileHeader displayName={user.display_name} email={user.email} />
+        <SettingsProfileHeader displayName={user.display_name} email={user.email} />
 
-      <SettingsMockRows entries={SETTINGS_ENTRIES} onRecordingSettingsPress={handleRecordingSettingsPress} />
+        <SettingsMockRows
+          entries={SETTINGS_ENTRIES}
+          onRecordingSettingsPress={handleRecordingSettingsPress}
+        />
 
-      <SettingsAboutSection entries={ABOUT_MEETIO_ENTRIES} />
+        <SettingsAboutSection entries={ABOUT_MEETIO_ENTRIES} />
 
-      <SettingsAccountSection
-        deleteAccountLoading={deleteAccountMutation.isPending}
-        deletePassword={deletePassword}
-        logoutLoading={logoutMutation.isPending}
-        notificationsEnabled={notificationsEnabled}
-        onDeleteAccountPress={handleDeleteAccount}
-        onDeletePasswordChange={setDeletePassword}
-        onLogoutPress={() => logoutMutation.mutate()}
-        onRetentionDaysBlur={commitRetentionDays}
-        onRetentionDaysChange={setRetentionDaysInput}
-        onToggleNotifications={toggleNotifications}
-        retentionDaysValue={retentionDaysValue}
-      />
-    </ScrollView>
+        <SettingsAccountSection
+          deleteAccountLoading={deleteAccountMutation.isPending}
+          deletePassword={deletePassword}
+          logoutLoading={logoutMutation.isPending}
+          notificationsEnabled={notificationsEnabled}
+          onDeleteAccountPress={handleDeleteAccount}
+          onDeletePasswordChange={setDeletePassword}
+          onLogoutPress={() => logoutMutation.mutate()}
+          onRetentionDaysBlur={commitRetentionDays}
+          onRetentionDaysChange={setRetentionDaysInput}
+          onToggleNotifications={toggleNotifications}
+          retentionDaysValue={retentionDaysValue}
+        />
+      </ScrollView>
+    </ScreenSurface>
   );
 }
 

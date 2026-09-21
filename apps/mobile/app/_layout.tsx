@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Slot } from 'expo-router';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { queryClient, wireQueryClientToAppState } from '../src/query/query-client';
 import { useHydrateSession } from '../src/hooks/use-hydrate-session';
 import { useHydratePreferences } from '../src/hooks/use-hydrate-preferences';
@@ -28,5 +29,14 @@ export default function RootLayout() {
 
   const isBooting = authStatus === 'hydrating' || preferencesStatus !== 'ready' || !minimumElapsed;
 
-  return <QueryClientProvider client={queryClient}>{isBooting ? <AppSplash /> : <Slot />}</QueryClientProvider>;
+  // SafeAreaProvider wraps the splash too, not just `<Slot/>`: it is the only
+  // source of inset values in the tree, and a screen that mounts before it
+  // would read zeros and draw its header under the status bar / Dynamic Island.
+  return (
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        {isBooting ? <AppSplash /> : <Slot />}
+      </QueryClientProvider>
+    </SafeAreaProvider>
+  );
 }

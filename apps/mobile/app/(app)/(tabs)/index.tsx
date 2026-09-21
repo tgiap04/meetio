@@ -1,4 +1,5 @@
 import { ScrollView, StyleSheet } from 'react-native';
+import { ScreenSurface } from '../../../src/components/ui/screen-surface';
 import { router } from 'expo-router';
 import { useMeQuery } from '../../../src/hooks/use-me-query';
 import { getErrorMessage } from '../../../src/api/error-messages';
@@ -38,7 +39,9 @@ export default function HomeScreen() {
   }
 
   if (meQuery.isError) {
-    return <ErrorState message={getErrorMessage(meQuery.error)} onRetry={() => meQuery.refetch()} />;
+    return (
+      <ErrorState message={getErrorMessage(meQuery.error)} onRetry={() => meQuery.refetch()} />
+    );
   }
 
   const hasConsent = Boolean(meQuery.data.user.recording_consent_at);
@@ -57,21 +60,23 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container} style={styles.scroll}>
-      <HomeHeader displayName={meQuery.data.user.display_name} />
+    <ScreenSurface>
+      <ScrollView contentContainerStyle={styles.container} style={styles.scroll}>
+        <HomeHeader displayName={meQuery.data.user.display_name} />
 
-      <StartRecordingCard onPress={handleStartRecordingPress} />
+        <StartRecordingCard onPress={handleStartRecordingPress} />
 
-      {/* Neither row has a destination in the design — inert by design, not by omission. */}
-      <SecondaryActionRow icon="audioFile" label="Nhập từ file âm thanh" />
-      <SecondaryActionRow icon="castDevice" label="Kết nối thiết bị khác" />
+        {/* Neither row has a destination in the design — inert by design, not by omission. */}
+        <SecondaryActionRow icon="audioFile" label="Nhập từ file âm thanh" />
+        <SecondaryActionRow icon="castDevice" label="Kết nối thiết bị khác" />
 
-      <RecentMeetingsSection
-        meetings={recentMeetings}
-        onMeetingPress={handleMeetingPress}
-        onViewAllPress={handleViewAllPress}
-      />
-    </ScrollView>
+        <RecentMeetingsSection
+          meetings={recentMeetings}
+          onMeetingPress={handleMeetingPress}
+          onViewAllPress={handleViewAllPress}
+        />
+      </ScrollView>
+    </ScreenSurface>
   );
 }
 

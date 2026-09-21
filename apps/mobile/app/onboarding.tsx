@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { ScreenSurface } from '../src/components/ui/screen-surface';
 import { ScreenBackdrop } from '../src/components/illustrations/screen-backdrop';
 import { OnboardingPage } from '../src/components/onboarding/onboarding-page';
 import { PagerDots } from '../src/components/pager-dots';
@@ -52,42 +53,50 @@ export default function OnboardingScreen() {
   return (
     <View style={styles.container}>
       <ScreenBackdrop width={width} testID="onboarding-backdrop" />
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={handleMomentumScrollEnd}
-      >
-        {ONBOARDING_PAGES.map((page) => (
-          <OnboardingPage key={page.key} page={page} width={width} />
-        ))}
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <View style={styles.centered}>
-          <PagerDots count={ONBOARDING_PAGES.length} activeIndex={pageIndex} testID="onboarding-pager-dots" />
-        </View>
-        <PrimaryButton
-          label={pageIndex < LAST_PAGE_INDEX ? PRIMARY_LABEL_ADVANCE : PRIMARY_LABEL_LAST}
-          onPress={handlePrimaryPress}
-          testID="onboarding-primary-button"
-        />
-        <Pressable
-          accessibilityRole="button"
-          onPress={complete}
-          style={styles.centered}
-          testID="onboarding-skip-button"
+      <ScreenSurface style={styles.content}>
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleMomentumScrollEnd}
         >
-          <Text style={styles.skip}>Bỏ qua</Text>
-        </Pressable>
-      </View>
+          {ONBOARDING_PAGES.map((page) => (
+            <OnboardingPage key={page.key} page={page} width={width} />
+          ))}
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <View style={styles.centered}>
+            <PagerDots
+              count={ONBOARDING_PAGES.length}
+              activeIndex={pageIndex}
+              testID="onboarding-pager-dots"
+            />
+          </View>
+          <PrimaryButton
+            label={pageIndex < LAST_PAGE_INDEX ? PRIMARY_LABEL_ADVANCE : PRIMARY_LABEL_LAST}
+            onPress={handlePrimaryPress}
+            testID="onboarding-primary-button"
+          />
+          <Pressable
+            accessibilityRole="button"
+            onPress={complete}
+            style={styles.centered}
+            testID="onboarding-skip-button"
+          >
+            <Text style={styles.skip}>Bỏ qua</Text>
+          </Pressable>
+        </View>
+      </ScreenSurface>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
+  // Trong suốt: nền hoa văn nằm dưới và phải chạy hết mép trên.
+  content: { backgroundColor: 'transparent' },
   footer: { paddingHorizontal: 24, paddingBottom: 24, gap: 16 },
   centered: { alignItems: 'center' },
   // Xám câm theo design, không phải cam — khớp với "Không, để sau" ở màn quyền

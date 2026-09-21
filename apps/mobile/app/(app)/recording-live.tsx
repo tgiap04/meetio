@@ -1,9 +1,13 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { SafeAreaView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { ScreenSurface } from '../../src/components/ui/screen-surface';
 import { RecordingControls } from '../../src/components/recording-live/recording-controls';
 import { RecordingStatusBar } from '../../src/components/recording-live/recording-status-bar';
-import { LiveTranscriptFeed, type LiveTranscriptLanguage } from '../../src/components/recording-live/live-transcript-feed';
+import {
+  LiveTranscriptFeed,
+  type LiveTranscriptLanguage,
+} from '../../src/components/recording-live/live-transcript-feed';
 import { Waveform } from '../../src/components/recording-live/waveform';
 import { SegmentedTabs } from '../../src/components/ui/segmented-tabs';
 import { RECORDING_DONE_ROUTE } from '../../src/navigation/app-routes';
@@ -39,16 +43,14 @@ export default function RecordingLiveScreen() {
   const [language, setLanguage] = useState<LiveTranscriptLanguage>('vi');
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <ScreenSurface style={styles.screen}>
       <RecordingStatusBar elapsed={ELAPSED_TIME} onClose={() => router.back()} />
 
       <View style={styles.waveformWrap}>
         <Waveform />
       </View>
 
-      <RecordingControls
-        onPausePress={() => router.push(RECORDING_DONE_ROUTE)}
-      />
+      <RecordingControls onPausePress={() => router.push(RECORDING_DONE_ROUTE)} />
 
       <View style={styles.tabsWrap}>
         <SegmentedTabs
@@ -59,7 +61,7 @@ export default function RecordingLiveScreen() {
       </View>
 
       <LiveTranscriptFeed language={language} />
-    </SafeAreaView>
+    </ScreenSurface>
   );
 }
 

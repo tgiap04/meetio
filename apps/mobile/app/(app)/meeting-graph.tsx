@@ -1,13 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet} from 'react-native';
+import { ScreenSurface } from '../../src/components/ui/screen-surface';
 import { GraphCanvas } from '../../src/components/knowledge-graph/graph-canvas';
 import { RelationList } from '../../src/components/knowledge-graph/relation-list';
 import { FilterChipRow, type FilterChip } from '../../src/components/ui/filter-chip-row';
 import { ScreenHeader } from '../../src/components/ui/screen-header';
 import { GRAPH_EDGES, GRAPH_NODES, GRAPH_RELATIONS } from '../../src/mocks';
 import type { GraphNodeType } from '../../src/mocks/types';
-import { colors } from '../../src/theme/colors';
 
 type FilterKey = GraphNodeType | 'all';
 
@@ -35,18 +35,21 @@ export default function MeetingGraphScreen() {
   const [activeType, setActiveType] = useState<FilterKey>('all');
 
   return (
-    <View style={styles.screen}>
+    <ScreenSurface>
       <ScreenHeader onBack={() => router.back()} title="Knowledge Graph" />
       <ScrollView contentContainerStyle={styles.content}>
-        <FilterChipRow activeKey={activeType} chips={CHIPS} onChange={(key) => setActiveType(key as FilterKey)} />
+        <FilterChipRow
+          activeKey={activeType}
+          chips={CHIPS}
+          onChange={(key) => setActiveType(key as FilterKey)}
+        />
         <GraphCanvas activeType={activeType} edges={GRAPH_EDGES} nodes={GRAPH_NODES} />
         <RelationList nodes={GRAPH_NODES} relations={GRAPH_RELATIONS} />
       </ScrollView>
-    </View>
+    </ScreenSurface>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface },
   content: { paddingHorizontal: 16, paddingBottom: 24, gap: 20 },
 });

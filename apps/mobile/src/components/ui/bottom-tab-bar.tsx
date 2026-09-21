@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon, type AppIconName } from '../icons/app-icon';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -25,8 +26,13 @@ export interface BottomTabBarProps {
 
 /** The four-tab bar (screen-04 / screen-14): active tab in `primaryStrong`, rest muted. */
 export function BottomTabBar({ items }: BottomTabBarProps) {
+  // The home indicator sits below the bar on a gesture-nav device. Without
+  // this the labels are drawn under it — legible, but sitting in the swipe
+  // area, so a tap near the bottom of the bar is as likely to close the app.
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, { paddingBottom: styles.bar.paddingBottom + insets.bottom }]}>
       {items.map((item) => (
         <Pressable
           accessibilityRole="button"
@@ -35,7 +41,11 @@ export function BottomTabBar({ items }: BottomTabBarProps) {
           onPress={item.onPress}
           style={styles.item}
         >
-          <AppIcon color={item.focused ? colors.primaryStrong : colors.textMuted} name={item.icon} size={22} />
+          <AppIcon
+            color={item.focused ? colors.primaryStrong : colors.textMuted}
+            name={item.icon}
+            size={22}
+          />
           <Text style={[styles.label, item.focused && styles.labelFocused]}>{item.label}</Text>
         </Pressable>
       ))}

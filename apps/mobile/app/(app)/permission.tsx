@@ -1,6 +1,10 @@
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ScreenSurface } from '../../src/components/ui/screen-surface';
 import { ScreenBackdrop } from '../../src/components/illustrations/screen-backdrop';
-import { PermissionBody, type AskOrBlockedView } from '../../src/components/permission/permission-body';
+import {
+  PermissionBody,
+  type AskOrBlockedView,
+} from '../../src/components/permission/permission-body';
 import { useMicrophonePermission } from '../../src/hooks/use-microphone-permission';
 import { colors } from '../../src/theme/colors';
 
@@ -18,26 +22,30 @@ export default function PermissionScreen() {
   return (
     <View style={styles.screen}>
       <ScreenBackdrop width={width} testID="permission-backdrop" />
-      <Text
-        testID="permission-back-button"
-        accessibilityRole="button"
-        accessibilityLabel="Bỏ qua, để sau"
-        style={styles.back}
-        onPress={onDefer}
-      >
-        ‹
-      </Text>
-      <PermissionBody
-        view={view as AskOrBlockedView}
-        isBusy={isBusy}
-        onPrimaryPress={onPrimaryPress}
-        onDefer={onDefer}
-      />
+      <ScreenSurface style={styles.content}>
+        <Text
+          testID="permission-back-button"
+          accessibilityRole="button"
+          accessibilityLabel="Bỏ qua, để sau"
+          style={styles.back}
+          onPress={onDefer}
+        >
+          ‹
+        </Text>
+        <PermissionBody
+          view={view as AskOrBlockedView}
+          isBusy={isBusy}
+          onPrimaryPress={onPrimaryPress}
+          onDefer={onDefer}
+        />
+      </ScreenSurface>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
+  // Trong suốt: nền hoa văn nằm dưới và phải chạy hết mép trên.
+  content: { backgroundColor: 'transparent' },
   back: { fontSize: 28, color: colors.text, padding: 16 },
 });

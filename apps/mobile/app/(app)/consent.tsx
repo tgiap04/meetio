@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text} from 'react-native';
+import { ScreenSurface } from '../../src/components/ui/screen-surface';
 import { useRecordConsentMutation } from '../../src/hooks/use-account-mutations';
 import { getErrorMessage } from '../../src/api/error-messages';
 import { PrimaryButton } from '../../src/components/primary-button';
@@ -22,11 +23,11 @@ export default function ConsentScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScreenSurface style={styles.container}>
       <Text style={styles.title}>Đồng ý ghi âm</Text>
       <Text style={styles.body}>
-        Khi bạn ghi âm một cuộc họp, Meetio lưu bản ghi âm, tạo bản chép lời, tóm tắt bằng AI và
-        đồ thị tri thức liên quan đến cuộc họp đó, gắn với tài khoản của bạn. Dữ liệu được lưu theo
+        Khi bạn ghi âm một cuộc họp, Meetio lưu bản ghi âm, tạo bản chép lời, tóm tắt bằng AI và đồ
+        thị tri thức liên quan đến cuộc họp đó, gắn với tài khoản của bạn. Dữ liệu được lưu theo
         chính sách lưu trữ trong phần Cài đặt và có thể xóa theo yêu cầu.
       </Text>
 
@@ -37,12 +38,12 @@ export default function ConsentScreen() {
         loading={consentMutation.isPending}
         onPress={handleConfirm}
       />
-    </View>
+    </ScreenSurface>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, gap: 16 },
+  container: { justifyContent: 'center', padding: 24, gap: 16 },
   title: { ...typography.title, color: colors.text },
   body: { ...typography.body, color: colors.text },
   error: { ...typography.caption, color: colors.danger },

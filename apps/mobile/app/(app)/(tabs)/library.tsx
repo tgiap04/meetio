@@ -1,9 +1,13 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
+import { ScreenSurface } from '../../../src/components/ui/screen-surface';
 import { router } from 'expo-router';
 import { LibraryHeader } from '../../../src/components/library/library-header';
 import { LibrarySection } from '../../../src/components/library/library-section';
-import { LAST_WEEK_MEETING_IDS, RECENT_MEETING_IDS } from '../../../src/components/library/library-groups';
+import {
+  LAST_WEEK_MEETING_IDS,
+  RECENT_MEETING_IDS,
+} from '../../../src/components/library/library-groups';
 import { SearchField } from '../../../src/components/ui/search-field';
 import { FilterChipRow, type FilterChip } from '../../../src/components/ui/filter-chip-row';
 import { MEETINGS } from '../../../src/mocks';
@@ -50,13 +54,18 @@ export default function LibraryScreen() {
     const normalizedQuery = query.trim().toLowerCase();
     return MEETINGS.filter((meeting) => {
       const matchesStatus = statusFilter === 'all' || meeting.status === statusFilter;
-      const matchesQuery = normalizedQuery.length === 0 || meeting.title.toLowerCase().includes(normalizedQuery);
+      const matchesQuery =
+        normalizedQuery.length === 0 || meeting.title.toLowerCase().includes(normalizedQuery);
       return matchesStatus && matchesQuery;
     });
   }, [query, statusFilter]);
 
-  const recentMeetings = filteredMeetings.filter((meeting) => RECENT_MEETING_IDS.includes(meeting.id));
-  const lastWeekMeetings = filteredMeetings.filter((meeting) => LAST_WEEK_MEETING_IDS.includes(meeting.id));
+  const recentMeetings = filteredMeetings.filter((meeting) =>
+    RECENT_MEETING_IDS.includes(meeting.id),
+  );
+  const lastWeekMeetings = filteredMeetings.filter((meeting) =>
+    LAST_WEEK_MEETING_IDS.includes(meeting.id),
+  );
 
   function handleMeetingPress(meetingId: string) {
     router.push({ pathname: MEETING_DETAIL_ROUTE, params: { id: meetingId } });
@@ -67,13 +76,32 @@ export default function LibraryScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container} style={styles.scroll}>
-      <LibraryHeader />
-      <SearchField onChangeText={setQuery} onFilterPress={handleFilterPress} placeholder={SEARCH_PLACEHOLDER} value={query} />
-      <FilterChipRow activeKey={statusFilter} chips={STATUS_FILTERS} onChange={handleStatusFilterChange} />
-      <LibrarySection meetings={recentMeetings} onMeetingPress={handleMeetingPress} title="Gần đây" />
-      <LibrarySection meetings={lastWeekMeetings} onMeetingPress={handleMeetingPress} title="Tuần trước" />
-    </ScrollView>
+    <ScreenSurface>
+      <ScrollView contentContainerStyle={styles.container} style={styles.scroll}>
+        <LibraryHeader />
+        <SearchField
+          onChangeText={setQuery}
+          onFilterPress={handleFilterPress}
+          placeholder={SEARCH_PLACEHOLDER}
+          value={query}
+        />
+        <FilterChipRow
+          activeKey={statusFilter}
+          chips={STATUS_FILTERS}
+          onChange={handleStatusFilterChange}
+        />
+        <LibrarySection
+          meetings={recentMeetings}
+          onMeetingPress={handleMeetingPress}
+          title="Gần đây"
+        />
+        <LibrarySection
+          meetings={lastWeekMeetings}
+          onMeetingPress={handleMeetingPress}
+          title="Tuần trước"
+        />
+      </ScrollView>
+    </ScreenSurface>
   );
 }
 
