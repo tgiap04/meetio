@@ -59,6 +59,15 @@ mở đường cho việc phục hồi sau sự cố ([US-15](../user_stories.md
 
 ## 2. Luồng 1 — Ghi và nhận diện thời gian thực
 
+**Bối cảnh dùng chính:** điện thoại đặt cạnh laptop đang họp trực tuyến, thu tiếng phát ra từ loa.
+Người dùng chọn nguồn âm thanh (micro thiết bị hoặc thiết bị Bluetooth ngoài) và mức chất lượng ở
+màn cài đặt ghi âm trước khi bắt đầu.
+
+**Hệ quả kiến trúc:** âm thanh vào là một luồng trộn lẫn. Hệ thống **không** tách người nói và
+**không** lưu trường người nói ở bất kỳ tầng nào — xem
+[US-13](../user_stories.md#us-13--gán-nhãn-người-nói--đã-bỏ-2026-09-21). Transcript là một chuỗi
+đoạn nối tiếp theo thời gian.
+
 ```
 Thiết bị                                   Backend                          Postgres
 ────────────────────────────────────────────────────────────────────────────────────
@@ -100,8 +109,9 @@ client không bao giờ gửi lại toàn bộ transcript.
 Engine trên thiết bị sẽ tự ngắt. Client phải bật lại ngay và ghi nhận mốc gián đoạn. Khoảng gián
 đoạn hiển thị rõ trong transcript thay vì nối liền hai đoạn như chưa có chuyện gì xảy ra.
 
-> **Rủi ro chưa được kiểm chứng ([OQ-01](../user_stories.md#5-câu-hỏi-còn-mở)):** giới hạn thực tế
-> của nhận diện trên thiết bị với hội thoại dài. Phải chạy spike đo trước khi thi công E2. Nếu
+> **Rủi ro chưa được kiểm chứng ([OQ-01](../user_stories.md#5-câu-hỏi-còn-mở), [OQ-05](../user_stories.md#5-câu-hỏi-còn-mở)):**
+> giới hạn thực tế của nhận diện trên thiết bị với hội thoại dài, **và** tỉ lệ nhận diện sai khi
+> nguồn âm là loa laptop cách 30–50cm chứ không phải giọng nói trực tiếp. Phải chạy spike đo trước khi thi công E2. Nếu
 > không đạt thì phải chuyển sang nhận diện đám mây, và nguyên tắc "audio không rời thiết bị" ở
 > mục 0 sụp đổ — kéo theo thay đổi chính sách quyền riêng tư, mô hình chi phí và cả luồng này.
 

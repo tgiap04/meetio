@@ -34,8 +34,9 @@ Mọi cuộc họp thuộc sở hữu của đúng một P1. Không có chia s�
 Đây là actor mặc định của mọi story trừ khi ghi khác.
 
 **P2 — Người tham dự cuộc họp**  
-Người ngồi trong phòng họp và bị ghi âm nhưng **không dùng app**. Họ không thao tác với hệ thống,
-nhưng có quyền được biết mình đang bị ghi. Xuất hiện trong US-04.
+Những người khác trong cuộc họp — ngồi cùng phòng, hoặc nói qua cuộc gọi trực tuyến mà điện thoại
+thu lại từ loa máy tính. Họ **không dùng app**, không thao tác với hệ thống, nhưng giọng của họ nằm
+trong bản ghi. Xuất hiện trong US-04.
 
 **P3 — Hệ thống nền**  
 Các tiến trình chạy không có người bấm nút: indexing, embedding, trích xuất đồ thị, gửi thông báo.
@@ -48,7 +49,7 @@ Không phải người dùng, nhưng hành vi của nó phải nghiệm thu đư
 | Epic | Tên | Stories |
 |------|-----|---------|
 | E1 | Tài khoản & Quyền riêng tư | US-01 → US-06 |
-| E2 | Ghi âm & Nhận diện giọng nói | US-07 → US-16 |
+| E2 | Ghi âm & Nhận diện giọng nói | US-07 → US-16, US-42, US-43 |
 | E3 | Dịch song song | US-17 → US-19 |
 | E4 | Quản lý cuộc họp | US-20 → US-27 |
 | E5 | Pipeline AI & Kết quả | US-28 → US-34 |
@@ -97,13 +98,15 @@ nhạy cảm không rò rỉ.
 - Có test tự động cho từng endpoint xác nhận hành vi trên (không chỉ kiểm thủ công).
 
 #### US-04 · Thông báo và ghi nhận sự đồng ý ghi âm
-Là **P1**, tôi muốn app nhắc tôi thông báo cho **P2** trước khi bắt đầu ghi, để buổi ghi âm hợp
-pháp và minh bạch.
+Là **P1**, tôi muốn app nhắc tôi về trách nhiệm khi ghi lại một cuộc họp, để buổi ghi minh bạch với
+những người đang nói.
 
 **AC**
 - Lần đầu bắt đầu một cuộc họp, app hiển thị màn hình giải thích: nội dung sẽ được ghi, chuyển
   thành văn bản và gửi tới dịch vụ AI bên thứ ba để xử lý.
-- Người dùng phải xác nhận đã thông báo cho người tham dự trước khi nút "Bắt đầu" hoạt động.
+- Màn hình nêu rõ trách nhiệm thông báo cho người tham dự thuộc về người dùng — kể cả khi họ họp
+  trực tuyến và app chỉ thu tiếng phát ra từ loa máy tính.
+- Người dùng phải xác nhận đã đọc trước khi nút "Bắt đầu" hoạt động.
 - Có tùy chọn "Không hiện lại", nhưng mốc thời gian đồng ý vẫn được lưu vào tài khoản.
 - Màn hình ghi âm luôn hiển thị chỉ báo đang ghi (chấm đỏ + đồng hồ đếm) trong suốt phiên.
 
@@ -128,6 +131,14 @@ lượng dữ liệu nhạy cảm tồn đọng.
 ---
 
 ### E2 — Ghi âm & Nhận diện giọng nói
+
+**Bối cảnh dùng chính:** người dùng đang họp trực tuyến trên máy tính. Họ mở app trên điện thoại,
+đặt máy cạnh laptop, và app thu tiếng phát ra từ loa. Đây là tình huống app phải làm tốt nhất —
+không phải tình huống nhiều người ngồi quanh bàn nói vào điện thoại.
+
+**Hệ quả trực tiếp:** âm thanh vào là **một luồng trộn lẫn**. App không biết ai đang nói và không
+gán tên người nói cho bất kỳ câu nào. Transcript chạy liền mạch theo thời gian. Quyết định này chi
+phối US-08, US-13, US-23 và US-32.
 
 #### US-07 · Bắt đầu một cuộc họp
 Là **P1**, tôi muốn bấm một nút để bắt đầu ghi, để không bỏ lỡ phần mở đầu cuộc họp.
@@ -192,16 +203,17 @@ Là **P1**, tôi muốn chọn ngôn ngữ đang nói trong cuộc họp, để 
 - Ngôn ngữ đã chọn lưu vào bản ghi cuộc họp và dùng lại cho các bước AI phía sau.
 - Chỉ liệt kê ngôn ngữ mà thiết bị thực sự hỗ trợ, không hiện lựa chọn rồi báo lỗi sau.
 
-#### US-13 · Gán nhãn người nói
-Là **P1**, tôi muốn đánh dấu ai đang nói, để biên bản và danh sách việc cần làm gắn đúng người.
+#### US-13 · ~~Gán nhãn người nói~~ — ĐÃ BỎ (2026-09-21)
 
-**AC**
-- Trong lúc họp, người dùng chạm một nút để gán người nói cho các đoạn tiếp theo; danh sách người
-  nói tạo nhanh ngay tại chỗ.
-- Sau cuộc họp, sửa lại nhãn người nói cho từng đoạn được.
-- Đoạn chưa gán để trống, hiển thị "Không rõ" — không đoán bừa.
-- **Ghi chú:** engine nhận diện trên thiết bị không tách được người nói (no diarization), nên gán
-  nhãn ở đây là thao tác tay. Chất lượng US-32 (action items) phụ thuộc trực tiếp vào việc này.
+Bối cảnh dùng chính là điện thoại đặt cạnh laptop thu tiếng từ loa: âm thanh vào là một luồng trộn
+lẫn, engine nhận diện trên thiết bị không tách được người nói, và người dùng cũng không thể bấm
+chọn người nói cho những người đang họp qua cuộc gọi trực tuyến. Giữ lại tính năng này chỉ tạo ra
+một trường dữ liệu gần như luôn trống hoặc sai.
+
+Transcript chạy liền mạch theo thời gian, không gán tên. ID này không được dùng lại.
+
+**Ảnh hưởng:** US-08 và US-23 bỏ phần hiển thị tên người nói · US-32 chỉ suy ra người phụ trách từ
+chính nội dung câu nói · màn 06 và 09 trong `design.png` đang vẽ tên kèm avatar và phải sửa lại.
 
 #### US-14 · Không mất dữ liệu khi mạng chập chờn
 Là **P1**, tôi muốn mạng rớt giữa cuộc họp mà không mất nội dung, để yên tâm họp ở nơi sóng yếu.
@@ -233,6 +245,25 @@ Là **P1**, tôi muốn bấm kết thúc và biết mọi thứ đã an toàn, 
   tiến trình đồng bộ trước.
 - Cuộc họp chuyển `ended` rồi `queued`, và pipeline AI được kích hoạt tự động (US-28).
 - Người dùng được đưa về màn hình chi tiết cuộc họp, đọc được transcript ngay mà không cần chờ AI xử lý xong.
+
+#### US-42 · Chọn nguồn âm thanh
+Là **P1**, tôi muốn chọn thu bằng micro điện thoại hay bằng thiết bị âm thanh ngoài, để bắt tiếng
+rõ nhất trong hoàn cảnh của mình.
+
+**AC**
+- Màn hình cài đặt ghi âm có hai lựa chọn: `Micro trên thiết bị` và `Thiết bị ngoài (Bluetooth)`.
+- Chọn thiết bị ngoài mà chưa có thiết bị nào kết nối thì hiện hướng dẫn kết nối, không báo lỗi trống.
+- Thiết bị ngoài mất kết nối giữa chừng thì app tự chuyển về micro điện thoại, ghi nhận mốc chuyển
+  vào transcript, và **không** dừng phiên ghi.
+- Lựa chọn gần nhất được nhớ cho phiên sau.
+
+#### US-43 · Chọn chế độ ghi âm
+Là **P1**, tôi muốn chọn mức chất lượng ghi, để cân giữa độ chính xác và mức tiêu hao pin.
+
+**AC**
+- Có ít nhất hai mức, mặc định là mức được khuyến nghị.
+- Mỗi mức nêu rõ đánh đổi bằng ngôn ngữ người dùng hiểu được, không phải thông số kỹ thuật.
+- Đổi mức chỉ áp dụng cho phiên sau, không đổi giữa lúc đang ghi.
 
 ---
 
@@ -299,7 +330,7 @@ dù không ai nói đúng cụm từ đó.
 Là **P1**, tôi muốn xem đầy đủ nội dung đã ghi, để kiểm chứng những gì AI tóm tắt.
 
 **AC**
-- Transcript hiển thị theo đoạn, kèm mốc thời gian và nhãn người nói.
+- Transcript hiển thị theo đoạn, kèm mốc thời gian tính từ lúc bắt đầu. Không có tên người nói (xem US-13).
 - Cuộc họp dài 2 giờ vẫn cuộn mượt (dùng danh sách ảo hóa).
 - Có nút nhảy nhanh tới đầu / cuối / vị trí đọc dở lần trước.
 
@@ -499,6 +530,7 @@ Là **P1**, tôi muốn sửa tên hoặc loại của thực thể bị nhận 
 | ID | Câu hỏi | Vì sao chặn |
 |----|---------|-------------|
 | OQ-01 | Engine nhận diện trên thiết bị chịu được cuộc họp dài bao nhiêu phút, và mất bao nhiêu phần trăm chữ ở mỗi lần khởi động lại? | Quyết định US-11 có khả thi không. Nếu không đạt, phải chuyển sang nhận diện đám mây — kéo theo thay đổi NFR-02, mô hình chi phí và cả luồng dữ liệu. **Cần spike đo thực tế trước khi thi công E2.** |
-| OQ-02 | Không có tách người nói tự động thì US-32 (gán người phụ trách cho đầu việc) đạt được độ chính xác nào? | Nếu quá thấp, việc gán nhãn tay ở US-13 trở thành bắt buộc chứ không còn là tùy chọn. |
+| OQ-02 | Chỉ dựa vào nội dung câu nói, không có tên người nói, thì US-32 gán đúng người phụ trách được bao nhiêu phần trăm? | Quá thấp thì phải bỏ hẳn cột người phụ trách khỏi action item, thay vì giữ một trường gần như luôn trống. |
+| OQ-05 | Thu tiếng phát ra từ loa laptop ở khoảng cách 30–50cm thì tỉ lệ nhận diện sai là bao nhiêu? | Đây là bối cảnh dùng chính của sản phẩm và khó hơn hẳn nói trực tiếp vào máy. WER quá cao thì mọi thứ phía sau — dịch, tóm tắt, đồ thị — đều vô dụng theo. |
 | OQ-03 | Ngưỡng tương đồng nào để tự đề xuất gộp thực thể (US-40)? | Đặt thấp thì gộp nhầm, đặt cao thì đồ thị đầy bản trùng. Cần dữ liệu thật để hiệu chỉnh. |
 | OQ-04 | Hạn mức chi phí AI mỗi người dùng mỗi tháng là bao nhiêu? | Chi phối NFR-07 và quyết định dịch song song có bật mặc định hay không. |

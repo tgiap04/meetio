@@ -62,7 +62,7 @@ vì hiển thị đúng thứ server đang giữ. Mọi trường `PATCH` sửa 
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| POST | `/meetings` | **Tạo lúc bắt đầu họp.** Body `{title?, source_language, translate_to?}` → `{id, status:"recording", started_at}` |
+| POST | `/meetings` | **Tạo lúc bắt đầu họp.** Body `{title?, source_language, translate_to?, audio_source, recording_quality}` → `{id, status:"recording", started_at}` |
 | POST | `/meetings/:id/pause` | `recording` → `paused` |
 | POST | `/meetings/:id/resume` | `paused` → `recording` |
 | POST | `/meetings/:id/end` | Chỉ thành công khi mọi segment đã đồng bộ. `ended` → `queued`, kích hoạt pipeline |
@@ -85,8 +85,8 @@ thời điểm kết thúc, khiến sự kiện `join_room` không có id để 
 | Method | Path | Mô tả |
 |--------|------|-------|
 | GET | `/meetings/:id/segments` | Phân trang theo `seq`. `?from_seq=&limit=` |
-| PATCH | `/segments/:id` | Sửa `text` hoặc `speaker_label`. Đặt `is_edited = true` |
-| POST | `/meetings/:id/segments/bulk` | Đồng bộ bù khi mất mạng. Body `{segments: [{seq, text, started_at_ms, ended_at_ms, speaker_label?}]}` — upsert theo `(meeting_id, seq)`, idempotent |
+| PATCH | `/segments/:id` | Sửa `text`. Đặt `is_edited = true` |
+| POST | `/meetings/:id/segments/bulk` | Đồng bộ bù khi mất mạng. Body `{segments: [{seq, text, started_at_ms, ended_at_ms, gap_before_ms?}]}` — upsert theo `(meeting_id, seq)`, idempotent |
 
 `bulk` là đường dự phòng khi WebSocket không dùng được; đường chính vẫn là kênh realtime ở mục 8.
 
@@ -160,7 +160,7 @@ không gọi LLM để nó bịa ([US-36](../user_stories.md#us-36--câu-trả-l
 | Sự kiện | Payload | Ghi chú |
 |---------|---------|---------|
 | `join_meeting` | `{meeting_id}` | Kiểm tra quyền sở hữu trước khi cho vào room |
-| `transcript_segment` | `{seq, text, started_at_ms, ended_at_ms, speaker_label?, gap_before_ms?}` | Một đoạn đã chốt |
+| `transcript_segment` | `{seq, text, started_at_ms, ended_at_ms, gap_before_ms?}` | Một đoạn đã chốt. Không có trường người nói — xem [US-13](../user_stories.md#us-13--gán-nhãn-người-nói--đã-bỏ-2026-09-21) |
 | `leave_meeting` | `{meeting_id}` | |
 
 ### Server → Client

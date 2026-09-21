@@ -11,7 +11,9 @@
 | Thay đổi | Lý do |
 |----------|-------|
 | Thêm bảng `users`, thêm `user_id` vào mọi bảng gốc | Bản cũ không có chủ sở hữu → ai cũng đọc/xóa được cuộc họp của người khác |
-| Bỏ cột `meetings.full_transcript`, thay bằng bảng `transcript_segments` | Bản cũ vừa lưu cả khối văn bản vừa lưu chunk (trùng dữ liệu), lại mất mốc thời gian và người nói |
+| Bỏ cột `meetings.full_transcript`, thay bằng bảng `transcript_segments` | Bản cũ vừa lưu cả khối văn bản vừa lưu chunk (trùng dữ liệu), lại mất mốc thời gian |
+| **Bỏ cột `transcript_segments.speaker_label`** (2026-09-21) | Bối cảnh dùng chính là điện thoại thu tiếng từ loa laptop — âm thanh vào là một luồng trộn lẫn, không tách được người nói. Xem [US-13](../user_stories.md#us-13--gán-nhãn-người-nói--đã-bỏ-2026-09-21) |
+| Thêm `meetings.audio_source` và `meetings.recording_quality` | Màn cài đặt ghi âm trong thiết kế có hai mục này ([US-42](../user_stories.md#us-42--chọn-nguồn-âm-thanh), [US-43](../user_stories.md#us-43--chọn-chế-độ-ghi-âm)) nhưng schema cũ không có chỗ lưu |
 | Đồ thị chuyển từ phạm vi cuộc họp sang phạm vi người dùng (`entities` + `entity_mentions`) | Bản cũ gắn `meeting_id` vào node/edge → cùng một dự án thành nhiều node rời rạc, mất khả năng liên kết chéo |
 | Thêm `meetings.status` và bảng `processing_jobs` | Bản cũ nói "cập nhật trạng thái Processing Done" nhưng không có chỗ nào lưu trạng thái |
 | `action_items` tách thành bảng riêng thay cho cột JSONB | Bản cũ không định nghĩa cấu trúc → không truy vấn được "việc chưa xong của tôi" |
@@ -61,6 +63,8 @@ cột kia. `CHECK` ở trên là ràng buộc bảo đảm mọi hàng luôn cò
 | `status` | meeting_status | enum: `recording`/`paused`/`ended`/`queued`/`processing`/`ready`/`failed` |
 | `source_language` | TEXT | Mã BCP-47, ví dụ `vi-VN` |
 | `translate_to` | TEXT | NULL = tắt dịch |
+| `audio_source` | audio_source | enum: `device_mic` / `external_bluetooth` ([US-42](../user_stories.md#us-42--chọn-nguồn-âm-thanh)) |
+| `recording_quality` | recording_quality | enum: `standard` / `high` ([US-43](../user_stories.md#us-43--chọn-chế-độ-ghi-âm)) |
 | `summary` | TEXT | Do AI sinh |
 | `summary_citations` | JSONB | Mảng `chunk_id` cho từng ý trong tóm tắt |
 | `started_at` / `ended_at` | TIMESTAMPTZ | |
@@ -89,7 +93,6 @@ CREATE INDEX idx_meetings_title_trgm ON meetings
 | `text` | TEXT | Văn bản đã chốt |
 | `translated_text` | TEXT | NULL nếu tắt dịch ([US-19](../user_stories.md#us-19--xem-lại-bản-dịch-sau-cuộc-họp)) |
 | `translated_to` | TEXT | Mã ngôn ngữ của bản dịch |
-| `speaker_label` | TEXT | NULL = "Không rõ" ([US-13](../user_stories.md#us-13--gán-nhãn-người-nói)) |
 | `started_at_ms` / `ended_at_ms` | INT | Tính từ mốc bắt đầu cuộc họp |
 | `is_edited` | BOOLEAN | Đánh dấu người dùng đã sửa tay |
 | `gap_before_ms` | INT | Độ dài khoảng gián đoạn trước đoạn này (khi engine khởi động lại) |
