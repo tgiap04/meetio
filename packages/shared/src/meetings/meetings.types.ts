@@ -47,7 +47,7 @@ export interface MeetingStateResponse {
   duration_sec: number | null;
 }
 
-/** `PATCH /meetings/:id` */
+/** `PATCH /meetings/:id`. A blank `title` reverts to the default time-based title (US-25). */
 export interface UpdateMeetingRequest {
   title?: string;
   translate_to?: string | null;
@@ -106,5 +106,7 @@ export interface MeetingDetailResponse extends MeetingListItem {
   segment_count: number;
   action_items: MeetingActionItem[];
   processing_steps: MeetingProcessingStep[];
+  /** Transcript edited since the last completed pipeline run — show the summary with an "updating" label (US-24). */
+  has_unprocessed_edits: boolean;
   updated_at: string;
 }
