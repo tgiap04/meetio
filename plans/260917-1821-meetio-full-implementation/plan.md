@@ -21,10 +21,10 @@ thiết bị, pipeline GraphRAG phía backend, hỏi đáp có trích dẫn ngu�
 [Kiểm chứng stack](../reports/researcher-2026-09-17-stack-verification.md) ·
 **[Thiết kế giao diện](../../design.png)** (14 màn)
 
-**Hiện trạng:** Bộ khung + vòng đời cuộc họp hoàn tất — Phase 01, 02, 03, 04, 05, 06 xong và kiểm chứng độc lập.
-**850 test xanh**, đo ngày 2026-09-25: 278 API (230 unit/integration + 48 e2e) + 572 mobile / 106 suites. Phase 04: máy trạng thái toàn phần (bảng chuyển, pause/resume giữ thời lượng, end kiểm segment chờ, queued + BullMQ, cascade xóa, tự đóng 24h idle). Phase 05: WebSocket gateway, JWT bắt tay, batch writer 200ms, upsert ON CONFLICT DO NOTHING, ack sau COMMIT, rate limit 120/min/meeting, load test 20 meetings × 2 seg/s × 10 min: 24000/24000 acked, p95 253ms.
-**Phase 00:** Spike STT khung hoàn tất (app Expo + công cụ phân tích WER, 46 test xanh, tsc/eslint sạch). Đợi 60 phút audio tiếng Việt + bản chép tay đối chiếu để chạy đo 36 lượt trên máy thật (Android 13+, iOS). Cấu hình: expo-speech-recognition, restart 100ms, Android microphone foreground service, iOS background audio.
-**Tiếp theo:** Phase 10 & 11 mở khóa (quản lý cuộc họp, hạ tầng tác vụ). Phase 07 còn chờ Phase 00 đóng.
+**Hiện trạng:** Bộ khung + vòng đời + quản lý cuộc họp + hạ tầng AI hoàn tất — Phase 01–06, 10–11 xong và kiểm chứng độc lập.
+**1111 test xanh** (2026-09-25): API 268 unit + 80 e2e (348 tổng) · mobile 763 (137 suites). Phase 04: máy trạng thái toàn phần; pause/resume; queued → BullMQ; cascade xóa; tự đóng 24h idle. Phase 05: WebSocket, JWT, batch 200ms, upsert ON CONFLICT DO NOTHING, ack/COMMIT, rate 120/min/meeting, p95 253ms. Phase 10: danh sách phân trang + lọc bỏ dấu, transcript ảo hóa (200/trang, `FlatList`, edit/search toàn bộ), export Markdown/HTML/PDF share sheet, xóa 10s undo. Phase 11: 5 BullMQ queue + orchestrator, retry 2s/8s/32s × 3 lần, timeout 10min/step, sweep 5min, push Expo khử trùng, GeminiClient usage-tracker (null budget = OQ-04 mở).
+**Phase 00:** Spike STT khung hoàn tất (46 test xanh). Đợi 60 phút audio Việt + chép tay để chạy đo 36 lượt Android/iOS.
+**Tiếp theo:** Phase 07/08 chờ Phase 00 đóng (cổng chặn cứng). Phase 12 mở khóa (chunking, embedding, accounting).
 
 ### Phạm vi mở rộng — Google Sign-In (NGOÀI spec 260917)
 
@@ -69,8 +69,8 @@ chạy song song được ngay.
 | 07 | [Ghi âm & nhận diện](phase-07-recording-and-stt.md) | **00**, 05, 06 | US-07→13,16 | ⬜ pending |
 | 08 | [Hàng đợi ngoại tuyến & phục hồi](phase-08-offline-queue-and-recovery.md) | 07 | US-14,15 | ⬜ pending |
 | 09 | [Dịch song song](phase-09-translation-pipeline.md) | 05, 07 | US-17→19 | ⬜ pending |
-| 10 | [Quản lý cuộc họp & xuất bản](phase-10-meeting-management-and-export.md) | 04, 06 | US-20,21,23→27 | ⬜ pending |
-| 11 | [Hạ tầng tác vụ AI](phase-11-ai-job-infrastructure.md) | 04 | US-28→30 | ⬜ pending |
+| 10 | [Quản lý cuộc họp & xuất bản](phase-10-meeting-management-and-export.md) | 04, 06 | US-20,21,23→27 | ✅ **xong** |
+| 11 | [Hạ tầng tác vụ AI](phase-11-ai-job-infrastructure.md) | 04 | US-28→30 | ✅ **xong** |
 | 12 | [Chunking, embedding & tìm kiếm](phase-12-chunking-embedding-search.md) | 11 | US-22 | ⬜ pending |
 | 13 | [Trích xuất đồ thị & khớp thực thể](phase-13-graph-extraction-entity-resolution.md) | 12 | US-38→41 | ⬜ pending |
 | 14 | [Tóm tắt & việc cần làm](phase-14-summary-and-action-items.md) | 12, 13 | US-31→34 | ⬜ pending |

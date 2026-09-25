@@ -1,6 +1,6 @@
 # Meetio — Kiến trúc hệ thống
 
-**Cập nhật:** 2026-09-17  
+**Cập nhật:** 2026-09-25  
 **Liên quan:** [User Stories](../user_stories.md) · [Mô hình dữ liệu](data-model.md) · [Đặc tả API](api-spec.md)
 
 ---
@@ -57,10 +57,14 @@ mở đường cho việc phục hồi sau sự cố ([US-15](../user_stories.md
   segment nào) — không phải theo giờ hiện tại, nên 24 giờ tạm dừng không tự động cộng dồn thành họp
   treo.
 - Đẩy vào hàng đợi BullMQ luôn chạy **sau khi** transaction đổi trạng thái đã commit; job dùng
-  `jobId = meeting_id` nên idempotent. Nếu Redis trục trặc đúng lúc đó, cùng tác vụ định kỳ ở trên
-  sẽ enqueue lại mọi cuộc họp `queued` bị kẹt quá 10 phút.
+  `jobId = <meeting>-r<run>` (`meetings.pipeline_run`) nên idempotent trong cùng một lượt chạy, còn
+  một lượt chạy lại là job mới thay vì bị BullMQ coi là trùng. Nếu Redis trục trặc đúng lúc đó, tác
+  vụ định kỳ `requeue-stranded-meetings` (mỗi 15 phút) sẽ enqueue lại mọi cuộc họp `queued` bị kẹt
+  quá 10 phút.
 - `failed` giữ nguyên transcript. Chỉ các dẫn xuất AI bị đánh dấu chưa sẵn sàng.
-- Sửa transcript ở trạng thái `ready` sẽ đưa cuộc họp về `queued` nhưng vẫn phục vụ được dữ liệu cũ.
+- Sửa transcript **không** tự đưa cuộc họp về `queued` — `PATCH /segments/:id` chỉ sửa nội dung và
+  đặt `edited_at`; cuộc họp `ready` vẫn phục vụ nguyên bản tóm tắt cũ cho tới khi client tự gọi
+  `POST /reindex` (xem mục 3).
 
 ---
 
@@ -134,35 +138,74 @@ Engine trên thiết bị sẽ tự ngắt. Client phải bật lại ngay và g
 
 ## 3. Luồng 2 — Pipeline phân tích
 
-Kích hoạt khi cuộc họp chuyển `queued`. Chạy trong BullMQ, mỗi bước là một job riêng, thử lại độc lập.
+Kích hoạt khi cuộc họp chuyển `queued` (do `end`, do sweep tự đóng, hoặc do `reindex`). Mỗi bước
+chạy trên **hàng đợi BullMQ riêng của nó** (`pipeline-chunk`, `pipeline-embed`, `pipeline-extract`,
+`pipeline-resolve`, `pipeline-summarize`) — thử lại, đo tải và scale độc lập theo từng bước, không
+chung một hàng đợi lớn.
 
 ```
 queued
+  │  job "meeting-processing" (jobId: <meeting>-r<run>)
+  ▼
+processing ─┬─ 1. Cắt đoạn ─────── gộp transcript_segments thành chunk ~800 token, chồng lấn 15%
+            │                      giữ liên kết segment_start / segment_end để truy vết nguồn
+            │
+            ├─ 2. Nhúng vector ─── Gemini embedding theo lô → meeting_chunks.embedding
+            │
+            ├─ 3. Trích xuất ───── mỗi chunk → LLM trả JSON { entities[], relations[] }
+            │                      bắt buộc đúng schema; sai schema thì thử lại tối đa 2 lần rồi bỏ chunk đó
+            │
+            ├─ 4. Khớp thực thể ── so trùng với thực thể sẵn có của người dùng (xem mục 5)
+            │                      → tạo mới, hoặc gắn mention vào thực thể đã có
+            │
+            └─ 5. Tóm tắt ──────── toàn bộ transcript → tóm tắt điều hành + action items
+                                   mỗi ý bắt buộc kèm chunk nguồn
   │
-  ├─ 1. Cắt đoạn ─────── gộp transcript_segments thành chunk ~800 token, chồng lấn 15%
-  │                      giữ liên kết segment_start / segment_end để truy vết nguồn
-  │
-  ├─ 2. Nhúng vector ─── Gemini embedding theo lô → meeting_chunks.embedding
-  │
-  ├─ 3. Trích xuất ───── mỗi chunk → LLM trả JSON { entities[], relations[] }
-  │                      bắt buộc đúng schema; sai schema thì thử lại tối đa 2 lần rồi bỏ chunk đó
-  │
-  ├─ 4. Khớp thực thể ── so trùng với thực thể sẵn có của người dùng (xem mục 5)
-  │                      → tạo mới, hoặc gắn mention vào thực thể đã có
-  │
-  ├─ 5. Tóm tắt ──────── toàn bộ transcript → tóm tắt điều hành + action items
-  │                      mỗi ý bắt buộc kèm chunk nguồn
-  │
-  └─ 6. Hoàn tất ─────── ready → thông báo qua WebSocket và push
+  ▼
+ready ─── processing_status(ready) qua WebSocket, rồi đúng một push "đã xử lý xong"
 ```
 
-**Quy tắc thử lại:** mỗi bước tối đa 3 lần, chờ tăng dần 2s/8s/32s. Hết 3 lần thì cuộc họp chuyển
-`failed` kèm tên bước lỗi. Các bước đã xong được đánh dấu để lần chạy lại bỏ qua.
+Mỗi bước là một job riêng: `jobId = <meeting>-r<run>-<step>`. `run` tăng mỗi lần cuộc họp được
+(re)queue (`meetings.pipeline_run`), nên một lượt chạy lại luôn là job mới — không bao giờ bị BullMQ
+coi là trùng với job của lượt trước và âm thầm bỏ qua. Nguồn sự thật của tiến trình là
+`processing_jobs` cộng với `meetings.status` trong PostgreSQL, không phải Redis — Redis chỉ mang
+việc cần làm; mất Redis giữa chừng không làm mất chỗ đang xử lý tới đâu.
 
-**Chạy lại sau khi sửa transcript ([US-24](../user_stories.md#us-24--sửa-nội-dung-nhận-diện-sai)):**
-chỉ xử lý lại các chunk có chứa đoạn bị sửa, cộng thêm bước tóm tắt (vì tóm tắt phụ thuộc toàn cục).
-Bản đặc tả cũ ghi "cập nhật lại Vector/Graph nếu cần" mà không định nghĩa "nếu cần" — thực tế
-nghĩa là: chunk bị chạm thì làm lại, phần còn lại giữ nguyên.
+**Quy tắc thử lại:** mỗi bước tối đa 1 lần chạy + 3 lần thử lại (4 lần tổng), chờ tăng dần theo cấp
+số nhân 2s → 8s → 32s giữa các lần, cộng timeout 10 phút mỗi lần chạy (bước bị huỷ qua `AbortSignal`
+nếu quá giờ). Hết lượt thử thì bước đó và cả cuộc họp chuyển `failed`, kèm tên bước lỗi
+(`failure_reason`) — transcript và các bước đã `succeeded` giữ nguyên, không phải làm lại từ đầu.
+
+**Bước chưa có handler (Phase 12–14 mới cắm vào):** cuộc họp **dừng lại và giữ nguyên
+`processing`** ở đúng bước đó (`processing_jobs.status = pending`) — không bao giờ báo `ready` giả
+khi vẫn còn bước chưa chạy. Sweep `resume-stalled-pipelines` (mỗi 5 phút) quét lại mọi cuộc họp
+`processing` đứng yên quá 5 phút và gọi lại `advance()`; khi bước đó có handler, cuộc họp tự chạy
+tiếp mà không cần can thiệp thủ công.
+
+**Chạy lại sau khi sửa transcript ([US-24](../user_stories.md#us-24--sửa-nội-dung-nhận-diện-sai),
+[US-29](../user_stories.md#us-29--thử-lại-khi-xử-lý-thất-bại)):** `POST /reindex` có hai phạm vi —
+`changed` chỉ xử lý lại phần bị đoạn sửa chạm tới (sau `pipeline_changed_since`) khi cuộc họp đang
+`ready`, hoặc resume đúng bước lỗi (bỏ qua các bước đã `succeeded`) khi đang `failed`; `full` luôn
+chạy lại cả 5 bước từ đầu. Chi tiết hợp đồng ở
+[api-spec.md §3](api-spec.md#3-vòng-đời-cuộc-họp).
+
+**Chi phí AI:** mọi lệnh gọi Gemini (nhúng, trích xuất, tóm tắt) đi qua `GeminiClient` — kiểm tra
+hạn mức trước khi gọi, giới hạn số lệnh chạy đồng thời, thử lại khi gặp lỗi 429/5xx, rồi ghi một
+dòng `usage_records` với đúng số token Gemini trả về. Người dùng chưa có `monthly_token_budget`
+(NULL) thì chưa bị chặn — hạn mức cụ thể còn là câu hỏi mở
+([OQ-04](../user_stories.md#5-câu-hỏi-còn-mở)). Nhúng vector (bước 2) chưa đi qua `GeminiClient`:
+API Gemini không trả số token cho embedding, nên cách tính chi phí cho bước này để Phase 12 — nơi
+gọi nó lần đầu — quyết định.
+
+**Thông báo hoàn tất ([US-30](../user_stories.md#us-30--nhận-thông-báo-khi-phân-tích-xong)):** khi
+lượt chạy hoàn tất, engine phát `processing_status(ready)` qua WebSocket rồi gọi thẳng
+`MeetingReadyNotifier`. Cột `meetings.ready_notified_at` được claim bằng một UPDATE có điều kiện
+duy nhất, nên dù thử lại hay chạy lại nhiều lần, push cũng chỉ gửi **đúng một lần** cho mỗi cuộc
+họp. Nội dung push cố ý chung chung — không tiêu đề, không trích transcript, chỉ kèm `meeting_id`
+để mở đúng màn hình — vì payload push đi qua máy chủ Expo, Apple và Google, còn nội dung cuộc họp là
+dữ liệu cá nhân ([NFR-01](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)). Người dùng tắt được ở
+`notification_settings.meeting_ready_push`; một push thất bại không bao giờ làm hỏng pipeline vừa
+chạy xong.
 
 ---
 

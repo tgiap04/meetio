@@ -14,3 +14,16 @@
 - Q: Upsert segment khi gửi trùng `(meeting_id, seq)` ghi đè hay giữ bản đầu? → A: Giữ bản đầu (`ON CONFLICT DO NOTHING`) để không đè bản người dùng đã sửa; vẫn phát ack cho bản trùng
 - Q: Tiêu đề mặc định theo múi giờ nào? → A: `Cuộc họp DD/MM HH:mm` theo Asia/Ho_Chi_Minh khi client không gửi title
 - Q: WebSocket nhận JWT ở đâu lúc bắt tay? → A: `handshake.auth.token`, dự phòng header `Authorization: Bearer`
+
+## Session 2026-09-25 (Phase 07–08 → 10–11)
+- Q: Phase 07 bị chặn cứng bởi Phase 00 (chưa có số đo), Phase 08 phụ thuộc 07 — làm gì? → A: Giữ nguyên cổng chặn; chuyển sang Phase 10 và 11, Phase 07/08 đợi số đo Phase 00
+- Q: Phase 11 — bước pipeline chưa có handler (tới Phase 12–14 mới có) thì cuộc họp đi tới đâu? → A: Dừng ở bước đầu tiên chưa có handler; cuộc họp giữ `processing`, bước đó `pending`; không bao giờ báo `ready` giả; sweep chạy tiếp khi handler được gắn
+- Q: Push notification "xử lý xong"? → A: Expo Push Service; bảng token thiết bị + endpoint đăng ký/hủy; nội dung chung chung (không tiêu đề, không trích transcript) kèm meeting_id; đúng một thông báo mỗi cuộc họp; mobile đăng ký bằng expo-notifications
+- Q: Phạm vi mobile Phase 10? → A: Nối API thật cho màn Thư viện, Chi tiết, Transcript có sẵn (cuộn vô hạn, tìm, sửa đoạn, xóa hoàn tác 10s, xuất Markdown/PDF qua share sheet); giữ nguyên UI; backend và mobile song song
+- Q: Sửa transcript có tự chạy lại pipeline không? → A: Không; `PATCH /segments/:id` chỉ sửa và đặt `edited_at`; client hỏi người dùng rồi mới gọi `POST /reindex {scope}`; chi tiết trả `has_unprocessed_edits` để hiện nhãn "đang cập nhật"
+- Q: Sửa đoạn được ở trạng thái nào? → A: `queued`, `ready`, `failed`; từ chối 409 khi `recording`/`paused` (đang ghi) và `processing` (pipeline đang đọc)
+- Q: `reindex` có những phạm vi nào? → A: `changed` = sau khi sửa (ready) xử lý lại theo các seq đã sửa, hoặc sau lỗi (failed) chạy tiếp từ bước lỗi bỏ qua bước đã xong; `full` = chạy lại mọi bước; mỗi lần chạy tăng `meetings.pipeline_run` và jobId = `<meeting_id>-r<run>`
+- Q: Xuất PDF ở server hay client? → A: Server dựng `markdown` hoặc `html`; client render PDF từ html bằng expo-print và chia sẻ qua share sheet
+- Q: Tiêu đề rỗng khi PATCH? → A: Quay về tiêu đề mặc định theo `started_at` (US-25), không lưu chuỗi trắng
+- Q: Khóa cài đặt tắt push? → A: `notification_settings.meeting_ready_push` (thiếu khóa = bật)
+- Q: Repo chưa có EAS projectId để lấy Expo push token? → A: Mobile đọc projectId từ cấu hình; thiếu thì bỏ qua đăng ký kèm cảnh báo; người dùng tự chạy `eas init` để bật

@@ -1,0 +1,41 @@
+{
+  "task": "Phase 04 + 05: meeting lifecycle REST API (state machine, create/pause/resume/end with segment-sync check, list/detail/rename, physical delete with orphan-entity cleanup, 24h abandoned-meeting sweep, BullMQ pipeline hand-off) and the /meeting-room realtime transcript gateway (JWT handshake, ownership-checked join, batched durable-before-ack upsert, bulk REST fallback, rate limit, notifier)",
+  "mode": "interactive",
+  "acceptanceCriteria": [
+    "every endpoint in api-spec section 3 in phase-04 scope behaves per spec",
+    "invalid state transitions always return 409 and are never silently ignored",
+    "end succeeds only when seqs 1..last_seq are persisted, otherwise 409 SEGMENTS_PENDING naming missing seqs",
+    "deleting a meeting removes all child rows while entities still mentioned elsewhere survive",
+    "meetings abandoned for 24 hours are auto-closed and still queued for processing",
+    "sending the same seq 10 times produces exactly one row",
+    "reconnect and resend loses no segment and duplicates none",
+    "segment_ack is only emitted after the row is in PostgreSQL, proven by fault injection",
+    "load test keeps p95 ack latency under 500ms",
+    "no transcript text is logged"
+  ],
+  "touchpoints": [
+    "apps/api/src/meetings/",
+    "apps/api/src/segments/",
+    "apps/api/src/realtime/",
+    "apps/api/src/jobs/abandoned-meeting.job.ts",
+    "apps/api/src/database/migrations/1758000000012-AddRecordingSettingsAndPauseTracking.ts",
+    "apps/api/src/database/entities/meeting.entity.ts",
+    "apps/api/src/auth/jwt-auth.guard.ts",
+    "apps/api/src/auth/auth.module.ts",
+    "packages/shared/src/meetings/",
+    "packages/shared/src/websocket/websocket.types.ts"
+  ],
+  "blastRadius": [
+    "global JwtAuthGuard now skips non-HTTP contexts",
+    "AuthModule exports JwtModule",
+    "meetings table schema (migration 012)",
+    "shared TranscriptSegmentPayload lost speaker_label",
+    "existing auth/users endpoints and account-maintenance jobs"
+  ],
+  "contracts": [
+    "api-spec section 3 meeting endpoints",
+    "api-spec section 4 POST /meetings/:id/segments/bulk",
+    "api-spec section 8 WebSocket events",
+    "api-spec section 9 error codes"
+  ]
+}

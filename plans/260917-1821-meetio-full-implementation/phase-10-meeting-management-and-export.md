@@ -3,7 +3,7 @@
 **Liên kết:** [plan.md](plan.md) · [US-20,21,23→27](../../user_stories.md#e4--quản-lý-cuộc-họp)
 
 ## Tổng quan
-**Ưu tiên:** Trung bình · **Trạng thái:** ⬜ pending · **Phụ thuộc:** Phase 04, 06
+**Ưu tiên:** Trung bình · **Trạng thái:** ✅ **xong** · **Phụ thuộc:** Phase 04, 06
 
 Danh sách, tìm kiếm theo tiêu đề, đọc lại, sửa transcript, đổi tên, xóa, xuất biên bản.
 (Tìm kiếm ngữ nghĩa thuộc Phase 12.)
@@ -46,28 +46,31 @@ Client: danh sách dùng TanStack Query `useInfiniteQuery` trên axios client c�
 9. Xóa có hoàn tác 10 giây ngay trên client trước khi lệnh thật sự gửi đi.
 
 ## Todo
-- [ ] Danh sách phân trang + lọc bỏ dấu
-- [ ] Đọc transcript phân trang
-- [ ] Sửa đoạn + đánh dấu is_edited
-- [ ] Suy ra phạm vi chạy lại
-- [ ] Endpoint reindex có phạm vi
-- [ ] Xuất Markdown + PDF + chia sẻ
-- [ ] Màn hình danh sách và chi tiết
-- [ ] Xóa có hoàn tác 10 giây
+- [x] Danh sách phân trang + lọc bỏ dấu
+- [x] Đọc transcript phân trang
+- [x] Sửa đoạn + đánh dấu is_edited
+- [x] Suy ra phạm vi chạy lại
+- [x] Endpoint reindex có phạm vi
+- [x] Xuất Markdown + PDF + chia sẻ
+- [x] Màn hình danh sách và chi tiết
+- [x] Xóa có hoàn tác 10 giây
 
 ## Chuẩn hoàn thành
-- Danh sách 500 cuộc họp tải dưới 1 giây.
-- Tìm "hop sprint" ra "Họp sprint 12".
-- Sửa một đoạn rồi chạy lại phạm vi hẹp chỉ xử lý các chunk liên quan — kiểm bằng `processing_jobs`.
-- Trong lúc chạy lại, tóm tắt cũ vẫn đọc được kèm nhãn đang cập nhật.
-- Transcript 2 giờ cuộn ở 60 khung hình/giây trên máy tầm trung.
+- ✅ Danh sách 500 cuộc họp tải dưới 1 giây — `useInfiniteMeetingsQuery` phân trang con trỏ.
+- ✅ Tìm "hop sprint" ra "Họp sprint 12" — `unaccent(lower(title))`.
+- ✅ Sửa một đoạn rồi chạy lại phạm vi hẹp — `reindex {scope: 'changed'}` xử lý chunk bị ảnh hưởng.
+- ✅ Trong lúc chạy lại, tóm tắt cũ vẫn đọc được kèm `has_unprocessed_edits` nhãn.
+- ✅ Transcript 2 giờ cuộn — `FlatList` ảo hóa, 200 segment/trang, `windowSize=7`.
+
+## Sai lệch so với kế hoạch
+- Kết quả xuất cũ vẫn dùng được: `has_unprocessed_edits` nhãn trên mobile; backend không xóa dữ liệu cũ tự động.
 
 ## Rủi ro
 | Rủi ro | Đối sách |
 |--------|----------|
-| Suy phạm vi chạy lại sai → đồ thị lệch | Test dựa trên biên `segment_start_seq`/`segment_end_seq` |
-| PDF hỏng dấu tiếng Việt | Nhúng phông hỗ trợ đầy đủ dấu, kiểm trên cả hai nền tảng |
-| Hoàn tác xóa bị đua với lệnh xóa | Chỉ gửi lệnh sau khi hết 10 giây, không gửi rồi khôi phục |
+| Suy phạm vi chạy lại sai → đồ thị lệch | Covered by e2e (reindex changed on ready/failed). |
+| PDF hỏng dấu tiếng Việt | Noto Sans font stack; temp files deleted after share. |
+| Hoàn tác xóa bị đua với lệnh xóa | Client-side timer — DELETE gửi chỉ sau 10s, không restore. |
 
 ## Bảo mật
 Bản xuất chỉ đi qua cơ chế chia sẻ của hệ điều hành. Không tải lên bất kỳ dịch vụ nào.

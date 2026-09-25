@@ -1,7 +1,7 @@
 # Meetio — Mô hình dữ liệu
 
 **Cơ sở dữ liệu:** PostgreSQL 15+ với extension `pgvector` và `unaccent`  
-**Cập nhật:** 2026-09-17  
+**Cập nhật:** 2026-09-25  
 **Liên quan:** [User Stories](../user_stories.md) · [Kiến trúc](system-architecture.md) · [API](api-spec.md)
 
 ---
@@ -50,6 +50,21 @@ cột kia. `CHECK` ở trên là ràng buộc bảo đảm mọi hàng luôn cò
 ### `refresh_tokens`
 `id` UUID PK · `user_id` FK · `token_hash` TEXT · `expires_at` · `revoked_at` · `device_label` TEXT
 
+### `push_tokens`
+Một hàng cho mỗi thiết bị đã đăng ký nhận push "cuộc họp đã xử lý xong"
+([US-30](../user_stories.md#us-30--nhận-thông-báo-khi-phân-tích-xong)).
+
+`id` UUID PK · `user_id` FK → `users`, `ON DELETE CASCADE` · `token` TEXT `UNIQUE` (Expo push token) ·
+`platform` TEXT (`CHECK ... IN ('ios', 'android')`) · `created_at` · `last_seen_at` TIMESTAMPTZ
+
+```sql
+CREATE INDEX idx_push_tokens_user ON push_tokens (user_id);
+```
+
+`token` là khóa duy nhất, không phải `(user_id, token)`: một token vật lý chỉ thuộc về đúng một tài
+khoản tại một thời điểm. Đăng ký lại trên tài khoản khác (`ON CONFLICT (token) DO UPDATE`) chuyển
+hẳn quyền sở hữu — tài khoản trước đó ngừng nhận push trên máy đó.
+
 ---
 
 ## 2. Cuộc họp và transcript
@@ -73,6 +88,11 @@ cột kia. `CHECK` ở trên là ràng buộc bảo đảm mọi hàng luôn cò
 | `last_activity_at` | TIMESTAMPTZ | Dùng cho cơ chế tự đóng cuộc họp bỏ quên sau 24h |
 | `paused_at` | TIMESTAMPTZ | NULL trừ khi đang tạm dừng; đặt lúc `pause`, xóa lúc `resume` |
 | `paused_duration_ms` | BIGINT | Tổng thời gian đã tạm dừng, cộng dồn mỗi lần `resume`; `duration_sec` trừ đi giá trị này |
+| `pipeline_run` | INT | Tăng mỗi lần cuộc họp được (re)queue; job id hàng đợi là `<meeting>-r<run>[-<step>]` nên một lần chạy lại là job mới, không bị BullMQ coi là trùng |
+| `pipeline_scope` | TEXT | `full` hoặc `changed` cho lượt chạy hiện tại; enum kiểm bằng `CHECK`, không dùng Postgres enum type |
+| `pipeline_started_at` | TIMESTAMPTZ | Lúc lượt chạy hiện tại bắt đầu |
+| `pipeline_changed_since` | TIMESTAMPTZ | Lúc lượt chạy **trước** bắt đầu; đoạn nào sửa sau mốc này mới bị lượt `changed` xử lý lại |
+| `ready_notified_at` | TIMESTAMPTZ | Claim một lần bằng UPDATE có điều kiện, đảm bảo push "đã xử lý xong" chỉ gửi đúng một lần mỗi cuộc họp ([US-30](../user_stories.md#us-30--nhận-thông-báo-khi-phân-tích-xong)) |
 | `created_at` / `updated_at` / `deleted_at` | TIMESTAMPTZ | |
 
 ```sql
@@ -97,6 +117,7 @@ CREATE INDEX idx_meetings_title_trgm ON meetings
 | `translated_to` | TEXT | Mã ngôn ngữ của bản dịch |
 | `started_at_ms` / `ended_at_ms` | INT | Tính từ mốc bắt đầu cuộc họp |
 | `is_edited` | BOOLEAN | Đánh dấu người dùng đã sửa tay |
+| `edited_at` | TIMESTAMPTZ | NULL nếu chưa từng sửa. `is_edited` nói *có sửa hay không*, cột này nói *từ lượt chạy pipeline nào* — dùng để lượt `reindex scope=changed` biết đoạn nào cần xử lý lại ([US-24](../user_stories.md#us-24--sửa-nội-dung-nhận-diện-sai)) |
 | `gap_before_ms` | INT | Độ dài khoảng gián đoạn trước đoạn này (khi engine khởi động lại) |
 | `created_at` | TIMESTAMPTZ | |
 
@@ -263,5 +284,5 @@ Ràng buộc duy nhất trên `(meeting_id, step)` là thứ khiến việc ch�
 |-----------|--------|
 | Xóa cuộc họp | CASCADE: segments, chunks, mentions, relations, action items, qa_messages, jobs |
 | Sau khi xóa cuộc họp | Thực thể không còn `entity_mention` nào → xóa nốt. Còn mention ở cuộc họp khác → giữ nguyên ([US-26](../user_stories.md#us-26--xóa-cuộc-họp)) |
-| Xóa tài khoản | Đặt `deleted_at`, chặn đăng nhập ngay; xóa vật lý sau 30 ngày qua tác vụ định kỳ |
+| Xóa tài khoản | Đặt `deleted_at`, chặn đăng nhập ngay; xóa vật lý sau 30 ngày qua tác vụ định kỳ. `push_tokens` CASCADE theo `user_id` — thiết bị ngừng nhận push ngay khi tài khoản bị xóa vật lý |
 | Hết hạn lưu trữ | Tác vụ hằng ngày xóa cuộc họp quá `retention_days`, có thông báo trước 7 ngày |

@@ -1,41 +1,41 @@
 {
-  "task": "Phase 04 + 05: meeting lifecycle REST API (state machine, create/pause/resume/end with segment-sync check, list/detail/rename, physical delete with orphan-entity cleanup, 24h abandoned-meeting sweep, BullMQ pipeline hand-off) and the /meeting-room realtime transcript gateway (JWT handshake, ownership-checked join, batched durable-before-ack upsert, bulk REST fallback, rate limit, notifier)",
+  "task": "Phase 10 + 11: transcript read/edit, scoped reindex, Markdown/HTML export, pipeline infrastructure (per-step BullMQ queues, orchestrator, retries, pause at unimplemented steps, status endpoint, realtime status, push notification, Gemini client with usage tracking) and wiring the existing mobile screens to the real API",
   "mode": "interactive",
   "acceptanceCriteria": [
-    "every endpoint in api-spec section 3 in phase-04 scope behaves per spec",
-    "invalid state transitions always return 409 and are never silently ignored",
-    "end succeeds only when seqs 1..last_seq are persisted, otherwise 409 SEGMENTS_PENDING naming missing seqs",
-    "deleting a meeting removes all child rows while entities still mentioned elsewhere survive",
-    "meetings abandoned for 24 hours are auto-closed and still queued for processing",
-    "sending the same seq 10 times produces exactly one row",
-    "reconnect and resend loses no segment and duplicates none",
-    "segment_ack is only emitted after the row is in PostgreSQL, proven by fault injection",
-    "load test keeps p95 ack latency under 500ms",
-    "no transcript text is logged"
+    "transcript pages by seq and segments can be corrected only when the meeting is not live or processing",
+    "editing never re-runs the pipeline by itself and the meeting reports unprocessed edits",
+    "reindex changed after edits is scoped to the edit window and reindex after failure skips succeeded steps",
+    "export produces Markdown and HTML with chosen sections and a note when the summary is not ready",
+    "ending a meeting starts a pipeline run that executes steps in order and never reports ready without all steps succeeding",
+    "a failing step is retried 3 times with growing waits and then fails the meeting naming the step",
+    "the meeting ready push is sent exactly once per meeting with generic text and honours the user setting",
+    "every Gemini call records a usage row with token counts and a spent budget blocks calls",
+    "mobile library, detail and transcript screens use the real API including delete undo and export"
   ],
   "touchpoints": [
+    "apps/api/src/pipeline/",
+    "apps/api/src/transcript/",
+    "apps/api/src/export/",
+    "apps/api/src/notifications/",
+    "apps/api/src/ai/",
     "apps/api/src/meetings/",
-    "apps/api/src/segments/",
-    "apps/api/src/realtime/",
-    "apps/api/src/jobs/abandoned-meeting.job.ts",
-    "apps/api/src/database/migrations/1758000000012-AddRecordingSettingsAndPauseTracking.ts",
-    "apps/api/src/database/entities/meeting.entity.ts",
-    "apps/api/src/auth/jwt-auth.guard.ts",
-    "apps/api/src/auth/auth.module.ts",
+    "apps/api/src/jobs/",
+    "apps/api/src/database/migrations/1758000000014-AddPipelineRunsEditsAndPushTokens.ts",
     "packages/shared/src/meetings/",
-    "packages/shared/src/websocket/websocket.types.ts"
+    "packages/shared/src/notifications/",
+    "apps/mobile/"
   ],
   "blastRadius": [
-    "global JwtAuthGuard now skips non-HTTP contexts",
-    "AuthModule exports JwtModule",
-    "meetings table schema (migration 012)",
-    "shared TranscriptSegmentPayload lost speaker_label",
-    "existing auth/users endpoints and account-maintenance jobs"
+    "meeting-processing job id format changed to meeting-run",
+    "end and abandoned sweep now increment pipeline_run",
+    "PATCH /meetings blank title now reverts to default instead of 400",
+    "BullMQ root config reads BULLMQ_PREFIX",
+    "e2e harness isolation from a running dev server"
   ],
   "contracts": [
-    "api-spec section 3 meeting endpoints",
-    "api-spec section 4 POST /meetings/:id/segments/bulk",
-    "api-spec section 8 WebSocket events",
-    "api-spec section 9 error codes"
+    "api-spec section 3 status, reindex, export",
+    "api-spec section 4 GET segments and PATCH segment",
+    "api-spec section 2 push tokens",
+    "WebSocket processing_status and meeting_ready payloads"
   ]
 }

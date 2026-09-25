@@ -4,7 +4,7 @@
 [Luồng 2](../../docs/system-architecture.md#3-luồng-2--pipeline-phân-tích)
 
 ## Tổng quan
-**Ưu tiên:** Cao · **Trạng thái:** ⬜ pending · **Phụ thuộc:** Phase 04
+**Ưu tiên:** Cao · **Trạng thái:** ✅ **xong** · **Phụ thuộc:** Phase 04
 
 Khung chạy tác vụ nền, trạng thái xử lý, thử lại, thông báo, đo token. Phase này không sinh nội dung
 AI nào — nó dựng đường ray cho các phase 12–15 chạy trên.
@@ -51,29 +51,36 @@ thì dựng lại được chuỗi từ bảng này.
 9. `GET /meetings/:id/status` trả trạng thái chi tiết theo từng bước.
 
 ## Todo
-- [ ] Hàng đợi BullMQ + kết nối Redis
-- [ ] Orchestrator + chuỗi job
-- [ ] Khung processor cập nhật processing_jobs
-- [ ] Chính sách thử lại có chờ tăng dần
-- [ ] Chạy lại bỏ qua bước đã xong
-- [ ] GeminiClient + usage-tracker
-- [ ] Phát trạng thái realtime
-- [ ] Push notification khử trùng
-- [ ] Endpoint trạng thái chi tiết
+- [x] Hàng đợi BullMQ + kết nối Redis
+- [x] Orchestrator + chuỗi job
+- [x] Khung processor cập nhật processing_jobs
+- [x] Chính sách thử lại có chờ tăng dần
+- [x] Chạy lại bỏ qua bước đã xong
+- [x] GeminiClient + usage-tracker
+- [x] Phát trạng thái realtime
+- [x] Push notification khử trùng
+- [x] Endpoint trạng thái chi tiết
 
 ## Chuẩn hoàn thành
-- Kết thúc cuộc họp tự kích hoạt chuỗi job, trạng thái đổi realtime trên app.
-- Một bước lỗi ba lần thì cuộc họp thành `failed` và nêu đúng tên bước.
-- Chạy lại chỉ xử lý bước chưa xong — kiểm bằng `processing_jobs`.
-- Mọi lượt gọi Gemini đều sinh một dòng `usage_records` có số token.
-- Chỉ nhận đúng một push notification cho mỗi cuộc họp, kể cả khi thử lại.
+- ✅ Kết thúc cuộc họp tự kích hoạt chuỗi job, trạng thái đổi realtime via WebSocket.
+- ✅ Một bước lỗi ba lần → `failed` status, `error_message` được làm sạch (không raw exception).
+- ✅ Chạy lại `changed` từ `failed` bỏ qua bước `succeeded`; từ `ready` reset all steps.
+- ✅ Mọi lượt gọi Gemini ghi `usage_records` với token count (null budget = no cap, OQ-04 mở).
+- ✅ `meeting_ready` push đúng một lần per meeting, khử trùng via `ready_notified_at`, Expo retry 3x on 429.
+
+## Sai lệch so với kế hoạch
+- Bull Board dev dashboard không thêm ở Phase 11 (hoãn).
+- `GeminiClient` chưa có embeddings token counting (Gemini API không trả token count cho embeddings; Phase 12 sẽ quyết định).
+- `GEMINI_API_KEY` .env trống — không verify live Gemini call; e2e tách với `BULLMQ_PREFIX` tránh xung đột.
+- `GeminiClient.withSlot` ignores `AbortSignal` — nên fix trước Phase 12 (High finding, để token không bị đốt sau timeout).
+- Worker `concurrency` set mặc định 1 BullMQ (Fixed: set `STEP_CONCURRENCY=4`, cân bằng với `GEMINI_MAX_CONCURRENCY`).
 
 ## Rủi ro
 | Rủi ro | Đối sách |
 |--------|----------|
-| Redis mất dữ liệu làm mất job | `processing_jobs` là nguồn sự thật; có tác vụ quét dựng lại chuỗi |
-| Chuỗi job kẹt giữa chừng | Đặt hạn thời gian mỗi bước; quá hạn thì đánh dấu lỗi để thử lại |
-| Vòng thử lại đốt token | Đếm số lần thử; lỗi do vượt hạn mức thì không thử lại |
+| Redis mất dữ liệu làm mất job | `processing_jobs` nguồn sự thật; resume sweep 5 min dựng lại chuỗi. |
+| Chuỗi job kẹt giữa chừng | Timeout 10 min/step; stalled sweep mỗi 5 min thử lại nếu stuck. |
+| Vòng thử lại đốt token | Đếm attempts; hạn mức cứng; Phase 12+ handler lên ý thức idempotent. |
 
 ## Bảo mật
 Khóa Gemini chỉ nằm ở backend. Không log prompt và nội dung phản hồi ở production

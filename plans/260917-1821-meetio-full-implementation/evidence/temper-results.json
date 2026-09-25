@@ -4,50 +4,50 @@
       "command": "yarn workspace @meetio/api test:unit",
       "exitCode": 0,
       "status": "pass",
-      "summary": "Test Suites: 25 passed, 25 total | Tests: 230 passed, 230 total",
-      "ts": "2026-09-25T05:00:01.244Z"
+      "summary": "Test Suites: 31 passed, 31 total | Tests: 268 passed, 268 total",
+      "ts": "2026-09-25T07:18:13.084Z"
     },
     {
       "command": "yarn workspace @meetio/api test:e2e",
       "exitCode": 0,
       "status": "pass",
-      "summary": "Test Suites: 7 passed, 7 total | Tests: 48 passed, 48 total",
-      "ts": "2026-09-25T05:00:19.516Z"
+      "summary": "Test Suites: 15 passed, 15 total | Tests: 80 passed, 80 total",
+      "ts": "2026-09-25T07:18:42.777Z"
+    },
+    {
+      "command": "yarn workspace @meetio/mobile test",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "Test Suites: 137 passed, 137 total | Tests: 763 passed, 763 total",
+      "ts": "2026-09-25T07:18:46.918Z"
     },
     {
       "command": "yarn workspace @meetio/shared build",
       "exitCode": 0,
       "status": "pass",
       "summary": "shared types build clean",
-      "ts": "2026-09-25T05:00:20.474Z"
+      "ts": "2026-09-25T07:18:47.819Z"
     },
     {
       "command": "yarn workspace @meetio/api typecheck",
       "exitCode": 0,
       "status": "pass",
       "summary": "api typecheck clean",
-      "ts": "2026-09-25T05:00:22.444Z"
+      "ts": "2026-09-25T07:18:49.940Z"
     },
     {
       "command": "yarn workspace @meetio/mobile typecheck",
       "exitCode": 0,
       "status": "pass",
-      "summary": "mobile typecheck clean (shared contract change)",
-      "ts": "2026-09-25T05:00:24.490Z"
+      "summary": "mobile typecheck clean",
+      "ts": "2026-09-25T07:18:52.072Z"
     },
     {
-      "command": "npx eslint --max-warnings=0 apps/api/src apps/api/scripts packages/shared/src",
+      "command": "npx eslint --max-warnings=0 apps/api/src apps/api/scripts packages/shared/src apps/mobile",
       "exitCode": 0,
       "status": "pass",
-      "summary": "eslint 0 warnings",
-      "ts": "2026-09-25T05:00:25.803Z"
-    },
-    {
-      "command": "yarn workspace @meetio/api load-test --seconds 600 (20 meetings x 2 seg/s)",
-      "exitCode": 0,
-      "status": "pass",
-      "summary": "24000/24000 acked, 0 errors, 0 missing/duplicate rows, ack p95 253ms p99 372ms — plans/reports/load-test-2026-09-25-meeting-room.md",
-      "ts": "2026-09-25T04:57:00.000Z"
+      "summary": "eslint 0 warnings (api, shared, mobile)",
+      "ts": "2026-09-25T07:18:54.636Z"
     }
   ]
 }

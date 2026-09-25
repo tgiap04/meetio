@@ -1,7 +1,7 @@
 # Meetio — Đặc tả API
 
 **Base URL:** `/api` · **Xác thực:** Bearer JWT trên mọi endpoint trừ mục 1  
-**Cập nhật:** 2026-09-17  
+**Cập nhật:** 2026-09-25  
 **Liên quan:** [User Stories](../user_stories.md) · [Kiến trúc](system-architecture.md) · [Mô hình dữ liệu](data-model.md)
 
 ---
@@ -46,15 +46,25 @@ Access token sống 15 phút, refresh token 60 ngày và xoay vòng mỗi lần 
 | PATCH | `/users/me` | Sửa `display_name`, `retention_days`, cài đặt thông báo |
 | POST | `/users/me/consent` | Ghi nhận mốc đồng ý ghi âm ([US-04](../user_stories.md#us-04--thông-báo-và-ghi-nhận-sự-đồng-ý-ghi-âm)) |
 | DELETE | `/users/me` | Body `{password}` **hoặc** `{google_id_token}` — đúng một trong hai, tùy tài khoản có `password_hash` hay không. Đặt `deleted_at`, xóa vật lý sau 30 ngày |
+| POST | `/users/me/push-tokens` | Đăng ký (hoặc làm mới) token push Expo của thiết bị này. Body `{token, platform: "ios"\|"android"}` → **204** |
+| DELETE | `/users/me/push-tokens` | Ngừng nhận push trên thiết bị này (đăng xuất, hoặc tắt thông báo). Body `{token}` → **204** |
 
 `GET /users/me` **phải** trả `notification_settings` cùng với hồ sơ. Bản trước cho `PATCH` ghi cài
 đặt thông báo nhưng không có đường đọc lại — màn hình cài đặt buộc phải đoán giá trị mặc định thay
-vì hiển thị đúng thứ server đang giữ. Mọi trường `PATCH` sửa được thì `GET` phải đọc lại được.
+vì hiển thị đúng thứ server đang giữ. Mọi trường `PATCH` sửa được thì `GET` phải đọc lại được. Khóa
+duy nhất trong `notification_settings` hiện có là `meeting_ready_push` — thiếu khóa nghĩa là **bật**
+([US-30](../user_stories.md#us-30--nhận-thông-báo-khi-phân-tích-xong)).
 
 `DELETE /users/me` chọn credential theo **tài khoản**, không theo body: tài khoản có `password_hash`
 (kể cả đã liên kết Google) dùng `password`; tài khoản chỉ-Google dùng `google_id_token` — server so
 `sub` xác minh được với `users.google_sub` của chính người gọi. Gửi cả hai hoặc không gửi trường nào
 đều là `VALIDATION_ERROR`.
+
+`token` phải khớp mẫu `Expo(nent)?PushToken[...]` (Expo push token, lấy từ
+`expo-notifications` `getExpoPushTokenAsync`). Một token = một thiết bị: `POST` dùng
+`ON CONFLICT (token) DO UPDATE` nên nếu thiết bị này trước đó đăng nhập tài khoản khác, token sẽ
+chuyển hẳn sang tài khoản đang đăng ký — tài khoản cũ không còn nhận thông báo trên máy đó nữa.
+`DELETE` chỉ xóa token thuộc về chính người gọi.
 
 ---
 
@@ -72,7 +82,7 @@ vì hiển thị đúng thứ server đang giữ. Mọi trường `PATCH` sửa 
 | DELETE | `/meetings/:id` | Xóa vật lý, cascade ([US-26](../user_stories.md#us-26--xóa-cuộc-họp)) |
 | GET | `/meetings/:id/status` | Trạng thái xử lý chi tiết theo từng bước |
 | POST | `/meetings/:id/reindex` | Chạy lại pipeline. Body `{scope: "changed"\|"full"}` |
-| GET | `/meetings/:id/export` | `?format=markdown\|pdf&include=summary,actions,transcript,translation` |
+| GET | `/meetings/:id/export` | `?format=markdown\|html&include=summary,actions,transcript,translation` |
 
 `POST /meetings` trả về `meeting_id` **trước khi** client bật mic. Bản đặc tả cũ tạo bản ghi ở
 thời điểm kết thúc, khiến sự kiện `join_room` không có id để dùng — xem
@@ -92,6 +102,23 @@ khác `null` sau khi `end` và không tính thời gian tạm dừng.
 `DELETE /meetings/:id` xóa vật lý ngay trong một transaction — không phải xóa mềm. DB cascade các
 bảng con, đồng thời dọn luôn thực thể không còn được mention từ cuộc họp nào khác.
 
+`PATCH /meetings/:id` với `title` là chuỗi rỗng (sau khi `trim()`) quay về tiêu đề mặc định theo
+`started_at` (`Cuộc họp DD/MM HH:mm`, US-25) — server không bao giờ lưu tiêu đề rỗng.
+
+`GET /meetings/:id/status` trả `{meeting_id, status, current_step, steps[], failure_reason,
+has_unprocessed_edits}`. `steps[]` liệt kê cả 5 bước theo đúng thứ tự pipeline, mỗi bước kèm
+`status` (`pending`\|`running`\|`succeeded`\|`failed`), `attempts`, `error_message`, `started_at`,
+`finished_at`. `current_step` là bước đang chạy, hoặc bước vừa lỗi, hoặc bước tiếp theo chưa xong
+khi cuộc họp còn `queued`/`processing`. `has_unprocessed_edits` báo transcript đã bị sửa sau lần
+chạy gần nhất — client dùng để hiện nhãn "đang cập nhật" ở tóm tắt cũ.
+
+`POST /meetings/:id/reindex` chỉ nhận khi cuộc họp đang `ready` hoặc `failed`, còn lại **409**
+`INVALID_STATE_TRANSITION`. `scope: "changed"` trên `ready` chỉ xử lý lại các đoạn đã sửa từ lần
+chạy trước — chưa sửa gì thì trả **400** `VALIDATION_ERROR` (`details.scope: "nothing_changed"`) vì
+chạy lại một cuộc họp không đổi gì chỉ tốn tiền; trên `failed` thì tiếp tục (resume) từ đúng bước đã
+lỗi, bỏ qua các bước đã xong. `scope: "full"` luôn chạy lại từ đầu. Mỗi lần chạy tăng
+`meetings.pipeline_run`, dùng làm id hàng đợi — bản tóm tắt cũ vẫn đọc được trong lúc chờ.
+
 ---
 
 ## 4. Transcript
@@ -105,6 +132,16 @@ bảng con, đồng thời dọn luôn thực thể không còn được mention
 `bulk` là đường dự phòng khi WebSocket không dùng được; đường chính vẫn là kênh realtime ở mục 8.
 Trùng `seq` với đoạn đã có thì giữ bản đầu, không ghi đè (tránh đè lên bản người dùng đã sửa tay) —
 nhưng `acked_seqs` vẫn liệt kê seq đó, vì dữ liệu ở seq này đã bền vững dù là bản cũ hay mới.
+
+`GET /meetings/:id/segments` trả `{items, next_from_seq}`, `items` sắp theo `seq` tăng dần.
+`?limit=` từ 1 đến 500, mặc định 200; `next_from_seq` là `null` khi đã hết trang, ngược lại dùng
+luôn giá trị đó cho `?from_seq=` của trang kế tiếp.
+
+`PATCH /segments/:id` chỉ nhận khi cuộc họp đang `queued`, `ready` hoặc `failed`; đang
+`recording`/`paused` (còn ghi) hoặc `processing` (pipeline đang đọc) trả **409**
+`INVALID_STATE_TRANSITION`. Sửa xong chỉ đặt `is_edited = true` và `edited_at` — **không** tự chạy
+lại pipeline; client tự hỏi người dùng rồi gọi `POST /meetings/:id/reindex` khi muốn cập nhật lại
+tóm tắt ([US-24](../user_stories.md#us-24--sửa-nội-dung-nhận-diện-sai)).
 
 ---
 
