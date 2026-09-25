@@ -36,6 +36,10 @@ jest.mock('../hooks/use-hydrate-preferences', () => ({
   useHydratePreferences: jest.fn(),
 }));
 
+jest.mock('../hooks/use-push-notifications-lifecycle', () => ({
+  usePushNotificationsLifecycle: jest.fn(),
+}));
+
 jest.mock('../query/query-client', () => ({
   queryClient: {},
   wireQueryClientToAppState: jest.fn(() => () => {}),

@@ -28,12 +28,16 @@ export interface MeetingListRowProps {
   /** Optional matched-text preview — screen-13 search results. */
   snippet?: string;
   onPress?: () => void;
+  /** Library rows use this as the "delete this meeting" affordance (US-26) —
+   *  the design has no dedicated delete control, so a long-press stands in
+   *  for one rather than adding UI the design never drew. */
+  onLongPress?: () => void;
 }
 
 /** One meeting row — home recent list, library list, search results. */
-export function MeetingListRow({ leading, avatarInitials, title, meta, badge, snippet, onPress }: MeetingListRowProps) {
+export function MeetingListRow({ leading, avatarInitials, title, meta, badge, snippet, onPress, onLongPress }: MeetingListRowProps) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.row}>
+    <Pressable accessibilityRole="button" onLongPress={onLongPress} onPress={onPress} style={styles.row}>
       {leading === 'avatar' ? <InitialsAvatar initials={avatarInitials ?? '?'} /> : <WaveformGlyph />}
       <View style={styles.textColumn}>
         <Text numberOfLines={1} style={styles.title}>

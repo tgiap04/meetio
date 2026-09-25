@@ -1,14 +1,24 @@
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet} from 'react-native';
+import { useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { ScreenSurface } from '../../src/components/ui/screen-surface';
 import { router, useLocalSearchParams } from 'expo-router';
+import { MeetingStatus, type ExportSection } from '@meetio/shared';
 import { AppIcon } from '../../src/components/icons/app-icon';
 import { ActionItemsSection } from '../../src/components/meeting-detail/action-items-section';
-import { MeetingHero } from '../../src/components/meeting-detail/meeting-hero';
+import { MeetingDetailHero } from '../../src/components/meeting-detail/meeting-detail-hero';
 import { MeetingSummarySection } from '../../src/components/meeting-detail/meeting-summary-section';
+import { MeetingProcessingStatus } from '../../src/components/meeting-detail/meeting-processing-status';
+import { ExportSheet } from '../../src/components/meeting-detail/export-sheet';
 import { ScreenHeader } from '../../src/components/ui/screen-header';
 import { SegmentedTabs } from '../../src/components/ui/segmented-tabs';
-import { ACTION_ITEMS, MEETINGS, MEETING_SUMMARY } from '../../src/mocks';
+import { LoadingState } from '../../src/components/loading-state';
+import { ErrorState } from '../../src/components/error-state';
+import { useMeetingQuery } from '../../src/hooks/use-meeting-detail-query';
+import { useReindexMeetingMutation, useUpdateMeetingMutation } from '../../src/hooks/use-meeting-mutations';
+import { useExportMeetingMutation } from '../../src/hooks/use-export-meeting-mutation';
+import { useMeetingRoomSocket } from '../../src/hooks/use-meeting-room-socket';
+import { getErrorMessage } from '../../src/api/error-messages';
+import { toActionItem, toMeetingSummary } from '../../src/utils/meeting-detail-mappers';
 import { MEETING_GRAPH_ROUTE, MEETING_TRANSCRIPT_ROUTE } from '../../src/navigation/app-routes';
 import { colors } from '../../src/theme/colors';
 
@@ -24,24 +34,49 @@ const TAB_ITEMS = [
 ];
 
 /**
- * Screen 08 — the hub every recording/meeting flow converges on. Route shape
- * is deliberately flat (`?id=`, not `[id]/`): a dynamic segment here would be
- * co-owned by this phase and the transcript/graph phases, breaking the
- * parallel-phase file-ownership rule (see phase-07's Key Insights §4).
+ * Screen 08 — the hub every recording/meeting flow converges on, now wired to
+ * the real `/meetings/:id` (US-20/24/25/27/28). Route shape stays flat
+ * (`?id=`, not `[id]/`) per phase-07's file-ownership note.
  *
- * The four-tab row is heterogeneous: Tóm tắt and Action Items render content
- * in place, Transcript and Graph push their own routes (clarifications.md
- * §6). The active tab is therefore restricted to the two content keys so
- * popping back from Transcript/Graph always lands on a rendered tab.
+ * Realtime: `useMeetingRoomSocket` joins `/meeting-room` for this meeting and
+ * refetches on `processing_status`/`meeting_ready`, so a `queued`/`processing`
+ * meeting's step advances live rather than only on manual refresh.
+ *
+ * The kebab, inert in the mock build, is now the export entry point (US-27) —
+ * the design draws no export surface, so this is a deliberate repurposing of
+ * the one affordance already in the header rather than adding a second icon.
  */
 export default function MeetingDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const meeting = useMemo(
-    () => MEETINGS.find((candidate) => candidate.id === id) ?? MEETINGS[0],
-    [id],
-  );
+  const meetingQuery = useMeetingQuery(id);
+  useMeetingRoomSocket(id);
+  const updateMeetingMutation = useUpdateMeetingMutation(id ?? '');
+  const reindexMutation = useReindexMeetingMutation(id ?? '');
+  const exportMutation = useExportMeetingMutation(id ?? '', meetingQuery.data?.title ?? 'cuoc-hop');
+
   const [activeContentTab, setActiveContentTab] = useState<ContentTabKey>('summary');
   const [checkedIds, setCheckedIds] = useState<ReadonlySet<string>>(new Set());
+  const [exportSheetVisible, setExportSheetVisible] = useState(false);
+
+  if (!id) {
+    return <ErrorState message="Không tìm thấy cuộc họp." onRetry={() => router.back()} />;
+  }
+
+  if (meetingQuery.isPending) {
+    return <LoadingState />;
+  }
+
+  if (meetingQuery.isError) {
+    return (
+      <ErrorState
+        message={getErrorMessage(meetingQuery.error)}
+        onRetry={() => meetingQuery.refetch()}
+      />
+    );
+  }
+
+  const meeting = meetingQuery.data;
+  const isReady = meeting.status === MeetingStatus.READY;
 
   function handleTabChange(key: string) {
     if (key === 'summary' || key === 'action-items') {
@@ -69,18 +104,34 @@ export default function MeetingDetailScreen() {
     });
   }
 
+  function handleTitleSave(title: string) {
+    updateMeetingMutation.mutate({ title });
+  }
+
+  function handleRetry() {
+    reindexMutation.mutate({ scope: 'changed' });
+  }
+
+  function handleExport(format: 'markdown' | 'pdf', sections: readonly ExportSection[]) {
+    exportMutation.mutate(
+      { format, sections },
+      {
+        onSuccess: () => setExportSheetVisible(false),
+        onError: (error) => Alert.alert('Xuất thất bại', getErrorMessage(error)),
+      },
+    );
+  }
+
   return (
     <ScreenSurface>
       <ScreenHeader
         onBack={() => router.back()}
         title="Chi tiết cuộc họp"
         trailing={
-          // The design draws a kebab with no menu behind it (Key Insights §5)
-          // — inert and labelled as such, not wired to anything.
           <Pressable
-            accessibilityLabel="Menu (chưa khả dụng)"
-            accessibilityState={{ disabled: true }}
-            disabled
+            accessibilityLabel="Xuất cuộc họp"
+            accessibilityRole="button"
+            onPress={() => setExportSheetVisible(true)}
             testID="meeting-detail-kebab"
           >
             <AppIcon color={colors.text} name="more" size={22} />
@@ -88,17 +139,36 @@ export default function MeetingDetailScreen() {
         }
       />
       <ScrollView contentContainerStyle={styles.content}>
-        <MeetingHero meeting={meeting} />
-        <SegmentedTabs activeKey={activeContentTab} items={TAB_ITEMS} onChange={handleTabChange} />
-        {activeContentTab === 'summary' ? (
-          <MeetingSummarySection summary={MEETING_SUMMARY} />
-        ) : null}
-        <ActionItemsSection
-          checkedIds={checkedIds}
-          items={ACTION_ITEMS}
-          onToggle={toggleActionItem}
+        <MeetingDetailHero
+          hasUnprocessedEdits={meeting.has_unprocessed_edits}
+          meeting={meeting}
+          onTitleSave={handleTitleSave}
         />
+        <MeetingProcessingStatus
+          failureReason={meeting.failure_reason}
+          onRetry={handleRetry}
+          processingSteps={meeting.processing_steps}
+          retryLoading={reindexMutation.isPending}
+          status={meeting.status}
+        />
+        <SegmentedTabs activeKey={activeContentTab} items={TAB_ITEMS} onChange={handleTabChange} />
+        {isReady && activeContentTab === 'summary' ? (
+          <MeetingSummarySection summary={toMeetingSummary(meeting.id, meeting.summary)} />
+        ) : null}
+        {isReady ? (
+          <ActionItemsSection
+            checkedIds={checkedIds}
+            items={meeting.action_items.map(toActionItem)}
+            onToggle={toggleActionItem}
+          />
+        ) : null}
       </ScrollView>
+      <ExportSheet
+        exporting={exportMutation.isPending}
+        onClose={() => setExportSheetVisible(false)}
+        onExport={handleExport}
+        visible={exportSheetVisible}
+      />
     </ScreenSurface>
   );
 }

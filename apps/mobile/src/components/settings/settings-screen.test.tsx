@@ -123,11 +123,41 @@ describe('(tabs)/settings screen — restyled, nothing working lost', () => {
   it('preserved control 2/5: notifications switch fires useUpdateMeMutation with notification_settings', () => {
     mockUseMeQuery.mockReturnValue({ isPending: false, isError: false, data: { user: AUTHENTICATED_USER } });
     const renderer = render();
-    const toggle = renderer.root.findByType(Switch);
+    const toggle = renderer.root.findAllByType(Switch)[0];
     act(() => {
       toggle.props.onValueChange(false);
     });
     expect(mockUpdateMeMutate).toHaveBeenCalledWith({ notification_settings: { enabled: false } });
+  });
+
+  it('meeting-ready push switch fires useUpdateMeMutation with the meeting_ready_push key', () => {
+    mockUseMeQuery.mockReturnValue({ isPending: false, isError: false, data: { user: AUTHENTICATED_USER } });
+    const renderer = render();
+    const toggle = renderer.root.findAllByType(Switch)[1];
+    act(() => {
+      toggle.props.onValueChange(false);
+    });
+    expect(mockUpdateMeMutate).toHaveBeenCalledWith({
+      notification_settings: { meeting_ready_push: false },
+    });
+  });
+
+  it('meeting-ready push switch defaults to on when the key is missing (per contract)', () => {
+    mockUseMeQuery.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { user: { ...AUTHENTICATED_USER, notification_settings: {} } },
+    });
+    expect(render().root.findAllByType(Switch)[1].props.value).toBe(true);
+  });
+
+  it('meeting-ready push switch reflects a saved false value', () => {
+    mockUseMeQuery.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { user: { ...AUTHENTICATED_USER, notification_settings: { meeting_ready_push: false } } },
+    });
+    expect(render().root.findAllByType(Switch)[1].props.value).toBe(false);
   });
 
   /**
@@ -143,7 +173,7 @@ describe('(tabs)/settings screen — restyled, nothing working lost', () => {
       isError: false,
       data: { user: { ...AUTHENTICATED_USER, notification_settings: { enabled: false } } },
     });
-    expect(render().root.findByType(Switch).props.value).toBe(false);
+    expect(render().root.findAllByType(Switch)[0].props.value).toBe(false);
   });
 
   it('falls back to on when the user has never saved a preference', () => {
@@ -152,7 +182,7 @@ describe('(tabs)/settings screen — restyled, nothing working lost', () => {
       isError: false,
       data: { user: { ...AUTHENTICATED_USER, notification_settings: {} } },
     });
-    expect(render().root.findByType(Switch).props.value).toBe(true);
+    expect(render().root.findAllByType(Switch)[0].props.value).toBe(true);
   });
 
   /**
@@ -162,7 +192,7 @@ describe('(tabs)/settings screen — restyled, nothing working lost', () => {
    */
   it('survives a /me payload with no notification_settings at all', () => {
     mockUseMeQuery.mockReturnValue({ isPending: false, isError: false, data: { user: AUTHENTICATED_USER } });
-    expect(render().root.findByType(Switch).props.value).toBe(true);
+    expect(render().root.findAllByType(Switch)[0].props.value).toBe(true);
   });
 
   it('preserved control 3/5: "Đăng xuất" fires useLogoutMutation', () => {

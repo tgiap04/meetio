@@ -20,6 +20,17 @@ jest.mock('../../hooks/use-me-query', () => ({
   useMeQuery: (...args: unknown[]) => mockUseMeQuery(...args),
 }));
 
+const RECENT_ITEMS = [
+  { id: 'sprint-review', title: 'Sprint Review', status: 'ready', source_language: 'vi', translate_to: null, started_at: '2026-01-12T09:00:00.000Z', ended_at: null, duration_sec: 2520, created_at: '2026-01-12T09:00:00.000Z' },
+  { id: 'client-discussion', title: 'Client Discussion', status: 'ready', source_language: 'vi', translate_to: null, started_at: '2026-01-10T09:00:00.000Z', ended_at: null, duration_sec: 1680, created_at: '2026-01-10T09:00:00.000Z' },
+  { id: 'project-planning', title: 'Project Planning', status: 'processing', source_language: 'vi', translate_to: null, started_at: '2026-01-09T09:00:00.000Z', ended_at: null, duration_sec: 900, created_at: '2026-01-09T09:00:00.000Z' },
+];
+
+const mockUseRecentMeetingsQuery = jest.fn();
+jest.mock('../../hooks/use-recent-meetings-query', () => ({
+  useRecentMeetingsQuery: (...args: unknown[]) => mockUseRecentMeetingsQuery(...args),
+}));
+
 import HomeScreen from '../../../app/(app)/(tabs)/index';
 import { CONSENT_ROUTE, MEETING_DETAIL_ROUTE, RECORDING_SETUP_ROUTE, TAB_LIBRARY_ROUTE } from '../../navigation/app-routes';
 
@@ -43,6 +54,7 @@ function findButton(renderer: TestRenderer.ReactTestRenderer, index = 0) {
 describe('(tabs)/index (Home) screen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseRecentMeetingsQuery.mockReturnValue({ data: { items: RECENT_ITEMS, next_cursor: null } });
   });
 
   it('renders LoadingState while /me is pending', () => {
@@ -67,7 +79,7 @@ describe('(tabs)/index (Home) screen', () => {
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the greeting with the real display name and the three recent meetings', () => {
+  it('renders the greeting with the real display name and the real recent meetings', () => {
     mockUseMeQuery.mockReturnValue({
       isPending: false,
       isError: false,
@@ -79,6 +91,16 @@ describe('(tabs)/index (Home) screen', () => {
     expect(texts).toContain('Sprint Review');
     expect(texts).toContain('Client Discussion');
     expect(texts).toContain('Project Planning');
+  });
+
+  it('falls back to an empty recent-meetings list while that query has no data yet', () => {
+    mockUseRecentMeetingsQuery.mockReturnValue({ data: undefined });
+    mockUseMeQuery.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { user: { display_name: 'Anh', recording_consent_at: null } },
+    });
+    expect(() => render()).not.toThrow();
   });
 
   it('routes the CTA to consent when consent has not been granted', () => {

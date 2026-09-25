@@ -3,6 +3,7 @@ import type { DeleteMeRequest, UpdateMeRequest } from '@meetio/shared';
 import { deleteMe, recordConsent, updateMe } from '../api/users';
 import { clearTokens } from '../storage/secure-store';
 import { useSessionStore } from '../store/session.store';
+import { unregisterCurrentPushToken } from '../notifications/push-registration';
 import { ME_QUERY_KEY } from './use-me-query';
 
 export function useUpdateMeMutation() {
@@ -24,7 +25,13 @@ export function useRecordConsentMutation() {
 export function useDeleteAccountMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: DeleteMeRequest) => deleteMe(body),
+    mutationFn: async (body: DeleteMeRequest) => {
+      // Same ordering requirement as `useLogoutMutation`: unregister the push
+      // token while the access token this DELETE needs is still valid, ahead
+      // of `deleteMe` (which the server treats as the end of the session).
+      await unregisterCurrentPushToken();
+      return deleteMe(body);
+    },
     onSuccess: async () => {
       await clearTokens();
       useSessionStore.getState().clearTokens();

@@ -17,6 +17,13 @@ const plugins: ExpoConfig['plugins'] = [
         'Meetio cần quyền truy cập microphone để ghi âm cuộc họp và chuyển giọng nói thành văn bản.',
     },
   ],
+  'expo-sharing',
+  [
+    'expo-notifications',
+    {
+      icon: './assets/icon.png',
+    },
+  ],
 ];
 
 if (process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME) {

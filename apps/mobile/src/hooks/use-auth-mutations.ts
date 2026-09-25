@@ -3,6 +3,7 @@ import type { AuthTokenPair, LoginRequest, RegisterRequest } from '@meetio/share
 import { login as loginRequest, logout as logoutRequest, register as registerRequest } from '../api/auth';
 import { clearTokens, writeTokens } from '../storage/secure-store';
 import { useSessionStore } from '../store/session.store';
+import { unregisterCurrentPushToken } from '../notifications/push-registration';
 
 /**
  * Persists a fresh token pair to secure storage AND the session store. The
@@ -36,7 +37,16 @@ export function useLogoutMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => logoutRequest(),
+    mutationFn: async () => {
+      // Push-token unregistration MUST happen here, while the session is
+      // still authenticated — `onSettled` below runs after `clearTokens()`,
+      // by which point the access token this device's DELETE call needs is
+      // already gone (caught in review: the reactive version of this call
+      // always fired too late and always failed). Best-effort and
+      // timeout-bounded internally; never blocks or fails this mutation.
+      await unregisterCurrentPushToken();
+      return logoutRequest();
+    },
     onSettled: async () => {
       // Logout revokes the refresh token server-side; clear local state
       // regardless of whether the network call itself succeeded, so a user

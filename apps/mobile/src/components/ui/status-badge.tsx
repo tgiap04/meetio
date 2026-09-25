@@ -2,24 +2,27 @@ import { StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
-export type StatusBadgeStatus = 'done' | 'processing' | 'queued';
+export type StatusBadgeStatus = 'done' | 'processing' | 'queued' | 'failed';
 
 const DEFAULT_LABEL: Record<StatusBadgeStatus, string> = {
   done: 'Đã xử lý',
   processing: 'Đang xử lý',
   queued: 'Chờ xử lý',
+  failed: 'Thất bại',
 };
 
 const TINT: Record<StatusBadgeStatus, string> = {
   done: colors.successTint,
   processing: colors.warningTint,
   queued: colors.surface,
+  failed: colors.danger,
 };
 
 const TEXT: Record<StatusBadgeStatus, string> = {
   done: colors.success,
   processing: colors.warning,
   queued: colors.textMuted,
+  failed: colors.background,
 };
 
 export interface StatusBadgeProps {

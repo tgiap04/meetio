@@ -19,6 +19,8 @@ function baseProps() {
     onRetentionDaysBlur: jest.fn(),
     notificationsEnabled: true,
     onToggleNotifications: jest.fn(),
+    meetingReadyPushEnabled: true,
+    onToggleMeetingReadyPush: jest.fn(),
     onLogoutPress: jest.fn(),
     logoutLoading: false,
     deletePassword: '',
@@ -60,11 +62,21 @@ describe('SettingsAccountSection — one test per preserved account control', ()
   it('notifications switch: toggling fires onToggleNotifications (useUpdateMeMutation)', () => {
     const props = baseProps();
     const renderer = render(props);
-    const toggle = renderer.root.findByType(Switch);
+    const toggle = renderer.root.findAllByType(Switch)[0];
     act(() => {
       toggle.props.onValueChange(false);
     });
     expect(props.onToggleNotifications).toHaveBeenCalledWith(false);
+  });
+
+  it('meeting-ready push switch: toggling fires onToggleMeetingReadyPush', () => {
+    const props = baseProps();
+    const renderer = render(props);
+    const toggle = renderer.root.findAllByType(Switch)[1];
+    act(() => {
+      toggle.props.onValueChange(false);
+    });
+    expect(props.onToggleMeetingReadyPush).toHaveBeenCalledWith(false);
   });
 
   it('logout: pressing "Đăng xuất" fires onLogoutPress (useLogoutMutation)', () => {

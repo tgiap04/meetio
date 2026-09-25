@@ -1,11 +1,31 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
+import type { MeetingListItem } from '@meetio/shared';
 import { RecentMeetingsSection } from './recent-meetings-section';
-import type { Meeting } from '../../mocks/types';
 
-const MEETINGS: readonly Meeting[] = [
-  { id: 'sprint-review', title: 'Sprint Review', durationMinutes: 42, date: '12/05/2025', status: 'done', initials: 'SR' },
-  { id: 'client-discussion', title: 'Client Discussion', durationMinutes: 28, date: '10/05/2025', status: 'done', initials: 'CD' },
+const MEETINGS: readonly MeetingListItem[] = [
+  {
+    id: 'sprint-review',
+    title: 'Sprint Review',
+    status: 'ready',
+    source_language: 'vi',
+    translate_to: null,
+    started_at: '2026-01-12T09:00:00.000Z',
+    ended_at: '2026-01-12T09:42:00.000Z',
+    duration_sec: 2520,
+    created_at: '2026-01-12T09:00:00.000Z',
+  },
+  {
+    id: 'client-discussion',
+    title: 'Client Discussion',
+    status: 'processing',
+    source_language: 'vi',
+    translate_to: null,
+    started_at: '2026-01-10T09:00:00.000Z',
+    ended_at: '2026-01-10T09:28:00.000Z',
+    duration_sec: 1680,
+    created_at: '2026-01-10T09:00:00.000Z',
+  },
 ];
 
 function render(onViewAllPress = jest.fn(), onMeetingPress = jest.fn()) {
@@ -25,6 +45,13 @@ describe('RecentMeetingsSection', () => {
     expect(texts).toContain('Cuộc họp gần đây');
     expect(texts).toContain('Sprint Review');
     expect(texts).toContain('Client Discussion');
+  });
+
+  it('maps each meeting\'s server status onto its badge label', () => {
+    const renderer = render();
+    const texts = renderer.root.findAllByType(Text).map((node) => node.props.children);
+    expect(texts).toContain('Đã xử lý');
+    expect(texts).toContain('Đang xử lý');
   });
 
   // react-native's Pressable renders three layers that all carry

@@ -13,6 +13,10 @@ export interface SettingsAccountSectionProps {
   onRetentionDaysBlur: () => void;
   notificationsEnabled: boolean;
   onToggleNotifications: (enabled: boolean) => void;
+  /** US-30 — bound to `NotificationSetting.MEETING_READY_PUSH`, distinct from
+   *  the pre-existing generic `notificationsEnabled` toggle above. */
+  meetingReadyPushEnabled: boolean;
+  onToggleMeetingReadyPush: (enabled: boolean) => void;
   onLogoutPress: () => void;
   logoutLoading: boolean;
   deletePassword: string;
@@ -33,6 +37,8 @@ export function SettingsAccountSection({
   onRetentionDaysBlur,
   notificationsEnabled,
   onToggleNotifications,
+  meetingReadyPushEnabled,
+  onToggleMeetingReadyPush,
   onLogoutPress,
   logoutLoading,
   deletePassword,
@@ -57,6 +63,11 @@ export function SettingsAccountSection({
       <SurfaceCard style={[styles.card, styles.row]}>
         <Text style={styles.rowLabel}>Thông báo</Text>
         <Switch onValueChange={onToggleNotifications} value={notificationsEnabled} />
+      </SurfaceCard>
+
+      <SurfaceCard style={[styles.card, styles.row]}>
+        <Text style={styles.rowLabel}>Thông báo khi phân tích xong</Text>
+        <Switch onValueChange={onToggleMeetingReadyPush} value={meetingReadyPushEnabled} />
       </SurfaceCard>
 
       <PrimaryButton label="Đăng xuất" loading={logoutLoading} onPress={onLogoutPress} />

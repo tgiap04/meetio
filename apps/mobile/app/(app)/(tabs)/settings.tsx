@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
 import { ScreenSurface } from '../../../src/components/ui/screen-surface';
 import { router } from 'expo-router';
+import { NotificationSetting } from '@meetio/shared';
 import { useMeQuery } from '../../../src/hooks/use-me-query';
 import {
   useDeleteAccountMutation,
@@ -53,6 +54,10 @@ export default function SettingsScreen() {
   // "on" showed the switch enabled even for a user who had turned it off, until
   // they touched it.
   const [notificationsOverride, setNotificationsOverride] = useState<boolean | null>(null);
+  // Same read-then-override shape, for the `meeting_ready_push` key (US-30).
+  // A missing key means ON per `NotificationSetting`'s own contract, hence
+  // `?? true` rather than `?? false`.
+  const [meetingReadyPushOverride, setMeetingReadyPushOverride] = useState<boolean | null>(null);
 
   if (meQuery.isPending) {
     return <LoadingState />;
@@ -76,6 +81,10 @@ export default function SettingsScreen() {
   // the response, not a guarantee of it. An older payload, or a partial one,
   // would otherwise crash the whole Settings screen on a property read.
   const notificationsEnabled = notificationsOverride ?? user.notification_settings?.enabled ?? true;
+  const meetingReadyPushEnabled =
+    meetingReadyPushOverride ??
+    user.notification_settings?.[NotificationSetting.MEETING_READY_PUSH] ??
+    true;
 
   function commitRetentionDays() {
     const parsed = retentionDaysInput === '' ? null : Number(retentionDaysInput);
@@ -89,6 +98,13 @@ export default function SettingsScreen() {
   function toggleNotifications(enabled: boolean) {
     setNotificationsOverride(enabled);
     updateMeMutation.mutate({ notification_settings: { enabled } });
+  }
+
+  function toggleMeetingReadyPush(enabled: boolean) {
+    setMeetingReadyPushOverride(enabled);
+    updateMeMutation.mutate({
+      notification_settings: { [NotificationSetting.MEETING_READY_PUSH]: enabled },
+    });
   }
 
   function handleDeleteAccount() {
@@ -124,12 +140,14 @@ export default function SettingsScreen() {
           deleteAccountLoading={deleteAccountMutation.isPending}
           deletePassword={deletePassword}
           logoutLoading={logoutMutation.isPending}
+          meetingReadyPushEnabled={meetingReadyPushEnabled}
           notificationsEnabled={notificationsEnabled}
           onDeleteAccountPress={handleDeleteAccount}
           onDeletePasswordChange={setDeletePassword}
           onLogoutPress={() => logoutMutation.mutate()}
           onRetentionDaysBlur={commitRetentionDays}
           onRetentionDaysChange={setRetentionDaysInput}
+          onToggleMeetingReadyPush={toggleMeetingReadyPush}
           onToggleNotifications={toggleNotifications}
           retentionDaysValue={retentionDaysValue}
         />

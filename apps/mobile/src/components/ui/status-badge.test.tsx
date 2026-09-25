@@ -26,6 +26,11 @@ describe('StatusBadge', () => {
     expect(renderer.root.findByType(Text).props.children).toBe('Chờ xử lý');
   });
 
+  it('shows the default Vietnamese label for "failed"', () => {
+    const renderer = render({ status: 'failed' });
+    expect(renderer.root.findByType(Text).props.children).toBe('Thất bại');
+  });
+
   it('lets the caller override the label', () => {
     const renderer = render({ status: 'done', label: 'Hoàn thành' });
     expect(renderer.root.findByType(Text).props.children).toBe('Hoàn thành');

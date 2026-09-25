@@ -6,6 +6,7 @@ import { queryClient, wireQueryClientToAppState } from '../src/query/query-clien
 import { useHydrateSession } from '../src/hooks/use-hydrate-session';
 import { useHydratePreferences } from '../src/hooks/use-hydrate-preferences';
 import { useMinimumSplashDelay } from '../src/hooks/use-minimum-splash-delay';
+import { usePushNotificationsLifecycle } from '../src/hooks/use-push-notifications-lifecycle';
 import { useSessionStore } from '../src/store/session.store';
 import { usePreferencesStore } from '../src/store/preferences.store';
 import { AppSplash } from '../src/components/splash/app-splash';
@@ -21,6 +22,7 @@ import { AppSplash } from '../src/components/splash/app-splash';
 export default function RootLayout() {
   useHydrateSession();
   useHydratePreferences();
+  usePushNotificationsLifecycle();
   const authStatus = useSessionStore((state) => state.authStatus);
   const preferencesStatus = usePreferencesStore((state) => state.status);
   const minimumElapsed = useMinimumSplashDelay(900);

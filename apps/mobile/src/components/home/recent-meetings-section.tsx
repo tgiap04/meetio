@@ -1,15 +1,17 @@
 import { StyleSheet, View } from 'react-native';
+import type { MeetingListItem } from '@meetio/shared';
 import { MeetingListRow } from '../ui/meeting-list-row';
 import { SectionHeading } from '../ui/section-heading';
-import type { Meeting } from '../../mocks/types';
+import { toStatusBadgeStatus } from '../ui/meeting-status-badge-mapping';
+import { formatMeetingMeta, initialsFromTitle } from '../../utils/meeting-formatting';
 
 export interface RecentMeetingsSectionProps {
-  meetings: readonly Meeting[];
+  meetings: readonly MeetingListItem[];
   onViewAllPress: () => void;
   onMeetingPress: (meetingId: string) => void;
 }
 
-/** "Cuộc họp gần đây" heading + the mocked recent-meeting rows. */
+/** "Cuộc họp gần đây" heading + the real first page of `/meetings` (US-20). */
 export function RecentMeetingsSection({ meetings, onViewAllPress, onMeetingPress }: RecentMeetingsSectionProps) {
   return (
     <View style={styles.container}>
@@ -17,11 +19,11 @@ export function RecentMeetingsSection({ meetings, onViewAllPress, onMeetingPress
       <View style={styles.list}>
         {meetings.map((meeting) => (
           <MeetingListRow
-            avatarInitials={meeting.initials}
-            badge={{ status: meeting.status }}
+            avatarInitials={initialsFromTitle(meeting.title)}
+            badge={{ status: toStatusBadgeStatus(meeting.status) }}
             key={meeting.id}
             leading="avatar"
-            meta={`${meeting.durationMinutes} phút · ${meeting.date}`}
+            meta={formatMeetingMeta(meeting)}
             onPress={() => onMeetingPress(meeting.id)}
             title={meeting.title}
           />
