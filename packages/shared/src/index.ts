@@ -3,3 +3,4 @@ export * from './errors';
 export * from './auth';
 export * from './users';
 export * from './websocket';
+export * from './meetings';
