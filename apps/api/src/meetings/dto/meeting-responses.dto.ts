@@ -70,5 +70,7 @@ export class MeetingDetailResponseDto extends MeetingListItemDto implements Meet
   @ApiProperty() segment_count!: number;
   @ApiProperty({ type: [MeetingActionItemDto] }) action_items!: MeetingActionItemDto[];
   @ApiProperty({ type: [MeetingProcessingStepDto] }) processing_steps!: MeetingProcessingStepDto[];
+  @ApiProperty({ description: 'Transcript edited since the current summary was produced' })
+  has_unprocessed_edits!: boolean;
   @ApiProperty() updated_at!: string;
 }

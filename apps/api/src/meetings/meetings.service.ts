@@ -84,21 +84,25 @@ export class MeetingsService {
       }
     }
 
-    const response = await this.changeState(id, userId, (meeting, now) => {
+    const response = await this.changeStateReturningRun(id, userId, (meeting, now) => {
       const ended = transition(meeting.status, 'end');
       meeting.duration_sec = recordedDurationSec(meeting, now);
       closePause(meeting, now);
       meeting.ended_at = now;
       meeting.status = transition(ended, 'enqueue');
+      meeting.pipeline_run += 1;
+      meeting.pipeline_scope = 'full';
     });
-    await this.pipeline.enqueueAfterCommit(id);
-    return response;
+    await this.pipeline.enqueueAfterCommit(id, response.run);
+    return response.state;
   }
 
   async update(id: string, userId: string, dto: UpdateMeetingDto): Promise<Meeting> {
     const patch: Partial<Meeting> = {};
     if (dto.title !== undefined) {
-      patch.title = dto.title.trim();
+      const title = dto.title.trim();
+      // US-25: an emptied title falls back to the time-based default, never a blank string.
+      patch.title = title || defaultMeetingTitle((await this.meetings.findOneOrFail(id, userId)).started_at ?? new Date());
     }
     if (dto.translate_to !== undefined) {
       patch.translate_to = dto.translate_to;
@@ -111,13 +115,21 @@ export class MeetingsService {
     userId: string,
     apply: (meeting: Meeting, now: Date) => void | Promise<void>,
   ): Promise<MeetingStateResponseDto> {
+    return (await this.changeStateReturningRun(id, userId, apply)).state;
+  }
+
+  private async changeStateReturningRun(
+    id: string,
+    userId: string,
+    apply: (meeting: Meeting, now: Date) => void | Promise<void>,
+  ): Promise<{ state: MeetingStateResponseDto; run: number }> {
     return this.dataSource.transaction(async (manager) => {
       const meeting = await this.meetings.lockOwned(manager, id, userId);
       const now = new Date();
       await apply(meeting, now);
       meeting.last_activity_at = now;
       const saved = await manager.save(meeting);
-      return toMeetingStateResponse(saved);
+      return { state: toMeetingStateResponse(saved), run: saved.pipeline_run };
     });
   }
 }

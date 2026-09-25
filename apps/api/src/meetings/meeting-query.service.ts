@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import type { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import type { DataSource, Repository } from 'typeorm';
 import { ActionItem, ProcessingJob, TranscriptSegment } from '../database/entities/index.js';
 import { MeetingsRepository } from './meetings.repository.js';
+import { hasUnprocessedEdits } from './meeting-edits.js';
 import { decodeMeetingCursor, encodeMeetingCursor } from './meeting-cursor.js';
 import { toMeetingActionItem, toMeetingListItem, toMeetingProcessingStep } from './meeting-mappers.js';
 import type { ListMeetingsQueryDto } from './dto/list-meetings.query.dto.js';
@@ -15,6 +16,7 @@ const STEP_ORDER = ['chunk', 'embed', 'extract', 'resolve', 'summarize'];
 @Injectable()
 export class MeetingQueryService {
   constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
     private readonly meetings: MeetingsRepository,
     @InjectRepository(ActionItem) private readonly actionItems: Repository<ActionItem>,
     @InjectRepository(ProcessingJob) private readonly jobs: Repository<ProcessingJob>,
@@ -40,10 +42,11 @@ export class MeetingQueryService {
   async detail(id: string, userId: string): Promise<MeetingDetailResponseDto> {
     // Ownership first: the child queries below filter by meeting_id only.
     const meeting = await this.meetings.findOneOrFail(id, userId);
-    const [actionItems, jobs, segmentCount] = await Promise.all([
+    const [actionItems, jobs, segmentCount, edited] = await Promise.all([
       this.actionItems.find({ where: { meeting_id: id }, order: { created_at: 'ASC' } }),
       this.jobs.find({ where: { meeting_id: id } }),
       this.segments.count({ where: { meeting_id: id } }),
+      hasUnprocessedEdits(this.dataSource, id),
     ]);
     jobs.sort((a, b) => STEP_ORDER.indexOf(a.step) - STEP_ORDER.indexOf(b.step));
 
@@ -57,6 +60,7 @@ export class MeetingQueryService {
       segment_count: segmentCount,
       action_items: actionItems.map(toMeetingActionItem),
       processing_steps: jobs.map(toMeetingProcessingStep),
+      has_unprocessed_edits: edited,
       updated_at: meeting.updated_at.toISOString(),
     };
   }

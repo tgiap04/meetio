@@ -4,10 +4,10 @@ import type { UpdateMeetingRequest } from '@meetio/shared';
 import { LANGUAGE_TAG } from './create-meeting.dto.js';
 
 export class UpdateMeetingDto implements UpdateMeetingRequest {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Blank reverts to the default "Cuộc họp DD/MM HH:mm"' })
   @IsOptional()
   @IsString()
-  @Length(1, 200)
+  @Length(0, 200)
   title?: string;
 
   @ApiPropertyOptional({ nullable: true, description: 'null turns translation off' })
