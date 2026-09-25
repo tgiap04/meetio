@@ -4,7 +4,7 @@
 [OQ-01](../../user_stories.md#5-câu-hỏi-còn-mở) · [Luồng 1](../../docs/system-architecture.md#2-luồng-1--ghi-và-nhận-diện-thời-gian-thực)
 
 ## Tổng quan
-**Ưu tiên:** Cao nhất · **Trạng thái:** ⬜ pending · **Chặn:** Phase 07
+**Ưu tiên:** Cao nhất · **Trạng thái:** 🟡 in progress — tooling sẵn sàng, đang chờ đo trên máy thật · **Chặn:** Phase 07
 
 Đo bằng số liệu thật xem engine nhận diện giọng nói trên thiết bị có gánh nổi một cuộc họp 60 phút
 hay không. Đây là spike đo đạc, không phải code sản phẩm — mọi thứ viết ra ở đây đều vứt đi sau khi
@@ -25,6 +25,19 @@ ghi nhật ký mọi sự kiện kèm mốc thời gian, xuất ra file để ph
 **Phi chức năng:** đo trên tối thiểu 2 máy Android (một máy tầm thấp) và 2 máy iOS, ở cả chế độ
 foreground, chạy nền và khóa màn hình.
 
+## Sai lệch so với kế hoạch ban đầu (2026-09-25)
+- **Thư viện STT:** `expo-speech-recognition` (tại chỗ continuous + requiresOnDeviceRecognition),
+  thay cho `@react-native-voice/voice` (kết thúc hỗ trợ 2022, không có New Architecture).
+- **Độ trễ restart:** 100ms (không phải 500ms) — AC US-11 tiêu chí là tổng ≤500ms; restart từ 100ms
+  để API lấy lại context đủ nhanh trước deadline.
+- **Phạm vi Android:** engine on-device cần Android 13+ (dưới 13, thư viện chỉ gửi hint
+  `PREFER_OFFLINE` và không có chế độ continuous — app chặn lượt on-device; engine network vẫn đo được).
+- **Lượt on-device phải chạy offline (chế độ máy bay):** iOS không có API xác nhận vi-VN chạy on-device,
+  và khi không hỗ trợ thì thư viện lặng lẽ gửi audio lên máy chủ Apple. App chặn lượt on-device khi
+  còn mạng — offline mà vẫn nhận ra chữ là bằng chứng duy nhất cho NFR-02.
+- **Lựa chọn engine:** Cả hai engine được đo — on-device là lượt chính (chứng thực NFR-02),
+  network là đối chứng (định mức chất lượng nếu phải chuyển sang đám mây).
+
 ## Kiến trúc
 App một màn hình, không backend, không cơ sở dữ liệu. Ghi ra JSONL tại chỗ:
 `{event, timestamp, session_id, text?, error?}` với `event` thuộc
@@ -41,28 +54,29 @@ thiết bị, và đây là tình huống khó nhất mà sản phẩm phải ch
 **Không đụng tới:** mọi thứ khác — spike phải cô lập hoàn toàn.
 
 ## Các bước thực hiện
-1. Dựng app Expo trần với `@react-native-voice/voice`, một nút bật/tắt và khung log.
-2. Cài vòng tự khởi động lại: bắt sự kiện `onSpeechEnd`/`onSpeechError`, bật lại trong 500ms, ghi log.
-3. Thêm foreground service (Android) và background audio mode (iOS).
-4. Chuẩn bị file âm thanh mẫu 60 phút, có bản chép tay chính xác làm mốc đối chiếu.
-5. Chạy đo: 3 lần × 4 thiết bị × 3 chế độ (foreground / nền / khóa màn hình), ở khoảng cách
-   30cm và 50cm so với loa laptop.
-5b. Đo thêm một lượt đối chứng: nói trực tiếp vào máy. Chênh lệch WER giữa hai cách chính là cái
+1. ✅ Dựng app Expo spike với `expo-speech-recognition` (thay cho `@react-native-voice/voice`, 2026-09-25).
+2. ✅ Cài vòng tự khởi động lại: bắt sự kiện `onSpeechEnd`/`onSpeechError`, bật lại trong **100ms** (không phải 500ms — AC US-11 tiêu chí là tổng <= 500ms; restart từ 100ms để còn budget), ghi log.
+3. ✅ Thêm foreground service (Android loại microphone) và background audio mode (iOS).
+4. ⬜ Chuẩn bị file âm thanh mẫu 60 phút tiếng Việt + bản chép tay chính xác làm mốc đối chiếu.
+5. ⬜ Chạy đo: 3 lần × 4 thiết bị × 3 chế độ (foreground / nền / khóa màn hình), ở khoảng cách
+   30cm và 50cm so với loa laptop. _(Lưu ý: Android phải 13+; dưới 13 không hỗ trợ continuous mode.)_
+5b. ⬜ Đo thêm một lượt đối chứng: nói trực tiếp vào máy. Chênh lệch WER giữa hai cách chính là cái
    giá phải trả cho bối cảnh đặt máy cạnh laptop — con số đó trả lời [OQ-05](../../user_stories.md#5-câu-hỏi-còn-mở).
-6. Đối chiếu văn bản thu được với bản chép tay, tính WER và tỉ lệ chữ mất ở mỗi lần khởi động lại.
+6. ⬜ Đối chiếu văn bản thu được với bản chép tay, tính WER và tỉ lệ chữ mất ở mỗi lần khởi động lại.
    Bản chép tay **không** ghi ai nói câu nào — hệ thống không dùng tới thông tin đó (US-13 đã bỏ).
-7. Viết `REPORT.md` kèm số liệu thô, và ra khuyến nghị: **giữ trên thiết bị** hay **chuyển đám mây**.
-8. Nếu khuyến nghị là đám mây → viết luôn phần so sánh nhà cung cấp (Google STT / Deepgram / Whisper)
+7. ⬜ Viết `REPORT.md` kèm số liệu thô, và ra khuyến nghị: **giữ trên thiết bị** hay **chuyển đám mây**.
+8. ⬜ Nếu khuyến nghị là đám mây → viết luôn phần so sánh nhà cung cấp (Google STT / Deepgram / Whisper)
    theo ba tiêu chí: chi phí mỗi giờ, độ trễ, chất lượng tiếng Việt trên âm thanh thu qua loa.
    **Không** xét khả năng tách người nói — sản phẩm không dùng tới nó.
 
 ## Todo
-- [ ] Dựng app Expo spike
-- [ ] Cài vòng tự khởi động lại kèm log
-- [ ] Hỗ trợ chạy nền trên cả hai nền tảng
-- [ ] Chuẩn bị âm thanh mẫu + bản chép tay đối chiếu
-- [ ] Chạy đủ 36 lượt đo + lượt đối chứng nói trực tiếp
-- [ ] Tính WER và tỉ lệ mất chữ
+- [x] Dựng app Expo spike (expo-speech-recognition, tự khởi động lại 100ms)
+- [x] Cài vòng tự khởi động lại kèm log (exponential backoff tối đa 5s)
+- [x] Hỗ trợ chạy nền trên cả hai nền tảng (Android foreground service + iOS background audio)
+- [x] Công cụ tính WER + phân tích (analysis/analyze-run.mjs); toàn spike 46 test xanh — **số đo thật chưa có**
+- [ ] Chuẩn bị âm thanh mẫu + bản chép tay đối chiếu (60 phút, tiếng Việt)
+- [ ] Chạy đủ 36 lượt đo + lượt đối chứng nói trực tiếp (máy thật, Android 13+)
+- [ ] Tính WER và tỉ lệ mất chữ từ số đo thật
 - [ ] Viết REPORT.md kèm khuyến nghị
 - [ ] Nếu chuyển đám mây: so sánh nhà cung cấp
 - [ ] Trình kết quả để chốt hướng trước khi mở Phase 07

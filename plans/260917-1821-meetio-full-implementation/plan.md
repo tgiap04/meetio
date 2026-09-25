@@ -23,7 +23,8 @@ thiết bị, pipeline GraphRAG phía backend, hỏi đáp có trích dẫn ngu�
 
 **Hiện trạng:** Bộ khung chạy được đã hoàn tất — Phase 01, 02, 03, 06 xong và kiểm chứng độc lập.
 **356 test xanh** (133 API / 18 suites + 223 mobile / 37 suites, tăng từ 242 — 96 API + 146 mobile — đo tại `f072b82`; con số 223 ghi ở bản trước đã cũ, nó có từ trước khi ba màn onboarding hoàn tất). Đăng ký/đăng nhập/xoay vòng token chạy thật đầu-cuối; 13 bảng + index HNSW trên Postgres thật; Swagger phục vụ 7 nhóm endpoint; ba màn đầu (splash, onboarding, permission) dựng xong cùng cổng bootstrap; hai màn auth (login/register) dựng lại + **lối đăng nhập Google** thêm vào theo yêu cầu thời gian chạy.
-**Tiếp theo:** Phase 04 (API vòng đời cuộc họp) và Phase 00 (spike STT — cổng chặn Phase 07).
+**Phase 00:** Spike STT khung hoàn tất (app Expo + công cụ phân tích WER, 46 test xanh, tsc/eslint sạch). Đợi 60 phút audio tiếng Việt + bản chép tay đối chiếu để chạy đo 36 lượt trên máy thật (Android 13+, iOS). Cấu hình: expo-speech-recognition, restart 100ms, Android microphone foreground service, iOS background audio.
+**Tiếp theo:** Phase 04 (API vòng đời cuộc họp chạy song song). Phase 00 phải đóng trước Phase 07 mở.
 
 ### Phạm vi mở rộng — Google Sign-In (NGOÀI spec 260917)
 
@@ -58,7 +59,7 @@ chạy song song được ngay.
 
 | # | Phase | Phụ thuộc | Stories | Trạng thái |
 |---|-------|-----------|---------|------------|
-| 00 | [Spike khả thi STT](phase-00-spike-stt-feasibility.md) — **GATE** | — | US-11 | ⬜ pending |
+| 00 | [Spike khả thi STT](phase-00-spike-stt-feasibility.md) — **GATE** | — | US-11 | 🟡 in progress — tooling sẵn sàng, đợi đo máy thật |
 | 01 | [Nền tảng monorepo & CI](phase-01-monorepo-foundation.md) | — | — | ✅ **xong** |
 | 02 | [Schema cơ sở dữ liệu](phase-02-database-schema.md) | 01 | — | ✅ **xong** (kèm cảnh báo HNSW) |
 | 03 | [Xác thực & tài khoản](phase-03-auth-and-account.md) | 02 | US-01→06 | ✅ **xong** |

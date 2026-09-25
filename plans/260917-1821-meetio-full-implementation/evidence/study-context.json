@@ -1,0 +1,18 @@
+{
+  "task": "Phase 00: build the STT feasibility spike tooling (Expo app with auto-restart + JSONL logging, WER/restart-loss analysis CLI, REPORT template) so real-device measurements can decide on-device vs cloud STT",
+  "mode": "interactive",
+  "acceptanceCriteria": [
+    "spike app restarts recognition automatically after every stop and logs each event with timestamps",
+    "on-device and network engines selectable; on-device runs cannot silently fall back to network",
+    "background and locked-screen modes supported on Android and iOS",
+    "analysis CLI computes WER and words lost per restart from JSONL log plus reference transcript",
+    "spike stays isolated from the product monorepo",
+    "REPORT.md contains no fabricated measurements"
+  ],
+  "touchpoints": [
+    "spikes/stt-feasibility/",
+    "plans/260917-1821-meetio-full-implementation/clarifications.md"
+  ],
+  "blastRadius": ["yarn workspace (must not include spikes/)", "root eslint/prettier/lint-staged"],
+  "contracts": ["JSONL log event schema in spikes/stt-feasibility/src/log-event.ts", "npm run analyze CLI flags"]
+}

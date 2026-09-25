@@ -114,6 +114,10 @@ Engine trên thiết bị sẽ tự ngắt. Client phải bật lại ngay và g
 > nguồn âm là loa laptop cách 30–50cm chứ không phải giọng nói trực tiếp. Phải chạy spike đo trước khi thi công E2. Nếu
 > không đạt thì phải chuyển sang nhận diện đám mây, và nguyên tắc "audio không rời thiết bị" ở
 > mục 0 sụp đổ — kéo theo thay đổi chính sách quyền riêng tư, mô hình chi phí và cả luồng này.
+>
+> Spike đang chạy tại [`spikes/stt-feasibility/`](../spikes/stt-feasibility/README.md) (code vứt
+> đi, không nằm trong workspace yarn) — kết quả đo sẽ điền vào `REPORT.md` của thư mục đó khi có,
+> chưa có số đo nào tại đây.
 
 ---
 

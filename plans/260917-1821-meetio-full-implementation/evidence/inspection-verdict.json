@@ -1,0 +1,70 @@
+{
+  "score": 9,
+  "criticalCount": 0,
+  "decision": "SEALED",
+  "acceptanceCovered": [
+    "spike app restarts recognition automatically after every stop and logs each event with timestamps — recognition-controller.ts auto-restarts via endSession()/launchSession() (100ms initial delay, exponential backoff capped at 5s), and every logged event carries timestamp: deps.now(); verified by the full green test run (47/47)",
+    "on-device and network engines selectable; on-device runs cannot silently fall back to network — engines are selectable via RunConfig/RunConfigForm; the silent-fallback path is now closed on both platforms: Android gates on onDeviceEnforced (API>=33, verified in device-capabilities.ts:47 and the merged AndroidManifest.xml using SpeechRecognizer.createOnDeviceSpeechRecognizer only above API 33), and since no JS/native API can prove vi-VN on-device support on iOS (supportsOnDeviceRecognition checks the device's default locale, not vi-VN — ExpoSpeechRecognitionModule.swift:352-355), App.tsx now refuses to start any engine:'on-device' run while src/network-probe.ts reports the network reachable, and logs network_reachable_at_start in run_meta either way; recognizing words while offline is externally-verifiable proof audio never left the device on either platform. The gate correctly applies only to config.engine === 'on-device' (verified App.tsx:82-93) — network-engine control runs are unaffected on any device/OS version",
+    "background and locked-screen modes supported on Android and iOS — verified at the build-artifact level, not just source: android/app/src/main/AndroidManifest.xml contains the merged <service android:name=\"com.asterinet.react.bgactions.RNBackgroundActionsTask\" android:foregroundServiceType=\"microphone\"/> plus FOREGROUND_SERVICE/FOREGROUND_SERVICE_MICROPHONE permissions, and ios/STTSpike/Info.plist contains UIBackgroundModes=[audio]; App.tsx starts the Android foreground service while still foregrounded (Android 14 requirement) before any background/locked mode takes effect. Read as the brief's acceptanceCriteria states it (configuration/build support exists) rather than 'survives a real 60-minute run', which clarifications.md explicitly defers to the real-device measurement phase, out of this session's scope",
+    "analysis CLI computes WER and words lost per restart from JSONL log plus reference transcript — analysis/run-metrics.mjs computeRunMetrics() derives wordsLost.* from reference-word timing against session gaps and wer via word-error-rate.mjs, covered by analysis/__tests__/run-metrics.test.mjs and word-error-rate.test.mjs, all green; maxHeartbeatGapSeconds addition also covered by new tests (run-metrics.test.mjs:81,100-103)",
+    "spike stays isolated from the product monorepo — independently re-verified with `yarn workspaces list --json` at the repo root: exactly 4 workspaces (meetio, @meetio/api, @meetio/mobile, @meetio/shared), spikes/stt-feasibility is not among them and carries its own package.json/package-lock.json outside the yarn glob",
+    "REPORT.md contains no fabricated measurements — REPORT.md still carries the 'CHƯA ĐO' (not yet measured) banner with every result cell empty/placeholder; T5's criterion text was updated to describe the airplane-mode proof but no results were filled in"
+  ],
+  "regressionChecked": [
+    "yarn workspace boundary: `yarn workspaces list --json` re-confirms spikes/ is not a member",
+    "root eslint re-run independently (not just trusting temper-results.json): `npx eslint --max-warnings=0 --ext .ts,.tsx,.mjs spikes/stt-feasibility --ignore-pattern 'spikes/stt-feasibility/android/**' --ignore-pattern 'spikes/stt-feasibility/ios/**'` — 0 warnings, exit 0",
+    "npx tsc --noEmit re-run clean after all fixes (recognition-controller.ts, device-capabilities.ts, network-probe.ts, App.tsx, log-event.ts, run-metrics.mjs)",
+    "full recognition-controller.ts behavior suite re-run green (restart backoff, double-handleEnd idempotency, stop()-cancels-pending-restart, handleResult-after-end ignored, late-event drop) — no regression from the earlier awaitingStart fix",
+    "analysis/run-metrics.mjs changes (restarts-from-raw-events, maxHeartbeatGapSeconds) re-run against analysis/__tests__/run-metrics.test.mjs — still green, gapMs/wordsLost derivation unchanged",
+    "device-capabilities.ts's viInstalledOnDevice type change (boolean -> boolean | null) checked against its one consumer, capability-panel.tsx: yesNo() and missingOffline were updated in lockstep (missingOffline now compares === false explicitly, not just falsy, so null on iOS correctly reads as 'unknown' rather than 'missing')",
+    "manifest/plist build artifacts spot-checked directly (android/app/src/main/AndroidManifest.xml, ios/STTSpike/Info.plist) rather than trusting the plugin source alone"
+  ],
+  "contractStatus": "CHANGED",
+  "refuted": [],
+  "unproven": [],
+  "reachableRegressions": [],
+  "findings": [
+    {
+      "severity": "Critical",
+      "category": "Data leakage / privacy contract",
+      "location": "src/device-capabilities.ts:47",
+      "summary": "RESOLVED: onDeviceEnforced no longer hardcodes true on iOS; combined with the new network-probe.ts offline gate in App.tsx (blocks starting engine:'on-device' while network is reachable) and network_reachable_at_start logging, this closes the silent-fallback gap on both platforms with the only evidence a JS-level spike can actually produce (offline + recognized words = audio provably stayed on-device)",
+      "disposition": "Reject"
+    },
+    {
+      "severity": "Medium",
+      "category": "Completeness",
+      "location": "App.tsx:82",
+      "summary": "RESOLVED: the on-device enforcement/offline gate now applies only when config.engine === 'on-device'; network-engine control runs are allowed on every device regardless of Android API level or iOS on-device support",
+      "disposition": "Reject"
+    },
+    {
+      "severity": "Medium",
+      "category": "Measurement validity",
+      "location": "analysis/run-metrics.mjs:125",
+      "summary": "RESOLVED: 30s heartbeat event (App.tsx) plus maxHeartbeatGapSeconds in run-metrics.mjs gives a direct signal of OS-level process suspension, distinct from 'no more speech'; covered by new tests",
+      "disposition": "Reject"
+    },
+    {
+      "severity": "Medium",
+      "category": "Documentation",
+      "location": "README.md:67-68",
+      "summary": "RESOLVED: mergeRecognizedText's Android-per-sentence vs iOS-cumulative-final heuristic is now documented in README's analysis section",
+      "disposition": "Reject"
+    },
+    {
+      "severity": "Low",
+      "category": "Robustness",
+      "location": "App.tsx:82-93",
+      "summary": "The offline proof for on-device runs is checked once at start() only, not continuously through a run; if the network reconnects mid-run (plausible during the plan's required background/locked-screen modes, e.g. auto-rejoining known WiFi after the screen wakes), nothing re-checks or logs it, so a mid-run silent fallback on iOS (or a pre-13 Android edge case) would not be caught by the log. Mitigated in practice by the README operator protocol (enable airplane mode for the whole on-device run), but not enforced or verified by the app itself. Suggest logging isNetworkReachable() periodically (e.g. alongside each heartbeat) so a reconnect during the run is visible in the JSONL rather than silently invalidating the run",
+      "disposition": "Defer"
+    },
+    {
+      "severity": "Low",
+      "category": "Accepted residual risk",
+      "location": "src/recognition-controller.ts:145-157",
+      "summary": "Unchanged from the prior round: a late error/end from a just-dead session can still end the new session prematurely (handleError/handleEnd are guarded only by sessionEnded, not awaitingStart) — explicitly accepted in-code since the native module carries no session id; worst case is one extra logged restart cycle, not a text/WER corruption like the already-fixed result-merging bug",
+      "disposition": "Defer"
+    }
+  ]
+}

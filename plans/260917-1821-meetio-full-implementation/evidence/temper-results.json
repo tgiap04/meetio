@@ -1,0 +1,32 @@
+{
+  "commands": [
+    {
+      "command": "npm test",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "tests 47 suites 0 pass 47 fail 0",
+      "ts": "2026-09-25T04:01:42.112Z"
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "typecheck clean",
+      "ts": "2026-09-25T04:01:43.196Z"
+    },
+    {
+      "command": "npx eslint --max-warnings=0 --ext .ts,.tsx,.mjs spikes/stt-feasibility --ignore-pattern 'spikes/stt-feasibility/android/**' --ignore-pattern 'spikes/stt-feasibility/ios/**'",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "root eslint config: 0 warnings",
+      "ts": "2026-09-25T04:01:44.169Z"
+    },
+    {
+      "command": "yarn workspaces list --json",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "spikes/ not in yarn workspace: 4 workspaces",
+      "ts": "2026-09-25T04:01:44.351Z"
+    }
+  ]
+}
