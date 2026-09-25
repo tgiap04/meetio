@@ -16,6 +16,7 @@ import {
   QaMessage,
   ProcessingJob,
   UsageRecord,
+  PushToken,
 } from './entities/index.js';
 import { registerPgVectorTypes } from './data-source.js';
 import { VectorRepository } from './vector.repository.js';
@@ -55,6 +56,7 @@ import { VectorRepository } from './vector.repository.js';
             QaMessage,
             ProcessingJob,
             UsageRecord,
+            PushToken,
           ],
         };
       },
@@ -82,6 +84,7 @@ import { VectorRepository } from './vector.repository.js';
       QaMessage,
       ProcessingJob,
       UsageRecord,
+      PushToken,
     ]),
   ],
   providers: [VectorRepository],

@@ -21,6 +21,7 @@
     "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand --forceExit --testPathPatterns='\\.e2e\\.spec\\.ts$'"
   },
   "dependencies": {
+    "@google/genai": "^2.24.0",
     "@meetio/shared": "workspace:*",
     "@nestjs/bullmq": "^12.0.0",
     "@nestjs/common": "^12.0.3",

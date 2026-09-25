@@ -42,9 +42,10 @@ export class MeetingMaintenanceService {
 
     let closed = 0;
     for (const { id } of candidates) {
-      if (await this.closeIfStillAbandoned(id, cutoff, now)) {
+      const run = await this.closeIfStillAbandoned(id, cutoff, now);
+      if (run !== null) {
         closed += 1;
-        await this.pipeline.enqueueAfterCommit(id);
+        await this.pipeline.enqueueAfterCommit(id, run);
       }
     }
     if (closed > 0) {
@@ -53,20 +54,21 @@ export class MeetingMaintenanceService {
     return closed;
   }
 
-  /** Re-enqueues `queued` meetings whose job never reached Redis. Idempotent: jobId = meeting id. */
+  /** Re-enqueues `queued` meetings whose job never reached Redis. Idempotent: job id = meeting + current run. */
   async requeueStrandedMeetings(now = new Date()): Promise<number> {
     const cutoff = new Date(now.getTime() - STRANDED_AFTER_MS);
     const stranded = (await this.dataSource.query(
-      `SELECT id FROM meetings WHERE status = 'queued' AND deleted_at IS NULL AND updated_at < $1 ORDER BY id LIMIT $2`,
+      `SELECT id, pipeline_run FROM meetings WHERE status = 'queued' AND deleted_at IS NULL AND updated_at < $1 ORDER BY id LIMIT $2`,
       [cutoff, BATCH],
-    )) as { id: string }[];
-    for (const { id } of stranded) {
-      await this.pipeline.enqueue(id);
+    )) as { id: string; pipeline_run: number }[];
+    for (const { id, pipeline_run } of stranded) {
+      await this.pipeline.enqueue(id, pipeline_run);
     }
     return stranded.length;
   }
 
-  private closeIfStillAbandoned(id: string, cutoff: Date, now: Date): Promise<boolean> {
+  /** Returns the new pipeline run when the meeting was closed, null when it no longer qualifies. */
+  private closeIfStillAbandoned(id: string, cutoff: Date, now: Date): Promise<number | null> {
     return this.dataSource.transaction(async (manager) => {
       const meeting = await manager
         .getRepository(Meeting)
@@ -82,7 +84,7 @@ export class MeetingMaintenanceService {
         lastSeen !== null &&
         lastSeen < cutoff;
       if (!stillAbandoned) {
-        return false;
+        return null;
       }
       const ended = transition(meeting.status, 'end');
       // Measure up to the last sign of life, not to "now": 24 idle hours are not meeting time.
@@ -92,8 +94,10 @@ export class MeetingMaintenanceService {
       meeting.ended_at = endedAt;
       meeting.status = transition(ended, 'enqueue');
       meeting.last_activity_at = now;
+      meeting.pipeline_run += 1;
+      meeting.pipeline_scope = 'full';
       await manager.save(meeting);
-      return true;
+      return meeting.pipeline_run;
     });
   }
 }

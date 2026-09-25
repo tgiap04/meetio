@@ -41,6 +41,10 @@ export class TranscriptSegment {
   @Column({ name: 'is_edited', type: 'boolean', default: false })
   is_edited!: boolean;
 
+  /** Last manual correction (US-24); compared with the meeting's pipeline run timestamps. */
+  @Column({ name: 'edited_at', type: 'timestamptz', nullable: true })
+  edited_at!: Date | null;
+
   @Column({ name: 'gap_before_ms', type: 'int', nullable: true })
   gap_before_ms!: number | null;
 

@@ -87,6 +87,25 @@ export class Meeting {
   })
   paused_duration_ms!: number;
 
+  /** Increments on every (re)queue; job ids are `<id>-r<run>` so retries are new jobs and old ones are stale. */
+  @Column({ name: 'pipeline_run', type: 'int', default: 0 })
+  pipeline_run!: number;
+
+  @Column({ name: 'pipeline_scope', type: 'text', default: 'full' })
+  pipeline_scope!: 'full' | 'changed';
+
+  /** When the current pipeline run started processing. Edits after it are not in the summary yet. */
+  @Column({ name: 'pipeline_started_at', type: 'timestamptz', nullable: true })
+  pipeline_started_at!: Date | null;
+
+  /** Start of the previous run — a `changed` run re-processes segments edited after this. */
+  @Column({ name: 'pipeline_changed_since', type: 'timestamptz', nullable: true })
+  pipeline_changed_since!: Date | null;
+
+  /** The "meeting ready" push is sent once per meeting (US-30). */
+  @Column({ name: 'ready_notified_at', type: 'timestamptz', nullable: true })
+  ready_notified_at!: Date | null;
+
   @Column({ name: 'last_activity_at', type: 'timestamptz', nullable: true })
   last_activity_at!: Date | null;
 

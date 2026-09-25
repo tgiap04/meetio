@@ -17,6 +17,7 @@ import {
   QaMessage,
   ProcessingJob,
   UsageRecord,
+  PushToken,
 } from './entities/index.js';
 
 const thisFile = fileURLToPath(import.meta.url);
@@ -79,6 +80,7 @@ export const AppDataSource = new DataSource({
     QaMessage,
     ProcessingJob,
     UsageRecord,
+    PushToken,
   ],
   migrations: [join(__dirname, 'migrations', `*.${migrationExtension}`)],
 });

@@ -8,6 +8,11 @@ import { UsersModule } from './users/users.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { MeetingsModule } from './meetings/meetings.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
+import { TranscriptModule } from './transcript/transcript.module.js';
+import { ExportModule } from './export/export.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
+import { PipelineModule } from './pipeline/pipeline.module.js';
+import { AiModule } from './ai/ai.module.js';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage.js';
 
 @Module({
@@ -39,6 +44,11 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
     JobsModule,
     MeetingsModule,
     RealtimeModule,
+    TranscriptModule,
+    ExportModule,
+    NotificationsModule,
+    PipelineModule,
+    AiModule,
   ],
   controllers: [HealthController],
 })

@@ -11,3 +11,4 @@ export { ActionItem } from './action-item.entity.js';
 export { QaMessage } from './qa-message.entity.js';
 export { ProcessingJob } from './processing-job.entity.js';
 export { UsageRecord } from './usage-record.entity.js';
+export { PushToken } from './push-token.entity.js';
