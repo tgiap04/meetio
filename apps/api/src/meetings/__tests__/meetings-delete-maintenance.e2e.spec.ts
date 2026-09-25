@@ -126,27 +126,29 @@ maybeDescribe('meeting delete and maintenance sweeps (e2e)', () => {
       )
     ).rows;
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
-    expect(byId[idleRecording]).toMatchObject({
-      status: 'queued',
-      duration_sec: 3600,
-      ended_long_ago: true,
-    });
-    expect(byId[idlePaused].status).toBe('queued');
+    // Closed and queued; the pipeline worker may already have moved it on to processing.
+    expect(byId[idleRecording]).toMatchObject({ duration_sec: 3600, ended_long_ago: true });
+    expect(['queued', 'processing']).toContain(byId[idleRecording].status);
+    expect(['queued', 'processing']).toContain(byId[idlePaused].status);
     expect(byId[fresh].status).toBe('recording');
-    expect(await e2e.processingQueue.getJob(idleRecording)).toBeDefined();
+    const { rows: runs } = await e2e.db.query('SELECT pipeline_run FROM meetings WHERE id = $1', [idleRecording]);
+    expect(runs[0].pipeline_run).toBe(1);
   });
 
   it('re-enqueues a queued meeting whose pipeline job never reached Redis', async () => {
     const id = await create();
-    await e2e.http('POST', `/meetings/${id}/end`, owner.token, {});
-    await e2e.processingQueue.remove(id);
+    // What a Redis blip right after end's commit leaves behind: queued, run 1, no job anywhere.
     await e2e.db.query(
-      `UPDATE meetings SET updated_at = now() - interval '11 minutes' WHERE id = $1`,
+      `UPDATE meetings SET status = 'queued', ended_at = now(), pipeline_run = 1, updated_at = now() - interval '11 minutes' WHERE id = $1`,
       [id],
     );
-    expect(await e2e.processingQueue.getJob(id)).toBeUndefined();
-
     await e2e.runMaintenance('requeue-stranded-meetings');
-    expect((await e2e.processingQueue.getJob(id))?.data).toEqual({ meeting_id: id });
+    const deadline = Date.now() + 15_000;
+    let status = 'queued';
+    while (status !== 'processing' && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+      status = (await e2e.db.query('SELECT status FROM meetings WHERE id = $1', [id])).rows[0].status;
+    }
+    expect(status).toBe('processing');
   });
 });

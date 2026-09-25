@@ -146,8 +146,9 @@ maybeDescribe('meeting list, detail and rename (e2e)', () => {
     expect(
       (await e2e.http('PATCH', `/meetings/${id}`, stranger.token, { title: 'x' })).status,
     ).toBe(404);
-    expect((await e2e.http('PATCH', `/meetings/${id}`, owner.token, { title: '' })).status).toBe(
-      400,
-    );
+    // US-25: an emptied title falls back to the default, it is not rejected.
+    const blank = await e2e.http('PATCH', `/meetings/${id}`, owner.token, { title: '' });
+    expect(blank.status).toBe(200);
+    expect(blank.body.title).toMatch(/^Cuộc họp \d{2}\/\d{2} \d{2}:\d{2}$/);
   });
 });

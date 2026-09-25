@@ -14,6 +14,16 @@ const seg = (seq: number, text = `đoạn ${seq}`) => ({
   ended_at_ms: seq * 1000 + 900,
 });
 
+async function waitUntil<T>(read: () => Promise<T>, done: (v: T) => boolean): Promise<T> {
+  const deadline = Date.now() + 15_000;
+  for (;;) {
+    const v = await read();
+    if (done(v)) return v;
+    if (Date.now() > deadline) throw new Error(`timeout: ${JSON.stringify(v)}`);
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
 maybeDescribe('meeting lifecycle (e2e, real Postgres + Redis)', () => {
   let e2e: E2eApp;
   let owner: { id: string; token: string };
@@ -123,8 +133,10 @@ maybeDescribe('meeting lifecycle (e2e, real Postgres + Redis)', () => {
     expect(ended.status).toBe(200);
     expect(ended.body.status).toBe('queued');
 
-    const job = await e2e.processingQueue.getJob(id);
-    expect(job?.data).toEqual({ meeting_id: id });
+    // The pipeline worker picks up run 1 and creates its step rows (Phase 11).
+    await waitUntil(async () => (await e2e.db.query('SELECT status, pipeline_run FROM meetings WHERE id = $1', [id])).rows[0], (m) => m.status === 'processing' && m.pipeline_run === 1);
+    const { rows: steps } = await e2e.db.query('SELECT count(*)::int AS n FROM processing_jobs WHERE meeting_id = $1', [id]);
+    expect(steps[0].n).toBe(5);
 
     const second = await e2e.http('POST', `/meetings/${id}/end`, owner.token, { last_seq: 5 });
     expect(second.status).toBe(409);
@@ -175,7 +187,8 @@ maybeDescribe('meeting lifecycle (e2e, real Postgres + Redis)', () => {
 
   it('still accepts late segments after end, until processing starts', async () => {
     const id = await create();
-    await e2e.http('POST', `/meetings/${id}/end`, owner.token, {});
+    // A meeting that is ended/queued but not yet picked up by the pipeline worker.
+    await e2e.db.query(`UPDATE meetings SET status = 'queued', ended_at = now() WHERE id = $1`, [id]);
     const res = await e2e.http('POST', `/meetings/${id}/segments/bulk`, owner.token, {
       segments: [seg(1)],
     });

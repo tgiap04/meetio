@@ -9,9 +9,10 @@ describe('AppDataSource', () => {
     expect(AppDataSource.options.migrationsRun).toBe(false);
   });
 
-  it('registers exactly the 13 schema entities', () => {
-    const entities = AppDataSource.options.entities as unknown[];
-    expect(entities).toHaveLength(13);
+  it('registers exactly the 14 schema entities (13 from data-model + push_tokens, migration 014)', () => {
+    const entities = AppDataSource.options.entities as { name: string }[];
+    expect(entities).toHaveLength(14);
+    expect(entities.map((e) => e.name)).toContain('PushToken');
   });
 
   it('is a postgres data source', () => {

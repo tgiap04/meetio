@@ -38,7 +38,9 @@ export interface E2eApp {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   http(method: string, path: string, token: string, body?: unknown): Promise<{ status: number; body: any }>;
   /** Runs one meeting-maintenance sweep inside the server's own BullMQ worker and returns its result. */
-  runMaintenance(jobName: 'close-abandoned-meetings' | 'requeue-stranded-meetings'): Promise<number>;
+  runMaintenance(jobName: 'close-abandoned-meetings' | 'requeue-stranded-meetings' | 'resume-stalled-pipelines'): Promise<number>;
+  /** Everything the server process printed — attach to failure messages when debugging. */
+  logs(): string;
   close(): Promise<void>;
 }
 
@@ -98,9 +100,12 @@ export async function startE2eApp(extraEnv: Record<string, string> = {}): Promis
   const port = await freePort();
   const baseUrl = `http://localhost:${port}`;
   let log = '';
+  // Own BullMQ namespace: a developer's `make dev` server on the same Redis
+  // would otherwise consume this server's jobs (it happened — see the journal).
+  const bullPrefix = `e2e-${randomUUID()}`;
   const child = spawn(process.execPath, ['dist/main.js'], {
     cwd: apiRoot,
-    env: { ...process.env, PORT: String(port), SWAGGER_ENABLED: 'false', ...extraEnv },
+    env: { ...process.env, PORT: String(port), SWAGGER_ENABLED: 'false', BULLMQ_PREFIX: bullPrefix, ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.stdout?.on('data', (d) => (log += d));
@@ -109,9 +114,9 @@ export async function startE2eApp(extraEnv: Record<string, string> = {}): Promis
 
   const db = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
   const connection = () => new Redis(process.env.REDIS_URL!, { maxRetriesPerRequest: null });
-  const processingQueue = new Queue('meeting-processing', { connection: connection() });
-  const maintenanceQueue = new Queue('meeting-maintenance', { connection: connection() });
-  const maintenanceEvents = new QueueEvents('meeting-maintenance', { connection: connection() });
+  const processingQueue = new Queue('meeting-processing', { connection: connection(), prefix: bullPrefix });
+  const maintenanceQueue = new Queue('meeting-maintenance', { connection: connection(), prefix: bullPrefix });
+  const maintenanceEvents = new QueueEvents('meeting-maintenance', { connection: connection(), prefix: bullPrefix });
   await maintenanceEvents.waitUntilReady();
   const userIds: string[] = [];
   const secret = process.env.JWT_ACCESS_SECRET!;
@@ -123,6 +128,7 @@ export async function startE2eApp(extraEnv: Record<string, string> = {}): Promis
     db,
     processingQueue,
     tokenFor,
+    logs: () => log,
     async createUser() {
       const id = randomUUID();
       // chk_users_has_credential needs a password hash or a google_sub; nobody logs in with this one.
@@ -147,13 +153,20 @@ export async function startE2eApp(extraEnv: Record<string, string> = {}): Promis
       return (await job.waitUntilFinished(maintenanceEvents, 30_000)) as number;
     },
     async close() {
-      const { rows } = await db.query('SELECT id FROM meetings WHERE user_id = ANY($1::uuid[])', [userIds]);
-      await Promise.all(rows.map(({ id }: { id: string }) => processingQueue.remove(id)));
       // Meetings and everything under them go with the users via ON DELETE CASCADE.
       await db.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [userIds]);
       child.kill('SIGTERM');
       await new Promise((r) => (child.exitCode !== null ? r(null) : child.once('exit', r)));
       await Promise.all([processingQueue.close(), maintenanceQueue.close(), maintenanceEvents.close(), db.end()]);
+      // Drop this run's whole BullMQ namespace (queues, schedulers, events).
+      const redis = connection();
+      let cursor = '0';
+      do {
+        const [next, keys] = await redis.scan(cursor, 'MATCH', `${bullPrefix}:*`, 'COUNT', 500);
+        cursor = next;
+        if (keys.length > 0) await redis.del(...keys);
+      } while (cursor !== '0');
+      await redis.quit();
     },
   };
 }

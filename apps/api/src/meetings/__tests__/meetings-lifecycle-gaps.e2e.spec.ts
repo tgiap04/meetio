@@ -38,7 +38,7 @@ maybeDescribe('meeting lifecycle gaps coverage (e2e)', () => {
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('GET after end shows status queued and duration_sec', async () => {
+  it('GET after end shows the pipeline status and duration_sec', async () => {
     const id = await create();
     await e2e.db.query(
       `UPDATE meetings SET started_at = now() - interval '300 seconds' WHERE id = $1`,
@@ -49,7 +49,7 @@ maybeDescribe('meeting lifecycle gaps coverage (e2e)', () => {
     expect(ended.body.duration_sec).toBeGreaterThanOrEqual(299);
 
     const detail = await e2e.http('GET', `/meetings/${id}`, owner.token);
-    expect(detail.body.status).toBe('queued');
+    expect(['queued', 'processing']).toContain(detail.body.status);
     expect(detail.body.duration_sec).toBeGreaterThanOrEqual(299);
   });
 
