@@ -1,0 +1,27 @@
+[
+  {
+    "command": "yarn workspace @meetio/api test --forceExit",
+    "exitCode": 0,
+    "summary": "Test Suites: 31 passed, 31 total; Tests: 276 passed, 276 total (was 263 before gap tests)"
+  },
+  {
+    "command": "yarn workspace @meetio/api typecheck",
+    "exitCode": 0,
+    "summary": "TypeScript compilation successful, no errors"
+  },
+  {
+    "command": "yarn workspace @meetio/shared build",
+    "exitCode": 0,
+    "summary": "Shared package build successful"
+  },
+  {
+    "command": "yarn workspace @meetio/mobile typecheck",
+    "exitCode": 0,
+    "summary": "Mobile workspace TypeScript check passed"
+  },
+  {
+    "command": "npx eslint --max-warnings=0 apps/api/src apps/api/scripts packages/shared/src",
+    "exitCode": 0,
+    "summary": "ESLint check passed with no warnings"
+  }
+]

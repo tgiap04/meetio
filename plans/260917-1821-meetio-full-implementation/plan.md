@@ -21,10 +21,10 @@ thiết bị, pipeline GraphRAG phía backend, hỏi đáp có trích dẫn ngu�
 [Kiểm chứng stack](../reports/researcher-2026-09-17-stack-verification.md) ·
 **[Thiết kế giao diện](../../design.png)** (14 màn)
 
-**Hiện trạng:** Bộ khung chạy được đã hoàn tất — Phase 01, 02, 03, 06 xong và kiểm chứng độc lập.
-**356 test xanh** (133 API / 18 suites + 223 mobile / 37 suites, tăng từ 242 — 96 API + 146 mobile — đo tại `f072b82`; con số 223 ghi ở bản trước đã cũ, nó có từ trước khi ba màn onboarding hoàn tất). Đăng ký/đăng nhập/xoay vòng token chạy thật đầu-cuối; 13 bảng + index HNSW trên Postgres thật; Swagger phục vụ 7 nhóm endpoint; ba màn đầu (splash, onboarding, permission) dựng xong cùng cổng bootstrap; hai màn auth (login/register) dựng lại + **lối đăng nhập Google** thêm vào theo yêu cầu thời gian chạy.
+**Hiện trạng:** Bộ khung + vòng đời cuộc họp hoàn tất — Phase 01, 02, 03, 04, 05, 06 xong và kiểm chứng độc lập.
+**850 test xanh**, đo ngày 2026-09-25: 278 API (230 unit/integration + 48 e2e) + 572 mobile / 106 suites. Phase 04: máy trạng thái toàn phần (bảng chuyển, pause/resume giữ thời lượng, end kiểm segment chờ, queued + BullMQ, cascade xóa, tự đóng 24h idle). Phase 05: WebSocket gateway, JWT bắt tay, batch writer 200ms, upsert ON CONFLICT DO NOTHING, ack sau COMMIT, rate limit 120/min/meeting, load test 20 meetings × 2 seg/s × 10 min: 24000/24000 acked, p95 253ms.
 **Phase 00:** Spike STT khung hoàn tất (app Expo + công cụ phân tích WER, 46 test xanh, tsc/eslint sạch). Đợi 60 phút audio tiếng Việt + bản chép tay đối chiếu để chạy đo 36 lượt trên máy thật (Android 13+, iOS). Cấu hình: expo-speech-recognition, restart 100ms, Android microphone foreground service, iOS background audio.
-**Tiếp theo:** Phase 04 (API vòng đời cuộc họp chạy song song). Phase 00 phải đóng trước Phase 07 mở.
+**Tiếp theo:** Phase 10 & 11 mở khóa (quản lý cuộc họp, hạ tầng tác vụ). Phase 07 còn chờ Phase 00 đóng.
 
 ### Phạm vi mở rộng — Google Sign-In (NGOÀI spec 260917)
 
@@ -63,8 +63,8 @@ chạy song song được ngay.
 | 01 | [Nền tảng monorepo & CI](phase-01-monorepo-foundation.md) | — | — | ✅ **xong** |
 | 02 | [Schema cơ sở dữ liệu](phase-02-database-schema.md) | 01 | — | ✅ **xong** (kèm cảnh báo HNSW) |
 | 03 | [Xác thực & tài khoản](phase-03-auth-and-account.md) | 02 | US-01→06 | ✅ **xong** |
-| 04 | [API vòng đời cuộc họp](phase-04-meeting-lifecycle-api.md) | 03 | US-07,09,16 | ⬜ pending |
-| 05 | [Gateway transcript realtime](phase-05-realtime-transcript-gateway.md) | 04 | US-14 (server) | ⬜ pending |
+| 04 | [API vòng đời cuộc họp](phase-04-meeting-lifecycle-api.md) | 03 | US-07,09,16 | ✅ **xong** |
+| 05 | [Gateway transcript realtime](phase-05-realtime-transcript-gateway.md) | 04 | US-14 (server) | ✅ **xong** |
 | 06 | [Nền tảng mobile](phase-06-mobile-foundation.md) | 03 | US-02,04 | ✅ **xong** (trừ 3 mục hoãn sang 03/07) |
 | 07 | [Ghi âm & nhận diện](phase-07-recording-and-stt.md) | **00**, 05, 06 | US-07→13,16 | ⬜ pending |
 | 08 | [Hàng đợi ngoại tuyến & phục hồi](phase-08-offline-queue-and-recovery.md) | 07 | US-14,15 | ⬜ pending |

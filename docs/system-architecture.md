@@ -51,7 +51,14 @@ thúc. Bản cũ chỉ tạo bản ghi ở `POST /meetings` khi họp xong, như
 mở đường cho việc phục hồi sau sự cố ([US-15](../user_stories.md#us-15--phục-hồi-cuộc-họp-sau-khi-app-đóng-đột-ngột)).
 
 **Quy tắc chuyển trạng thái**
-- `recording` quá 24 giờ không có hoạt động → worker tự chuyển `ended` (không để treo vĩnh viễn).
+- `recording` **hoặc** `paused` quá 24 giờ không có hoạt động → tác vụ định kỳ (quét mỗi 15 phút)
+  tự chuyển `ended` rồi đẩy vào hàng đợi pipeline, giống hệt khi người dùng tự bấm kết thúc. "Không
+  hoạt động" tính theo `last_activity_at` (mốc segment gần nhất, hoặc `started_at` nếu chưa có
+  segment nào) — không phải theo giờ hiện tại, nên 24 giờ tạm dừng không tự động cộng dồn thành họp
+  treo.
+- Đẩy vào hàng đợi BullMQ luôn chạy **sau khi** transaction đổi trạng thái đã commit; job dùng
+  `jobId = meeting_id` nên idempotent. Nếu Redis trục trặc đúng lúc đó, cùng tác vụ định kỳ ở trên
+  sẽ enqueue lại mọi cuộc họp `queued` bị kẹt quá 10 phút.
 - `failed` giữ nguyên transcript. Chỉ các dẫn xuất AI bị đánh dấu chưa sẵn sàng.
 - Sửa transcript ở trạng thái `ready` sẽ đưa cuộc họp về `queued` nhưng vẫn phục vụ được dữ liệu cũ.
 
@@ -92,6 +99,10 @@ Kết thúc
   │ đồng bộ nốt hàng đợi ────────────────────► mọi đoạn đã bền vững
   │ POST /api/meetings/:id/end ──────────────► ended → queued → đẩy vào hàng đợi việc
 ```
+
+Máy chủ không ghi từng đoạn riêng lẻ: các đoạn đến trong cửa sổ ~200ms mỗi cuộc họp được gom lại
+và ghi một lần (tối đa 500 đoạn/lô). `segment_ack` của một đoạn chỉ phát sau khi lô chứa nó đã
+COMMIT — gộp lô đổi cách ghi, không đổi bảo đảm "ack sau khi bền vững" ở sơ đồ trên.
 
 **Nguồn sự thật:** `transcript_segments` trong PostgreSQL. Không phải Redis, không phải bộ nhớ
 client. Bản đặc tả cũ mâu thuẫn ở chỗ này — F3 nói gửi liên tục để chống mất dữ liệu, nhưng luồng

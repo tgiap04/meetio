@@ -71,13 +71,15 @@ cột kia. `CHECK` ở trên là ràng buộc bảo đảm mọi hàng luôn cò
 | `duration_sec` | INT | Không tính thời gian tạm dừng |
 | `failure_reason` | TEXT | Chỉ có khi `status = failed` |
 | `last_activity_at` | TIMESTAMPTZ | Dùng cho cơ chế tự đóng cuộc họp bỏ quên sau 24h |
+| `paused_at` | TIMESTAMPTZ | NULL trừ khi đang tạm dừng; đặt lúc `pause`, xóa lúc `resume` |
+| `paused_duration_ms` | BIGINT | Tổng thời gian đã tạm dừng, cộng dồn mỗi lần `resume`; `duration_sec` trừ đi giá trị này |
 | `created_at` / `updated_at` / `deleted_at` | TIMESTAMPTZ | |
 
 ```sql
 CREATE INDEX idx_meetings_user_created ON meetings (user_id, created_at DESC)
   WHERE deleted_at IS NULL;
 CREATE INDEX idx_meetings_status ON meetings (status)
-  WHERE status IN ('recording','queued','processing');
+  WHERE status IN ('recording','paused','queued','processing');
 CREATE INDEX idx_meetings_title_trgm ON meetings
   USING gin (unaccent(lower(title)) gin_trgm_ops);
 ```

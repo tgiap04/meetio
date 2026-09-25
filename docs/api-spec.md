@@ -65,11 +65,11 @@ vì hiển thị đúng thứ server đang giữ. Mọi trường `PATCH` sửa 
 | POST | `/meetings` | **Tạo lúc bắt đầu họp.** Body `{title?, source_language, translate_to?, audio_source, recording_quality}` → `{id, status:"recording", started_at}` |
 | POST | `/meetings/:id/pause` | `recording` → `paused` |
 | POST | `/meetings/:id/resume` | `paused` → `recording` |
-| POST | `/meetings/:id/end` | Chỉ thành công khi mọi segment đã đồng bộ. `ended` → `queued`, kích hoạt pipeline |
-| GET | `/meetings` | Danh sách phân trang. Lọc: `?q=`, `?from=`, `?to=`, `?status=` |
+| POST | `/meetings/:id/end` | Body `{last_seq?}`. `recording`\|`paused` → `ended` → `queued`, kích hoạt pipeline |
+| GET | `/meetings` | Danh sách phân trang. Lọc: `?q=`, `?from=`, `?to=` (theo `created_at`), `?status=` |
 | GET | `/meetings/:id` | Chi tiết: metadata, tóm tắt, action items, trạng thái xử lý (không kèm segments) |
 | PATCH | `/meetings/:id` | Sửa `title`, `translate_to` |
-| DELETE | `/meetings/:id` | Xóa cascade ([US-26](../user_stories.md#us-26--xóa-cuộc-họp)) |
+| DELETE | `/meetings/:id` | Xóa vật lý, cascade ([US-26](../user_stories.md#us-26--xóa-cuộc-họp)) |
 | GET | `/meetings/:id/status` | Trạng thái xử lý chi tiết theo từng bước |
 | POST | `/meetings/:id/reindex` | Chạy lại pipeline. Body `{scope: "changed"\|"full"}` |
 | GET | `/meetings/:id/export` | `?format=markdown\|pdf&include=summary,actions,transcript,translation` |
@@ -77,6 +77,20 @@ vì hiển thị đúng thứ server đang giữ. Mọi trường `PATCH` sửa 
 `POST /meetings` trả về `meeting_id` **trước khi** client bật mic. Bản đặc tả cũ tạo bản ghi ở
 thời điểm kết thúc, khiến sự kiện `join_room` không có id để dùng — xem
 [vòng đời cuộc họp](system-architecture.md#1-vòng-đời-cuộc-họp).
+
+`end` chỉ thành công khi seq `1..last_seq` đã nằm đủ trong PostgreSQL — server xả nốt hàng đợi
+đang gom lô rồi mới đếm. Thiếu seq nào thì trả **409** `SEGMENTS_PENDING` kèm
+`details: {missing_count, missing_seqs}` (`missing_seqs` liệt kê tối đa 100 seq nhỏ nhất còn
+thiếu, `missing_count` là tổng số thực còn thiếu). Không gửi `last_seq` nghĩa là cuộc họp không có
+đoạn transcript nào.
+
+`pause` / `resume` / `end` cùng trả một khuôn `{id, status, duration_sec}`; `duration_sec` chỉ
+khác `null` sau khi `end` và không tính thời gian tạm dừng.
+
+`GET /meetings` trả `{items, next_cursor}`; `?limit=` từ 1 đến 100, mặc định 20.
+
+`DELETE /meetings/:id` xóa vật lý ngay trong một transaction — không phải xóa mềm. DB cascade các
+bảng con, đồng thời dọn luôn thực thể không còn được mention từ cuộc họp nào khác.
 
 ---
 
@@ -86,9 +100,11 @@ thời điểm kết thúc, khiến sự kiện `join_room` không có id để 
 |--------|------|-------|
 | GET | `/meetings/:id/segments` | Phân trang theo `seq`. `?from_seq=&limit=` |
 | PATCH | `/segments/:id` | Sửa `text`. Đặt `is_edited = true` |
-| POST | `/meetings/:id/segments/bulk` | Đồng bộ bù khi mất mạng. Body `{segments: [{seq, text, started_at_ms, ended_at_ms, gap_before_ms?}]}` — upsert theo `(meeting_id, seq)`, idempotent |
+| POST | `/meetings/:id/segments/bulk` | Đồng bộ bù khi mất mạng. Body `{segments: [{seq, text, started_at_ms, ended_at_ms, gap_before_ms?}]}`, tối đa 1000 đoạn/lần — upsert theo `(meeting_id, seq)`, idempotent. Trả `{acked_seqs}` |
 
 `bulk` là đường dự phòng khi WebSocket không dùng được; đường chính vẫn là kênh realtime ở mục 8.
+Trùng `seq` với đoạn đã có thì giữ bản đầu, không ghi đè (tránh đè lên bản người dùng đã sửa tay) —
+nhưng `acked_seqs` vẫn liệt kê seq đó, vì dữ liệu ở seq này đã bền vững dù là bản cũ hay mới.
 
 ---
 
@@ -155,13 +171,18 @@ không gọi LLM để nó bịa ([US-36](../user_stories.md#us-36--câu-trả-l
 
 **Namespace:** `/meeting-room` · Xác thực bằng JWT lúc bắt tay.
 
+Token gửi ở `handshake.auth.token` (chỗ dành riêng của socket.io), dự phòng header
+`Authorization: Bearer` nếu client không dùng được `auth`. Bắt tay thất bại thì client nhận lỗi
+kết nối với `err.data.code` là `UNAUTHORIZED` (thiếu hoặc sai token) hoặc `TOKEN_EXPIRED` (access
+token hết hạn — refresh rồi kết nối lại), cùng cặp mã như phía REST.
+
 ### Client → Server
 
 | Sự kiện | Payload | Ghi chú |
 |---------|---------|---------|
-| `join_meeting` | `{meeting_id}` | Kiểm tra quyền sở hữu trước khi cho vào room |
-| `transcript_segment` | `{seq, text, started_at_ms, ended_at_ms, gap_before_ms?}` | Một đoạn đã chốt. Không có trường người nói — xem [US-13](../user_stories.md#us-13--gán-nhãn-người-nói--đã-bỏ-2026-09-21) |
-| `leave_meeting` | `{meeting_id}` | |
+| `join_meeting` | `{meeting_id}` | Kiểm tra quyền sở hữu trước khi cho vào room. Ack qua callback socket.io: `{ok:true}` hoặc `{ok:false,error:{code:"MEETING_NOT_FOUND",message}}` |
+| `transcript_segment` | `{seq, text, started_at_ms, ended_at_ms, gap_before_ms?}` | Một đoạn đã chốt. Nhận ở `recording`/`paused`/`ended`/`queued`; trạng thái khác trả `segment_error` mã `INVALID_STATE_TRANSITION`. Không có trường người nói — xem [US-13](../user_stories.md#us-13--gán-nhãn-người-nói--đã-bỏ-2026-09-21) |
+| `leave_meeting` | `{meeting_id}` | Ack qua callback: `{ok:true}` |
 
 ### Server → Client
 
@@ -176,6 +197,12 @@ không gọi LLM để nó bịa ([US-36](../user_stories.md#us-36--câu-trả-l
 Thứ tự `segment_ack` là điểm mấu chốt của việc chống mất dữ liệu: server phải ghi xong vào
 PostgreSQL rồi mới phát ack. Ack sớm rồi mới ghi thì client sẽ xóa hàng đợi local trong khi dữ liệu
 chưa thực sự an toàn.
+
+`segment_error.code` là một trong: `VALIDATION_ERROR` (payload sai hoặc gửi trước khi
+`join_meeting`), `RATE_LIMITED` (quá 120 sự kiện/phút/cuộc họp — dùng `/segments/bulk` để gửi bù
+thay vì dồn dập gửi lại qua socket), `INVALID_STATE_TRANSITION`, `MEETING_NOT_FOUND` (cuộc họp đã
+bị xóa), `TOKEN_EXPIRED` (server chủ động ngắt kết nối, kèm cờ để client tự reconnect) hoặc
+`INTERNAL_ERROR`.
 
 ---
 
@@ -204,6 +231,10 @@ chưa thực sự an toàn.
 không bao giờ được đoán mã theo miền từ HTTP status — 404 chưa phân loại là `NOT_FOUND`, không phải
 `MEETING_NOT_FOUND`; lỗi chưa phân loại là `INTERNAL_ERROR`, không phải `PROCESSING_FAILED`.
 Đoán sai mã khiến client đi nhầm nhánh xử lý: báo "pipeline lỗi" trong khi thực ra server sập.
+
+Lỗi không phải `HttpException` (ví dụ lỗi driver Postgres) luôn trả `message` là câu cố định "Lỗi
+hệ thống, vui lòng thử lại sau" — chi tiết thật (SQL, tên bảng, stack) chỉ vào log server, không
+bao giờ ra response.
 
 ---
 

@@ -4,7 +4,7 @@
 [Vòng đời](../../docs/system-architecture.md#1-vòng-đời-cuộc-họp) · [api-spec §3](../../docs/api-spec.md#3-vòng-đời-cuộc-họp)
 
 ## Tổng quan
-**Ưu tiên:** Cao · **Trạng thái:** ⬜ pending · **Phụ thuộc:** Phase 03
+**Ưu tiên:** Cao · **Trạng thái:** ✅ xong · **Phụ thuộc:** Phase 03
 
 Máy trạng thái cuộc họp và các endpoint REST điều khiển nó.
 
@@ -48,14 +48,14 @@ chỉ định nghĩa điểm móc).
 8. Tác vụ định kỳ: cuộc họp `recording` có `last_activity_at` quá 24 giờ → chuyển `ended`.
 
 ## Todo
-- [ ] MeetingStateMachine + test bảng chuyển trạng thái
-- [ ] POST /meetings (tạo lúc bắt đầu)
-- [ ] pause / resume + tính thời lượng
-- [ ] end + kiểm tra segment chờ + móc hàng đợi
-- [ ] GET chi tiết / PATCH / DELETE cascade
-- [ ] GET danh sách phân trang con trỏ
-- [ ] Tác vụ tự đóng cuộc họp bỏ quên
-- [ ] Test xóa thực thể mồ côi
+- [x] MeetingStateMachine + test bảng chuyển trạng thái
+- [x] POST /meetings (tạo lúc bắt đầu)
+- [x] pause / resume + tính thời lượng
+- [x] end + kiểm tra segment chờ + móc hàng đợi
+- [x] GET chi tiết / PATCH / DELETE cascade
+- [x] GET danh sách phân trang con trỏ
+- [x] Tác vụ tự đóng cuộc họp bỏ quên
+- [x] Test xóa thực thể mồ côi
 
 ## Chuẩn hoàn thành
 - Mọi endpoint ở [api-spec §3](../../docs/api-spec.md#3-vòng-đời-cuộc-họp) đúng đặc tả.
@@ -73,5 +73,12 @@ chỉ định nghĩa điểm móc).
 Mọi endpoint đi qua `ScopedRepository` của Phase 03. Không endpoint nào nhận `user_id` từ body —
 chỉ lấy từ token.
 
+## Sai lệch so với kế hoạch
+- Migration 012 thêm hai enum `audio_source` (mặc định `device_mic`) và `recording_quality` (mặc định `standard`), cột `paused_at`, `paused_duration_ms` — chi tiết rõ ở clarifications.md (Phase 04–05).
+- Migration 013 mở rộng `idx_meetings_status` để bao gồm `paused` (plan gốc ghi `recording` mà thực tế cần cả `recording` và `paused`).
+- Máy trạng thái sử dụng BullMQ + Redis để queue `meeting-processing` khi chuyển `ended → queued` — processor không được gắn ở phase này (Phase 11 sẽ gắn).
+- `POST /meetings/:id/end` nhận `body {last_seq?}` — client không gửi = không kiểm tra segment chờ.
+- `POST /meetings/:id/segments/bulk` sống ở `MeetingsModule` (file `meeting-segments.controller.ts`), không tách riêng.
+
 ## Tiếp theo
-Mở khóa Phase 05 (gateway realtime), Phase 10 (quản lý cuộc họp), Phase 11 (hạ tầng tác vụ).
+Mở khóa Phase 05 (đã xong), Phase 10 (quản lý cuộc họp), Phase 11 (hạ tầng tác vụ). Phase 07 còn bị chặn bởi Phase 00.

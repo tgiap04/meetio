@@ -1,0 +1,67 @@
+{
+  "score": 9,
+  "criticalCount": 0,
+  "decision": "SEALED",
+  "acceptanceCovered": [
+    "every endpoint in api-spec section 3 in phase-04 scope behaves per spec",
+    "invalid state transitions always return 409 and are never silently ignored",
+    "end succeeds only when seqs 1..last_seq are persisted, otherwise 409 SEGMENTS_PENDING naming missing seqs",
+    "deleting a meeting removes all child rows while entities still mentioned elsewhere survive",
+    "meetings abandoned for 24 hours are auto-closed and still queued for processing",
+    "sending the same seq 10 times produces exactly one row",
+    "reconnect and resend loses no segment and duplicates none",
+    "segment_ack is only emitted after the row is in PostgreSQL, proven by fault injection",
+    "load test keeps p95 ack latency under 500ms",
+    "no transcript text is logged"
+  ],
+  "regressionChecked": [
+    "global JwtAuthGuard now skips non-HTTP contexts",
+    "AuthModule exports JwtModule",
+    "meetings table schema (migration 012)",
+    "shared TranscriptSegmentPayload lost speaker_label",
+    "existing auth/users endpoints and account-maintenance jobs",
+    "ApiExceptionFilter change applies to every endpoint, not only the bulk-segments path",
+    "end() reorder does not skip flushing buffered WebSocket segments before the last_seq check",
+    "idx_meetings_status migration up/down/up symmetry and entity @Index metadata match"
+  ],
+  "contractStatus": "CHANGED",
+  "refuted": [],
+  "unproven": [],
+  "reachableRegressions": [],
+  "findings": [
+    {
+      "severity": "High",
+      "category": "Security",
+      "location": "apps/api/src/common/filters/api-exception.filter.ts:73-92",
+      "summary": "fixed: non-HttpException errors now always return a fixed INTERNAL_ERROR_MESSAGE to the client; the real message/stack only goes to the server log. Root-caused at the global filter, covers every endpoint including the bulk-segments path. Verified against api-exception.filter.spec.ts (fixed-message case + new raw-pg-constraint-text case).",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Availability",
+      "location": "apps/api/src/meetings/meetings.service.ts:76-96",
+      "summary": "fixed: end() now flushes and runs findMissingSeqs before opening the transaction, so the row lock is only held for the transition re-validation; segment-upsert.repository.ts:76-96 adds a fast indexed count(*) path and only falls back to generate_series when something is actually missing. Correctness (missing-set is monotonic while a meeting is live) verified by inspection and by the new end-flushes-batch-writer.e2e.spec.ts.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Performance",
+      "location": "apps/api/src/database/migrations/1758000000013-IndexPausedMeetingsForSweep.ts:1-24",
+      "summary": "fixed: idx_meetings_status recreated to include 'paused' in its partial predicate, matching closeAbandonedMeetings()'s IN ('recording','paused') filter; entity @Index where-clause updated to match; up/down verified symmetric.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Contract",
+      "location": "packages/shared/src/websocket/websocket.types.ts:33-38",
+      "summary": "TranscriptSegmentPayload dropped speaker_label -- a breaking WS wire-contract change, documented as intentional (US-13 dropped) in clarifications.md. Tracked as CHANGED, not treated as a defect.",
+      "disposition": "Defer"
+    },
+    {
+      "severity": "Low",
+      "category": "Performance",
+      "summary": "requeueStrandedMeetings filters status='queued' AND updated_at < cutoff with no supporting index on updated_at; deferred by agreement given tiny queued cardinality and the existing status filter.",
+      "disposition": "Defer"
+    }
+  ]
+}

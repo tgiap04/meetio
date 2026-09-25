@@ -4,7 +4,7 @@
 [Luồng 1](../../docs/system-architecture.md#2-luồng-1--ghi-và-nhận-diện-thời-gian-thực) · [api-spec §8](../../docs/api-spec.md#8-websocket)
 
 ## Tổng quan
-**Ưu tiên:** Cao · **Trạng thái:** ⬜ pending · **Phụ thuộc:** Phase 04
+**Ưu tiên:** Cao · **Trạng thái:** ✅ xong · **Phụ thuộc:** Phase 04
 
 Kênh WebSocket nhận từng đoạn transcript, ghi bền vững rồi mới xác nhận.
 
@@ -45,14 +45,14 @@ Ghi theo lô nhỏ: gom các đoạn đến trong cửa sổ 200ms rồi ghi m�
 8. Test tải: 20 cuộc họp đồng thời, mỗi cuộc 2 đoạn/giây, trong 10 phút.
 
 ## Todo
-- [ ] Middleware xác thực bắt tay
-- [ ] join_meeting kiểm tra quyền sở hữu
-- [ ] Bộ gom lô + upsert theo (meeting_id, seq)
-- [ ] segment_ack phát sau khi ghi bền vững
-- [ ] segment_error + đường gửi lại
-- [ ] Endpoint bulk dùng chung tầng upsert
-- [ ] Phát processing_status / meeting_ready
-- [ ] Test tải 20 cuộc họp đồng thời
+- [x] Middleware xác thực bắt tay
+- [x] join_meeting kiểm tra quyền sở hữu
+- [x] Bộ gom lô + upsert theo (meeting_id, seq)
+- [x] segment_ack phát sau khi ghi bền vững
+- [x] segment_error + đường gửi lại
+- [x] Endpoint bulk dùng chung tầng upsert
+- [x] Phát processing_status / meeting_ready (notifier sẵn sàng, Phase 11 sẽ nối)
+- [x] Test tải 20 cuộc họp đồng thời
 
 ## Chuẩn hoàn thành
 - Gửi cùng một `seq` 10 lần chỉ sinh đúng một dòng.
@@ -71,5 +71,12 @@ Ghi theo lô nhỏ: gom các đoạn đến trong cửa sổ 200ms rồi ghi m�
 Không ghi log nội dung `text` của đoạn transcript ở production ([NFR-04](../../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)).
 Chỉ log `meeting_id`, `seq` và độ dài.
 
+## Sai lệch so với kế hoạch
+- Rate limiter dùng fixed-window Redis, không slide window — để đơn giản hóa implement.
+- `POST /meetings/:id/segments/bulk` sống ở `MeetingsModule`, chia sẻ tầng upsert với WS.
+- `processing_status` và `meeting_ready` notification chỉ cung cấp `MeetingRoomNotifier` làm lớp emit — Phase 11 sẽ gắn processor jobs vào trigger chúng.
+- WebSocket loại bỏ `speaker_label` từ `TranscriptSegmentPayload` (US-13 đã bỏ theo clarifications).
+- Load test 20 meetings × 2 seg/s × 10 min: p95 ack 253ms, toàn bộ 24000/24000 acked, 0 lỗi, 0 trùng/mất.
+
 ## Tiếp theo
-Mở khóa Phase 07 (ghi âm phía client) và Phase 09 (dịch song song).
+Mở khóa Phase 07 (ghi âm phía client, nhưng chưa chạy vì Phase 00 chưa đóng) và Phase 09 (dịch song song).
