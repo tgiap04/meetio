@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "STT Spike",
+    "slug": "stt-feasibility-spike",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "dev.meetio.spike.stt",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"],
+        "UIFileSharingEnabled": true,
+        "LSSupportsOpeningDocumentsInPlace": true
+      }
+    },
+    "android": {
+      "package": "dev.meetio.spike.stt"
+    },
+    "plugins": [
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Spike đo nhận diện giọng nói cần micro.",
+          "speechRecognitionPermission": "Spike đo độ chính xác nhận diện giọng nói.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.as"
+          ]
+        }
+      ],
+      "./plugins/with-microphone-foreground-service.js"
+    ]
+  }
+}

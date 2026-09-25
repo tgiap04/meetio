@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+android/
+ios/
+# Log đo và âm thanh mẫu không rời máy người đo (phase-00 · Bảo mật)
+runs/*
+!runs/.gitkeep
+fixtures/*.wav
+fixtures/*.mp3
+fixtures/*.m4a
+fixtures/reference.txt
