@@ -1,6 +1,8 @@
 import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { User } from './user.entity.js';
 import { MeetingStatus } from '../enums/meeting-status.enum.js';
+import { AudioSource } from '../enums/audio-source.enum.js';
+import { RecordingQuality } from '../enums/recording-quality.enum.js';
 
 /**
  * One recorded/processed meeting session. See docs/data-model.md §2.
@@ -12,7 +14,7 @@ import { MeetingStatus } from '../enums/meeting-status.enum.js';
 @Entity('meetings')
 @Index('idx_meetings_user_created', ['user_id', 'created_at'], { where: 'deleted_at IS NULL' })
 @Index('idx_meetings_status', ['status'], {
-  where: "status IN ('recording','queued','processing')",
+  where: "status IN ('recording','paused','queued','processing')",
 })
 export class Meeting {
   @PrimaryGeneratedColumn('uuid')
@@ -42,6 +44,18 @@ export class Meeting {
   @Column({ name: 'translate_to', type: 'text', nullable: true })
   translate_to!: string | null;
 
+  @Column({ name: 'audio_source', type: 'enum', enum: AudioSource, enumName: 'audio_source', default: AudioSource.DEVICE_MIC })
+  audio_source!: AudioSource;
+
+  @Column({
+    name: 'recording_quality',
+    type: 'enum',
+    enum: RecordingQuality,
+    enumName: 'recording_quality',
+    default: RecordingQuality.STANDARD,
+  })
+  recording_quality!: RecordingQuality;
+
   @Column({ type: 'text', nullable: true })
   summary!: string | null;
 
@@ -59,6 +73,19 @@ export class Meeting {
 
   @Column({ name: 'failure_reason', type: 'text', nullable: true })
   failure_reason!: string | null;
+
+  /** Set while `status = paused`; `resume` folds the elapsed time into `paused_duration_ms`. */
+  @Column({ name: 'paused_at', type: 'timestamptz', nullable: true })
+  paused_at!: Date | null;
+
+  /** Total paused time so far — excluded from `duration_sec` (US-09). `bigint` comes back as a string. */
+  @Column({
+    name: 'paused_duration_ms',
+    type: 'bigint',
+    default: 0,
+    transformer: { to: (v: number) => v, from: (v: string | number) => Number(v) },
+  })
+  paused_duration_ms!: number;
 
   @Column({ name: 'last_activity_at', type: 'timestamptz', nullable: true })
   last_activity_at!: Date | null;

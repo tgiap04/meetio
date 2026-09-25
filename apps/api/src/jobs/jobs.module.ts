@@ -7,6 +7,10 @@ import { User, Meeting } from '../database/entities/index.js';
 import { AccountMaintenanceService } from './account-deletion.job.js';
 import { AccountMaintenanceProcessor, ACCOUNT_MAINTENANCE_QUEUE } from './account-maintenance.processor.js';
 import { AccountMaintenanceScheduler } from './account-maintenance.scheduler.js';
+import { MeetingsModule } from '../meetings/meetings.module.js';
+import { MeetingMaintenanceService } from './abandoned-meeting.job.js';
+import { MeetingMaintenanceProcessor, MEETING_MAINTENANCE_QUEUE } from './meeting-maintenance.processor.js';
+import { MeetingMaintenanceScheduler } from './meeting-maintenance.scheduler.js';
 
 @Module({
   imports: [
@@ -22,9 +26,17 @@ import { AccountMaintenanceScheduler } from './account-maintenance.scheduler.js'
         return { connection: new Redis(url, { maxRetriesPerRequest: null }) };
       },
     }),
-    BullModule.registerQueue({ name: ACCOUNT_MAINTENANCE_QUEUE }),
+    BullModule.registerQueue({ name: ACCOUNT_MAINTENANCE_QUEUE }, { name: MEETING_MAINTENANCE_QUEUE }),
+    MeetingsModule,
   ],
-  providers: [AccountMaintenanceService, AccountMaintenanceProcessor, AccountMaintenanceScheduler],
+  providers: [
+    AccountMaintenanceService,
+    AccountMaintenanceProcessor,
+    AccountMaintenanceScheduler,
+    MeetingMaintenanceService,
+    MeetingMaintenanceProcessor,
+    MeetingMaintenanceScheduler,
+  ],
   exports: [AccountMaintenanceService],
 })
 export class JobsModule {}

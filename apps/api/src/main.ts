@@ -4,22 +4,18 @@ import 'reflect-metadata';
 // `nest start`, where no .env exists.
 import './load-env.js';
 import { NestFactory } from '@nestjs/core';
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module.js';
-import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
+import { configureApp, GLOBAL_PREFIX } from './configure-app.js';
 import { SWAGGER_PATH, setupSwagger } from './swagger.js';
 import { buildStartupUrls } from './startup-urls.js';
 import { GoogleTokenVerifier } from './auth/google-token-verifier.js';
-
-const GLOBAL_PREFIX = 'api';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   const logger = new Logger('Bootstrap');
 
-  app.setGlobalPrefix(GLOBAL_PREFIX);
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  app.useGlobalFilters(new ApiExceptionFilter());
+  configureApp(app);
 
   const swaggerDocument = setupSwagger(app);
 

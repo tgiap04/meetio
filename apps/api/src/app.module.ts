@@ -6,6 +6,8 @@ import { DatabaseModule } from './database/database.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
+import { MeetingsModule } from './meetings/meetings.module.js';
+import { RealtimeModule } from './realtime/realtime.module.js';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage.js';
 
 @Module({
@@ -35,6 +37,8 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
     AuthModule,
     UsersModule,
     JobsModule,
+    MeetingsModule,
+    RealtimeModule,
   ],
   controllers: [HealthController],
 })
