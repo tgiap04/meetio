@@ -41,6 +41,8 @@ function defaultCodeForStatus(status: number): ApiErrorCode {
   }
 }
 
+const INTERNAL_ERROR_MESSAGE = 'Lỗi hệ thống, vui lòng thử lại sau';
+
 interface ExceptionResponseShape {
   code?: string;
   message?: string | string[];
@@ -68,9 +70,15 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const parsedBody: ExceptionResponseShape =
       typeof exceptionBody === 'object' && exceptionBody !== null ? exceptionBody : {};
 
-    const message = Array.isArray(parsedBody.message)
-      ? parsedBody.message.join('; ')
-      : parsedBody.message ?? (exception instanceof Error ? exception.message : 'Internal server error');
+    // Only an HttpException's message was written for the client. Anything else
+    // (a pg driver error, a TypeError) can carry SQL, table names or row data, so
+    // it is logged in full below and the client gets a fixed sentence instead.
+    const message =
+      exception instanceof HttpException
+        ? Array.isArray(parsedBody.message)
+          ? parsedBody.message.join('; ')
+          : (parsedBody.message ?? exception.message)
+        : INTERNAL_ERROR_MESSAGE;
 
     const code = (parsedBody.code as ApiErrorCode | undefined) ?? defaultCodeForStatus(status);
 
@@ -80,7 +88,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // either a stale client link or someone probing another user's resources.
       this.logger.warn(`Ownership violation: ${request.method} ${request.originalUrl} → ${code}`);
     } else if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
-      this.logger.error(message, exception instanceof Error ? exception.stack : undefined);
+      const detail = exception instanceof Error ? exception.message : String(exception);
+      this.logger.error(detail, exception instanceof Error ? exception.stack : undefined);
     }
 
     const envelope: ApiErrorEnvelope = {

@@ -55,8 +55,16 @@ describe('ApiExceptionFilter', () => {
 
       expect(status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
       expect(json).toHaveBeenCalledWith({
-        error: { code: ApiErrorCode.INTERNAL_ERROR, message: 'boom', details: {} },
+        error: { code: ApiErrorCode.INTERNAL_ERROR, message: 'Lỗi hệ thống, vui lòng thử lại sau', details: {} },
       });
+    });
+
+    it('never forwards the text of a non-HTTP error to the client', () => {
+      const { host, json } = createHost();
+      filter.catch(new Error('duplicate key value violates unique constraint "uq_segment_meeting_seq"'), host);
+      const body = JSON.stringify(json.mock.calls[0][0]);
+      expect(body).not.toContain('uq_segment_meeting_seq');
+      expect(body).not.toContain('duplicate key');
     });
 
     it('maps a validation failure to VALIDATION_ERROR', () => {

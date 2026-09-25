@@ -22,6 +22,13 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   canActivate(context: ExecutionContext) {
+    // WebSocket handlers are authenticated once, at the handshake
+    // (realtime/ws-auth.middleware.ts), and every handler reads the user from
+    // `socket.data`. This guard reads an HTTP `Authorization` header that a WS
+    // message does not have, so running it there would 500 every event.
+    if (context.getType() !== 'http') {
+      return true;
+    }
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
