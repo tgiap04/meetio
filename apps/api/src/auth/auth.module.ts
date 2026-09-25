@@ -47,6 +47,8 @@ import { JwtAuthGuard } from './jwt-auth.guard.js';
   // `GoogleAuthService`, which depends on `UsersModule`'s own repositories
   // and would otherwise create a module import cycle (file-ownership.md
   // §Rủi ro).
-  exports: [AuthService, GoogleTokenVerifier],
+  // `JwtModule` is exported for the WebSocket handshake (RealtimeModule),
+  // which verifies the same access token outside the HTTP guard.
+  exports: [AuthService, GoogleTokenVerifier, JwtModule],
 })
 export class AuthModule {}
