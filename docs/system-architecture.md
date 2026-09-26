@@ -1,7 +1,8 @@
 # Meetio — Kiến trúc hệ thống
 
-**Cập nhật:** 2026-09-26  
-**Liên quan:** [User Stories](../user_stories.md) · [Mô hình dữ liệu](data-model.md) · [Đặc tả API](api-spec.md)
+**Cập nhật:** 2026-09-27  
+**Liên quan:** [User Stories](../user_stories.md) · [Mô hình dữ liệu](data-model.md) · [Đặc tả API](api-spec.md) ·
+[Đối chiếu NFR](nfr-verification.md) · [Chính sách quyền riêng tư](privacy-policy.md)
 
 ---
 
@@ -473,3 +474,44 @@ Hạn mức theo người dùng ở [NFR-07](../user_stories.md#4-yêu-cầu-phi
 - WebSocket xác thực lúc bắt tay; `join_meeting` kiểm tra quyền sở hữu lần nữa.
 - Không ghi log nội dung transcript, câu hỏi hay prompt ở production ([NFR-04](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)).
 - Khóa API của dịch vụ AI chỉ nằm ở backend, không bao giờ nhúng vào app.
+- **Đồng ý ghi âm** thực thi ở tầng nghiệp vụ, không chỉ ở màn hình app: `POST /meetings` từ chối
+  bằng `403 CONSENT_REQUIRED` khi người gọi chưa đồng ý với phiên bản đồng ý **hiện hành**
+  (`consent.ts`, hiện là phiên bản 2) — dù đã từng đồng ý một bản cũ hơn
+  ([NFR-01](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)).
+- **Tác vụ lưu trữ** (`RetentionService`, chạy **mỗi giờ** qua BullMQ job scheduler) áp dụng
+  `users.retention_days`: 7 ngày trước hạn gửi **một** push chung mỗi người dùng ("N cuộc họp sẽ bị
+  xóa sau 7 ngày"), rồi khi tới hạn xóa cuộc họp **qua đúng luồng xóa cuộc họp thường**
+  (`MeetingDeletionService`: một transaction, khóa đồ thị, dọn thực thể mồ côi) — không phải một
+  đường xóa riêng. Cuộc họp đang `recording`/`paused` không bao giờ bị đụng tới.
+- **Payload push luôn chung chung**: chỉ id cuộc họp hoặc số lượng cuộc họp, không bao giờ tiêu đề
+  hay nội dung — payload đi qua máy chủ Expo/Apple/Google nên không được mang dữ liệu cá nhân
+  (NFR-01).
+
+---
+
+## 8. Nhật ký và giám sát
+
+- **Định dạng:** JSON, một dòng một object `{time, level, context, msg, ...trường}`. Bật theo
+  `LOG_FORMAT` — mặc định `json` khi `NODE_ENV=production`, `pretty` (chữ dễ đọc) khi không; đặt
+  thẳng `LOG_FORMAT=json`/`pretty` để ghi đè (`useJsonLogs`,
+  `apps/api/src/common/logging/json-logger.ts`).
+- **Trường theo danh sách trắng:** chỉ `event, request_id, user_id, meeting_id, step, run, attempt,
+  duration_ms, outcome, status, method, route, operation, count, error_code, tokens` được giữ lại —
+  trường khác (transcript, prompt, câu hỏi, token bí mật…) bị loại ngay cả khi vô tình đính kèm
+  ([NFR-04](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)).
+- **Lỗi** chỉ ghi **tên lỗi** (`error.name`/`constructor.name`) và **khung stack** (các dòng bắt đầu
+  `at `) — dòng thông báo lỗi đầu tiên, nơi có thể mang dữ liệu thật (giá trị Postgres, câu trả lời
+  model…), không bao giờ vào log.
+- **Mỗi request HTTP** ghi một dòng `event: "http_request"`: `request_id` (echo lại `x-request-id`
+  của client nếu khớp mẫu `[\w-]{8,64}`, ngược lại phát UUID mới và trả về qua header cùng tên),
+  `method`, `route` (mẫu route đã khớp, không phải URL — query string có thể mang câu tìm), `status`,
+  `duration_ms`, `user_id`.
+- **Mỗi bước pipeline** ghi một dòng `event: "pipeline_step"` (`meeting_id`, `step`, `run`,
+  `attempt`, `duration_ms`, `outcome`); bước lỗi ghi thêm `event: "pipeline_step_error"`
+  (`meeting_id`, `step`, `error_code`).
+- **Số liệu production** đọc thẳng từ database, không qua log:
+  `yarn workspace @meetio/api ops:metrics [days=7]` — NFR-06 (thời gian end → ready, p50/p95), thời
+  gian mỗi bước pipeline, NFR-05 (độ trễ hỏi đáp, từ `qa_messages.latency_ms`), token theo thao tác
+  trong tháng (NFR-07). Chỉ số tổng hợp — không có nội dung hay user id.
+- Đối chiếu đầy đủ 13 NFR: [nfr-verification.md](nfr-verification.md). Chính sách quyền riêng tư
+  gửi cho người dùng: [privacy-policy.md](privacy-policy.md).

@@ -521,7 +521,7 @@ Là **P1**, tôi muốn sửa tên hoặc loại của thực thể bị nhận 
 | NFR-10 | Độ tin cậy | Mọi tác vụ nền đều idempotent và thử lại được mà không sinh dữ liệu trùng. |
 | NFR-11 | Khả năng quan sát | Ghi log có cấu trúc cho từng bước pipeline kèm `meeting_id`, thời lượng, lượng token và kết quả. |
 | NFR-12 | Khả dụng | Hoạt động được với tiếng Việt, gồm tìm kiếm không dấu và hiển thị dấu đúng trên mọi phông chữ. |
-| NFR-13 | Tương thích | Android 8.0 trở lên, iOS 15 trở lên. |
+| NFR-13 | Tương thích | Android 8.0 trở lên, iOS 16.4 trở lên. (Sửa 27/09/2026 từ iOS 15: Expo SDK 57 mà app dùng yêu cầu tối thiểu iOS 16.4.) |
 
 ---
 

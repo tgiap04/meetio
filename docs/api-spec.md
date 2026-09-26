@@ -1,7 +1,7 @@
 # Meetio — Đặc tả API
 
 **Base URL:** `/api` · **Xác thực:** Bearer JWT trên mọi endpoint trừ mục 1  
-**Cập nhật:** 2026-09-26  
+**Cập nhật:** 2026-09-27  
 **Liên quan:** [User Stories](../user_stories.md) · [Kiến trúc](system-architecture.md) · [Mô hình dữ liệu](data-model.md)
 
 ---
@@ -55,6 +55,23 @@ vì hiển thị đúng thứ server đang giữ. Mọi trường `PATCH` sửa 
 duy nhất trong `notification_settings` hiện có là `meeting_ready_push` — thiếu khóa nghĩa là **bật**
 ([US-30](../user_stories.md#us-30--nhận-thông-báo-khi-phân-tích-xong)).
 
+`GET /users/me` trả thêm `usage: {used, budget, percent, warning}` — `used` là tổng token tiêu thụ
+tháng hiện tại, `budget` là hạn mức (`null` = không giới hạn), `percent` là 0–100 hoặc `null` khi
+không có hạn mức, `warning` là `true` khi đã dùng từ 80% hạn mức trở lên
+([NFR-07](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)). `user.consent_required` (trong
+`PublicUser`) là `true` khi người gọi chưa đồng ý với nội dung đồng ý **hiện hành** — phiên bản hiện
+tại là **2** — dù đã từng đồng ý một bản cũ hơn.
+
+`POST /users/me/consent` ghi `recording_consent_at = now()` và `consent_version` = phiên bản hiện
+hành, rồi trả lại cả hai (`{recording_consent_at, consent_version}`).
+
+`retention_days` (NULL = giữ vĩnh viễn) quyết định khi nào một cuộc họp bị xóa tự động: đúng
+`retention_days` ngày sau khi cuộc họp **kết thúc** (`ended_at`), hoặc sau khi được **tạo** nếu
+chưa từng kết thúc. 7 ngày trước khi xóa, người dùng nhận **một** push chung
+("N cuộc họp sẽ bị xóa sau 7 ngày") — không nêu tên cuộc họp nào. Cuộc họp đang
+`recording`/`paused` không bao giờ bị tác vụ này đụng tới. Chi tiết tác vụ:
+[Kiến trúc §7](system-architecture.md#7-bảo-mật).
+
 `DELETE /users/me` chọn credential theo **tài khoản**, không theo body: tài khoản có `password_hash`
 (kể cả đã liên kết Google) dùng `password`; tài khoản chỉ-Google dùng `google_id_token` — server so
 `sub` xác minh được với `users.google_sub` của chính người gọi. Gửi cả hai hoặc không gửi trường nào
@@ -87,6 +104,10 @@ chuyển hẳn sang tài khoản đang đăng ký — tài khoản cũ không c�
 `POST /meetings` trả về `meeting_id` **trước khi** client bật mic. Bản đặc tả cũ tạo bản ghi ở
 thời điểm kết thúc, khiến sự kiện `join_room` không có id để dùng — xem
 [vòng đời cuộc họp](system-architecture.md#1-vòng-đời-cuộc-họp).
+
+`POST /meetings` trả **403** `CONSENT_REQUIRED` (`details: {consent_version}`) khi người gọi chưa
+đồng ý với nội dung đồng ý hiện hành — kiểm tra ở tầng nghiệp vụ, không chỉ ở màn hình app
+([NFR-01](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)).
 
 `end` chỉ thành công khi seq `1..last_seq` đã nằm đủ trong PostgreSQL — server xả nốt hàng đợi
 đang gom lô rồi mới đếm. Thiếu seq nào thì trả **409** `SEGMENTS_PENDING` kèm
@@ -632,6 +653,7 @@ bị xóa), `TOKEN_EXPIRED` (server chủ động ngắt kết nối, kèm cờ 
 | `TOKEN_EXPIRED` | 401 | Access token hết hạn — client tự refresh |
 | `GOOGLE_TOKEN_INVALID` | 401 | ID token Google sai chữ ký / `iss` / `aud` / `exp` / thiếu `sub` |
 | `GOOGLE_EMAIL_UNVERIFIED` | 401 | Email trong ID token Google chưa được Google xác minh (`email_verified !== true`) |
+| `CONSENT_REQUIRED` | 403 | `POST /meetings` khi chưa đồng ý nội dung đồng ý hiện hành. `details.consent_version` |
 | `MEETING_NOT_FOUND` | 404 | Cuộc họp không tồn tại **hoặc** không thuộc sở hữu |
 | `NOT_FOUND` | 404 | Tài nguyên khác không tồn tại, hoặc route không khớp. **Mặc định cho mọi 404 chưa phân loại** |
 | `INVALID_STATE_TRANSITION` | 409 | Ví dụ gọi `end` trên cuộc họp đã `ended` |

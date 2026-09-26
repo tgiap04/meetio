@@ -3,52 +3,65 @@
   "criticalCount": 0,
   "decision": "BLOCKED",
   "acceptanceCovered": [
-    "a question about a 2-hour meeting is answered in under 5 seconds at p95 (live-check: p95 3.1s then 3.8s over 12 questions on a 120-min synthetic meeting, plans/reports/live-2026-09-26-gemini-phase-12-13.md Phase 15 section — unchanged this round)",
-    "a cross-meeting question cites sources from several meetings, each labelled with meeting name and date (retriever.ts + context-builder.ts label passages S1..Sn with meeting title/date; qa.integration.spec.ts:114-126 proves two distinct meeting_titles cited and meeting order preserved; new this round, qa.integration.spec.ts:245-259 proves the inverse — a meeting-scoped question never draws graph-expanded chunks from a different meeting even when both mention the same entity; live-check: cross-meeting question cited both meetings)",
-    "a question the meetings do not answer gets a plain not-found answer with no invented content (qa.service.ts:108-110 gates on bestSimilarity/namedEntities before any model call; qa.integration.spec.ts:104-112,138-141 assert calls.generate === 0 for an out-of-scope question; new this round, qa.integration.spec.ts:311-325 cover the not-found sentence in both English and Vietnamese; live-check: 4/4 out-of-scope correctly not found)",
-    "every citation is tappable and opens the right transcript passage; a re-cut passage is marked unavailable (qa-history.ts:42-50 alive-set check against meeting_chunks; qa.integration.spec.ts:175-183 and the renamed qa.e2e.spec.ts:95-105 ('marks a stored citation unavailable once its passage is gone') both prove available:false after the chunk is deleted; citation-chip.tsx:19-24 renders a disabled non-tappable notice instead of a live link when unavailable)",
-    "an answer without solid sources is shown with lowered confidence (answer-generator.ts:98 drops confidence to CONFIDENCE.low when no cited label is valid; qa-history.ts:67 low_confidence flag fires below 0.5; the previously any-typed monkeypatch test was rewritten this round against the real fake-Gemini path — qa.integration.spec.ts:301-309 drives an actual well-formed reply citing unknown labels S99/S100 and asserts low_confidence:true, citations:[], confidence:0.3 end to end)",
-    "follow-up questions referring to the previous turn are understood (qa.service.ts:104-106 concatenates the previous question for retrieval only, per the recorded clarification of no rewrite call; qa.integration.spec.ts:161-173 proves the concatenated search text and that the model receives the last 5 turns; live-check follow-up 'Còn anh Bình thì sao?' understood)",
-    "every retrieval query filters by user_id inside SQL and never leaks another user's data (retriever.ts:77-80 shared SCOPE fragment used by both chunkAnchors and expand; entityAnchors filters entities.user_id and, for meeting-scoped asks, entity_mentions.meeting_id; qa.integration.spec.ts:94-102, qa.integration.spec.ts:245-259 (meeting-scope isolation against graph expansion), qa.integration.spec.ts:261-277 (a merged-away entity_id 404s rather than silently resolving), and qa.e2e.spec.ts:72-82 together prove no cross-user leakage",
-    "questions are limited to 30 per hour per user (qa.controller.ts:13,25,46 @Throttle(ASK_LIMIT) on only the two POST routes, UserThrottlerGuard tracks per authenticated user id; qa.e2e.spec.ts:85-93 drives 31 requests and proves the 30th succeeds, 31st is 429, and another user is unaffected)",
-    "questions and answers are not logged (grepped apps/api/src/qa and the shared ai client/call-runner: the only log line, answer-generator.ts:77, logs a user id and attempt count only, never question/passage/answer text)"
+    "a user over their budget is blocked before any cost is incurred, proven by a test (pre-existing UsageTracker.assertWithinBudget, apps/api/src/ai/usage-tracker.ts:22-33, called at apps/api/src/ai/gemini.client.ts:85,115 before any Gemini call; privacy.e2e.spec.ts's 'blocks Q&A when user exceeds quota' case and the 0-budget test drive this end to end)",
+    "automated measurements confirm our share of NFR-05 and NFR-06 in CI (apps/api/src/perf/__tests__/perf-budgets.e2e.spec.ts:35-58 asserts segment-ack p95 < 500ms over 200 segments/10 meetings; :60-85 asserts a 600-segment/60-min meeting goes end-to-ready in < 30s with fake Gemini, and the QA server-side p95 < 1000ms)",
+    "a table covers all 13 NFRs, each row with how it was measured and the measured result (docs/nfr-verification.md; independently re-checked NFR-13's iOS 16.4 claim against node_modules/expo-modules-core/ExpoModulesCore.podspec — accurate; NFR-04 and NFR-03 rows rewritten this round to state precisely what is and isn't proven, see below)",
+    "the privacy policy is readable in the app and states correctly where data goes (apps/mobile/src/content/privacy-policy.ts + privacy-policy.test.ts's word-sequence drift test against docs/privacy-policy.md; data-flow table matches actual system components; the TLS claim in §6, previously contradicted by NFR-03's own status, now carries an explicit pre-release gate in the doc's internal callout — 'chỉ công bố bản này khi máy chủ production đã chỉ nhận HTTPS' — cross-linked from the NFR-03 row, and the drift test's line-filter (strips lines starting with '>') confirms this callout never reaches the in-app text)",
+    "recording is refused server-side until the current consent text is accepted, including for users who accepted an older version (apps/api/src/meetings/meetings.service.ts:40-49 checks users.consent_version via consentRequired() before creating a meeting; privacy.e2e.spec.ts:38-53 proves both never-consented and v1-consented users get 403 CONSENT_REQUIRED, and succeed after POST /users/me/consent bumps to v2)",
+    "meetings past the user's retention period are deleted, with one generic reminder 7 days before, and live meetings are never touched (apps/api/src/jobs/retention.job.ts: DUE expression matches the recorded design; announce()'s (now, now+7d] window and apply()'s <= now window are mutually exclusive by construction; both filter m.status NOT IN ('recording','paused'); privacy.e2e.spec.ts proves announce-once, delete-when-due, live-meeting survival, NULL-retention keep-forever, created_at fallback when never ended, soft-deleted meetings untouched, and — new this round — a real Postgres BEFORE DELETE trigger blocking one of three overdue meetings proves the sweep continues past a real failure ('keeps sweeping when one deletion fails', not a vacuous case)",
+    "scanning server logs finds no transcript text, prompts, questions, answers or tokens (apps/api/src/common/logging/json-logger.ts allowlists structured fields at :10-13; the free-text msg/stack channel is now filtered too — new apps/api/src/common/logging/log-error.ts's errorCode() returns only the error's name and stackFrames() keeps only '^\\s+at\\s' lines, dropping the message line where data could hide; every call site that used to interpolate error.message/error.stack/String(error) (pipeline-engine.ts, pipeline-events.adapter.ts, extract-step.handler.ts, summary-generator.ts, extraction-schema.ts, retention.job.ts, meeting-ready.notifier.ts, api-exception.filter.ts) was rewritten to stop doing so, verified by reading each diff. NEW ADVERSARIAL PROOF this round: privacy.e2e.spec.ts:241-267 drives a real FakeGeminiServer (confirmed by reading test-support/e2e-app.ts and fake-gemini-server.ts, not a mock of internals) to (a) return an HTTP 400 whose message embeds a marker string, forcing extract to fail for good, and (b) return an entity with a marker-carrying 'type' value, forcing a schema-error retry-then-skip — then scans the whole log for 'pipeline_step_error' (present) and all four marker/secret strings (absent). json-logger.spec.ts:25-38 adds matching unit coverage for an Error whose message carries content, passed both as the second arg to .error() and as the message to .warn(). docs/nfr-verification.md's NFR-04 row now states the precise, honest scope of this guarantee: allowlisted fields + name-only errors + stack frames only, verified by a success-path AND a failure-path e2e scan, explicitly NOT a mechanical filter on free-text messages — call-site discipline is what's being verified, and that's exactly what the two test suites check. This is an accurate claim, not an overclaim.)"
   ],
   "regressionChecked": [
-    "MEDIUM finding from the prior round (mobile duplicate-message bug) verified fixed: use-qa-thread.ts:66-69 now computes `known = new Set(history.items.map(m => m.id))` and filters sentMessages against it before combining, so a history refetch that already contains a just-sent turn (e.g. the app foregrounding mid-thread) no longer renders it twice. New test use-qa-thread.test.tsx:98-117 ('shows a sent turn once when a history refetch ... already contains it') re-renders with a history page containing the sent question/answer pair and asserts items are exactly ['q1','a1'] — traced the assertion against the actual filter logic, not just the test's own mock: without the `known` filter this would produce ['q1','a1','q1','a1'], matching what I originally found.",
-    "New: qa.integration.spec.ts:187-200 proves the budget-exhaustion path end to end — a user with monthly_token_budget=10 and 10 tokens already recorded in usage_records gets a 429 HttpException with code QUOTA_EXCEEDED from askGlobal, AND qa.history afterward is empty, proving the transaction genuinely never partially commits a question/answer pair when the AI call is rejected before generation.",
-    "New: qa.integration.spec.ts:279-299 replace what were previously any-typed monkeypatches of private internals with real fake-Gemini reply sequences — 'not even json' then a malformed JSON object then a valid one correctly retries 3 times and stores the eventual good answer; three consecutive malformed replies correctly exhausts ANSWER_ATTEMPTS, throws 503, and — like the quota case — leaves qa.history empty. This closes a gap from the first round: I had not previously seen the schema-retry path proven against the real parseAnswer/generateText loop rather than a mocked one.",
-    "New: qa.integration.spec.ts:202-225 (unit-level) and qa.e2e.spec.ts:107-120 (HTTP-level) both drive three-plus questions and walk the `before` cursor across multiple pages, confirming next_before chains correctly and the final page's next_before is null — the pagination contract (created_at, id) tuple ordering holds under a real multi-page walk, not just a single boundary check.",
-    "New: qa.integration.spec.ts:227-243 proves DELETE /meetings/:id/qa only clears that meeting's thread — a second meeting's history is untouched, closing a gap the first round did not explicitly check (only single-thread clear/read had been proven before).",
-    "Renamed-not-rewritten: qa.e2e.spec.ts:95 ('marks a stored citation unavailable once its passage is gone') is the same assertion as the prior round's misnamed version — confirmed the test body is unchanged beyond the name, so this is a naming fix, not new coverage.",
-    "Removed: a duplicate dayBound unit test and a vacuous budget-truncation test (only one chunk ever in scope, so truncation was never exercised) were deleted; qa-core.spec.ts:18-32 already covers the real truncation case (a 5000-word chunk forced against a 100-token budget) so no coverage was lost.",
-    "temper-results.json read directly, all real exit codes: 8/8 pass — api unit 387 (+10 from last round), e2e 130 (+3), schema 5, mobile 1051 (+1, the new use-qa-thread dedup test), both typechecks and eslint --max-warnings=0 clean."
+    "consent bypass via other routes: verified again this round — no change since last pass. MeetingSegmentsController.bulk and the realtime segment-ingest handler carry no consent check by design (consent gates only creating a NEW recording, POST /meetings, and no other route creates one)",
+    "mobile gate correctness: unchanged since last pass — index.tsx gates on consent_required, axios-client.ts adds a global 403 redirect, both covered by tests",
+    "the ownership-violation log line (api-exception.filter.ts:90) was changed from request.originalUrl to request.route?.path ?? request.path as part of this round's fix — this closes a leak path I had not flagged in the first pass (a query string on a rejected cross-user request could have carried a search term); verified the new code reads the route pattern, not the raw URL",
+    "the retention 'no push token' test was previously asserting on push.received globally in a shared-DB e2e suite where the sweep covers every user; rewritten this round to scope its assertion to its own two meeting ids via WHERE id = ANY($1::uuid[]) — correct fix for a test-isolation bug, verified by reading the query",
+    "request-logging.interceptor.spec.ts (new) has zero `any` casts (checked directly, not just described) and adds a CRLF header-injection case; the interceptor's existing REQUEST_ID regex (anchored ^...$, charset \\w-) already rejected it, now proven by test rather than assumed",
+    "temper-results.json read directly, all real exit codes: 8/8 pass — api unit 402 (+10 from prior verdict), e2e 145 (+9), schema 5, mobile 1086 (unchanged), both typechecks and eslint --max-warnings=0 clean"
   ],
   "contractStatus": "OK",
   "refuted": [],
   "unproven": [
-    "The plan's own acceptance criterion for a golden set of 30 questions over 10 real meetings (>=90% citation accuracy, zero hallucination) still has not been run and cannot be run without real user data — honestly recorded as not done in phase-15-graphrag-qa.md's 'Thiết kế thi công' closing line, unchanged from the prior round. The live-check script substitutes two synthetic meetings and is directional evidence only, not a substitute for the plan's own stated acceptance bar."
+    "NFR-01: docs/privacy-policy.md still has legal entity name/address/contact/server-location left blank, explicitly flagged in the doc itself as needed before release — needs real legal input, not code",
+    "NFR-13: the iOS 16.4-floor-vs-Expo-SDK-57 decision is correctly identified as open in the doc but not made in this diff",
+    "NFR-02/05/08 device-side speech recognition timing and translation depend on Phase 00/07/09, correctly deferred and honestly marked pending rather than claimed done",
+    "TLS deployment itself (NFR-03) is still not done — this is no longer an inconsistency (the policy now explicitly gates its own publication on it), but the underlying infra work remains outstanding and outside this diff's scope"
   ],
   "reachableRegressions": [],
   "findings": [
     {
-      "severity": "Medium",
-      "category": "Logic",
-      "location": "apps/mobile/src/hooks/use-qa-thread.ts:66-69",
-      "summary": "(Fixed this round, re-confirmed.) Rendered thread items now dedup sentMessages against history.items by id before combining, closing the duplicate-bubble bug from a background/foreground refetch mid-thread. Covered by use-qa-thread.test.tsx:98-117.",
+      "severity": "High",
+      "category": "Data leakage",
+      "location": "apps/api/src/pipeline/pipeline-engine.ts:115-118",
+      "summary": "(Fixed this round, re-confirmed.) Step-failure logging no longer interpolates error.stack/message into a free-text string; now logs a structured {event:'pipeline_step_error', error_code} field plus stackFrames(error) (message line stripped). New log-error.ts (errorCode/stackFrames) is applied consistently across every call site that previously leaked. Adversarial e2e (privacy.e2e.spec.ts:241-267) drives a real fake-Gemini provider error and a real malformed-model-value failure and proves neither reaches the log. Residual, correctly-acknowledged limitation: this is call-site discipline backed by a test, not a structural guarantee — a future call site could still build a content-bearing string directly. nfr-verification.md's NFR-04 row states this scope honestly rather than overclaiming a mechanical filter.",
       "disposition": "Accept"
     },
     {
-      "severity": "Low",
-      "category": "Structure",
-      "location": "apps/api/src/qa/answer-generator.ts:20",
-      "summary": "Unchanged from last round, not asked for: CONFIDENCE.low (0.3) and qa-history.ts's LOW_CONFIDENCE (0.5) live in separate files with no cross-reference comment; the invariant that an invalid-citation answer always ends up flagged low_confidence depends on 0.3 < 0.5 holding across both. Correct today, still fragile to a future one-sided edit.",
+      "severity": "High",
+      "category": "Security",
+      "location": "docs/privacy-policy.md:7-8",
+      "summary": "(Fixed this round, re-confirmed.) The TLS claim in §6 is now explicitly gated by a pre-release callout ('chỉ công bố bản này khi máy chủ production đã chỉ nhận HTTPS...'), cross-linked from nfr-verification.md's NFR-03 row. The drift test's line-filter (strips '>'-prefixed lines) keeps this callout out of the in-app screen, verified by reading privacy-policy.test.ts's stripMarkdownChrome.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Query efficiency",
+      "location": "apps/api/src/jobs/retention.job.ts:37-43",
+      "summary": "Unchanged from prior round, not asked for: retention sweep's WHERE/ORDER BY on a computed date expression plus a status NOT IN filter has no supporting index; low risk today (hourly maintenance job) but will full-scan meetings/users as volume grows.",
+      "disposition": "Defer"
+    },
+    {
+      "severity": "Medium",
+      "category": "Error boundaries",
+      "location": "apps/api/src/jobs/retention.job.ts:75-93",
+      "summary": "Unchanged from prior round, not asked for: the one retention-notice push is claimed (retention_notified_at set) atomically before the push is attempted; if the Expo push itself throws, the meeting is marked notified and never retried, so a user can have a meeting deleted having never actually received the promised 7-day warning, surfaced only as a log line.",
       "disposition": "Defer"
     },
     {
       "severity": "Low",
-      "category": "Query efficiency",
-      "location": "apps/api/src/qa/retriever.ts:113-121",
-      "summary": "Unchanged from last round, not asked for: per-line diacritics normalization in entityAnchors scales with ENTITY_ANCHORS x lines of search text; negligible at the current 2-line (question + previous question) follow-up design.",
+      "category": "Structure",
+      "location": "apps/api/scripts/ops-metrics.mjs:14",
+      "summary": "Unchanged from prior round, not asked for: CLI arg (process.argv[2]) is interpolated directly into a raw SQL template string rather than bound as a parameter; not attacker-reachable (local ops tool, developer-supplied arg) but worth binding on principle.",
       "disposition": "Defer"
     }
   ]

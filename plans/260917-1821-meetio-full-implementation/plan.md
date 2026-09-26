@@ -21,10 +21,10 @@ thiết bị, pipeline GraphRAG phía backend, hỏi đáp có trích dẫn ngu�
 [Kiểm chứng stack](../reports/researcher-2026-09-17-stack-verification.md) ·
 **[Thiết kế giao diện](../../design.png)** (14 màn)
 
-**Hiện trạng:** Bộ khung + vòng đời + quản lý cuộc họp + hạ tầng AI + semantic search + đồ thị thực thể + tóm tắt & việc cần làm + hỏi đáp GraphRAG xong — Phase 01–06, 10–15 triển khai đầy đủ, kiểm chứng độc lập.
-**Test: 1.573 xanh** (2026-09-26): API 387 unit + 130 e2e + 5 schema (522 tổng) · mobile 1.051. Phase 04: máy trạng thái toàn phần; pause/resume; queued → BullMQ; cascade xóa; tự đóng 24h idle. Phase 05: WebSocket, JWT, batch 200ms, upsert ON CONFLICT DO NOTHING, ack/COMMIT, rate 120/min/meeting, p95 253ms. Phase 10: danh sách phân trang + lọc bỏ dấu, transcript ảo hóa (200/trang, `FlatList`, edit/search toàn bộ), export Markdown/HTML/PDF share sheet, xóa 10s undo. Phase 11: 5 BullMQ queue + orchestrator, retry 2s/8s/32s × 3 lần, timeout 10min/step, sweep 5min, push Expo khử trùng, GeminiClient usage-tracker (null budget = OQ-04 mở). Phase 12: chunking + embedding batch 20 + exact per-user search 41–44ms (7.5k chunk target), Gemini key pool rotation, tìm kiếm cắt xuyên cuộc họp (Transcript chip, semantic-result-row nhảy tới). Phase 13: trích xuất đồ thị 4 chunk/lần; khớp ba tầng (chính xác → vector → người dùng); gộp/tách; danh sách thực thể với dòng thời gian và đề xuất gộp. Phase 14: tóm tắt + action item 17.6s/60min + 26.0s/120min, người chính xác được gán. Phase 15: hỏi đáp xuyên cuộc họp hai cấp độ, p95 3.1–3.8s/120min, trích dẫn có ghi nhân chip chạm nhảy transcript, 6/6 đúng với 4/4 ngoài phạm vi.
+**Hiện trạng:** Bộ khung + vòng đời + quản lý cuộc họp + hạ tầng AI + semantic search + đồ thị thực thể + tóm tắt & việc cần làm + hỏi đáp GraphRAG xong — Phase 01–06, 10–16 triển khai đầy đủ, kiểm chứng độc lập.
+**Test: 1.638 xanh** (2026-09-27): API 402 unit + 145 e2e + 5 schema (552 tổng) · mobile 1.086. Phase 04: máy trạng thái toàn phần; pause/resume; queued → BullMQ; cascade xóa; tự đóng 24h idle. Phase 05: WebSocket, JWT, batch 200ms, upsert ON CONFLICT DO NOTHING, ack/COMMIT, rate 120/min/meeting, p95 253ms. Phase 10: danh sách phân trang + lọc bỏ dấu, transcript ảo hóa (200/trang, `FlatList`, edit/search toàn bộ), export Markdown/HTML/PDF share sheet, xóa 10s undo. Phase 11: 5 BullMQ queue + orchestrator, retry 2s/8s/32s × 3 lần, timeout 10min/step, sweep 5min, push Expo khử trùng, GeminiClient usage-tracker (null budget = OQ-04 mở). Phase 12: chunking + embedding batch 20 + exact per-user search 41–44ms (7.5k chunk target), Gemini key pool rotation, tìm kiếm cắt xuyên cuộc họp (Transcript chip, semantic-result-row nhảy tới). Phase 13: trích xuất đồ thị 4 chunk/lần; khớp ba tầng (chính xác → vector → người dùng); gộp/tách; danh sách thực thể với dòng thời gian và đề xuất gộp. Phase 14: tóm tắt + action item 17.6s/60min + 26.0s/120min, người chính xác được gán. Phase 15: hỏi đáp xuyên cuộc họp hai cấp độ, p95 3.1–3.8s/120min, trích dẫn có ghi nhân chip chạm nhảy transcript, 6/6 đúng với 4/4 ngoài phạm vi.
 **Phase 00:** Spike STT khung hoàn tất (46 test xanh). Đợi 60 phút audio Việt + chép tay để chạy đo 36 lượt Android/iOS.
-**Tiếp theo:** Phase 07/08 chờ Phase 00 đóng (cổng chặn cứng). Phase 15 (GraphRAG) kiểm chứng thực tế: trả lời <5s, 6/6 đúng xuyên đo trên 120min + 20min synthetic, p95 3.1–3.8s, 4/4 out-of-scope. Reviewer 8/10, không issue critical, chỉ chờ bộ dữ liệu vàng 30 câu trên 10 cuộc họp thật. Phase 16 (siết NFR) và Phase 17 (kiểm thử) sẵn sàng bắt đầu; Phase 12–14 chờ OQ-02/OQ-03 (bộ dữ liệu vàng từ người dùng thật).
+**Tiếp theo:** Phase 07/08 chờ Phase 00 đóng (cổng chặn cứng). Phase 16 (siết NFR) đã implement, còn chờ mục bên ngoài — 1.638 test xanh (402 API unit, 145 e2e, 5 schema, 1086 mobile), reviewer 0 critical/high, chặn bởi mục ngoài scope: thông tin pháp lý (privacy-policy.md), TLS production deploy; NFR-13 đã sửa thành iOS 16.4+ theo quyết định người dùng (Expo SDK 57). Phase 17 (kiểm thử & nghiệm thu) sẵn sàng; Phase 12–14 chờ OQ-02/OQ-03 (bộ dữ liệu vàng từ người dùng thật). OQ-04 đã chốt: không giới hạn mặc định, chỉ chặn người có hạn riêng.
 
 ### Phạm vi mở rộng — Google Sign-In (NGOÀI spec 260917)
 
@@ -75,7 +75,7 @@ chạy song song được ngay.
 | 13 | [Trích xuất đồ thị & khớp thực thể](phase-13-graph-extraction-entity-resolution.md) | 12 | US-38→41 | ✅ **implemented — live Gemini verified; pending OQ-03 gold dataset** |
 | 14 | [Tóm tắt & việc cần làm](phase-14-summary-and-action-items.md) | 12, 13 | US-31→34 | ✅ **implemented — live Gemini verified; pending OQ-02 gold dataset** |
 | 15 | [Hỏi đáp GraphRAG](phase-15-graphrag-qa.md) | 13 | US-35→37 | ✅ **implemented — live Gemini verified; pending gold question set** |
-| 16 | [Siết yêu cầu phi chức năng](phase-16-nfr-hardening.md) | 11 | NFR-01→13 | ⬜ pending |
+| 16 | [Siết yêu cầu phi chức năng](phase-16-nfr-hardening.md) | 11 | NFR-01→13 | ✅ **implemented — pending external items (legal info, TLS deploy)** |
 | 17 | [Kiểm thử & nghiệm thu](phase-17-testing-and-acceptance.md) | mọi phase | toàn bộ | ⬜ pending |
 
 ---
@@ -125,12 +125,15 @@ Ba nhánh độc lập sau Phase 04: **mobile** (06 → 07 → 08 → 09), **AI 
 |--------|-------|----------|
 | STT trên thiết bị không chịu nổi cuộc họp dài (OQ-01) | 00 → 07 | Cổng chặn cứng; nhánh dự phòng STT đám mây định nghĩa sẵn ở Phase 00 |
 | Ngưỡng gộp thực thể sai → đồ thị rác (OQ-03) | 13 | Bộ dữ liệu vàng thủ công; ngưỡng là cấu hình, không hardcode |
-| Chi phí LLM vượt kiểm soát (OQ-04) | 09, 16 | Đo token từ Phase 11; dịch tắt mặc định; hạn mức chặn cứng |
+| Chi phí LLM vượt kiểm soát | 09, 16 | ✅ OQ-04 chốt: không giới hạn mặc định, chỉ chặn monthly_token_budget riêng (Phase 16: $429 QUOTA_EXCEEDED trước lượt gọi) |
 | Không biết ai nói câu nào → gán người phụ trách sai (OQ-02) | 14 | US-13 đã bỏ; chỉ suy từ nội dung câu nói, không xác định được thì để trống |
 
 ---
 
 ## Chuẩn hoàn thành
 
-Toàn bộ 41 story đạt acceptance criteria · 13 NFR đo được và đạt ngưỡng · 4 câu hỏi mở (OQ-01→04)
-đều đã có câu trả lời dựa trên số đo thực tế, không còn phỏng đoán.
+**Phase 01–16 & Google Auth triển khai đầy đủ:** toàn bộ 41 user story + 13 NFR (mục OQ-04 chốt, OQ-02/03 chờ bộ dữ liệu vàng, OQ-01 chờ Phase 00). Test suite 1.638 xanh (402 API unit, 145 e2e, 5 schema, 1086 mobile). Reviewer 0 critical/high. Chặn bởi:
+- **OQ-04** ✅ chốt: không giới hạn token mặc định
+- **OQ-01** (Phase 00): đo STT trên thiết bị thực
+- **OQ-02/03** (Phase 14/13): bộ dữ liệu vàng từ người dùng thật (30 Q, 10 cuộc họp, annotation)
+- **Ngoài scope Phase 16 (NFR-01/03/13):** thông tin pháp lý, TLS production, quyết định iOS

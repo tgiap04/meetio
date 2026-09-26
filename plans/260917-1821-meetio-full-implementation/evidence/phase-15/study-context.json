@@ -1,0 +1,41 @@
+{
+  "task": "Phase 15: GraphRAG question answering — parallel anchors (chunks by exact vector scan, entities by accent-aware name match and vector), one-hop graph expansion, context ranking and budget, a no-context gate that skips the model, cited answers with confidence, conversation history with follow-up retrieval, meeting and global endpoints with date and entity filters, per-user rate limit, and the mobile chat screens with citation chips",
+  "mode": "interactive",
+  "acceptanceCriteria": [
+    "a question about a 2-hour meeting is answered in under 5 seconds at p95",
+    "a cross-meeting question cites sources from several meetings, each labelled with meeting name and date",
+    "a question the meetings do not answer gets a plain not-found answer with no invented content",
+    "every citation is tappable and opens the right transcript passage; a re-cut passage is marked unavailable",
+    "an answer without solid sources is shown with lowered confidence",
+    "follow-up questions referring to the previous turn are understood",
+    "every retrieval query filters by user_id inside SQL and never leaks another user's data",
+    "questions are limited to 30 per hour per user",
+    "questions and answers are not logged"
+  ],
+  "touchpoints": [
+    "apps/api/src/qa/",
+    "apps/api/src/ai/ai-http-error.ts",
+    "apps/api/src/search/search.service.ts",
+    "apps/api/src/graph/name-normalizer.ts",
+    "apps/api/src/database/migrations/1758000000018-AddQaAnswerState.ts",
+    "apps/api/src/database/entities/qa-message.entity.ts",
+    "apps/api/src/app.module.ts",
+    "apps/api/scripts/qa-live-check.mjs",
+    "apps/api/src/test-support/",
+    "packages/shared/src/qa/",
+    "apps/mobile/"
+  ],
+  "blastRadius": [
+    "qa_messages gains not_found and filters",
+    "normalizeEntityName gains a keepDiacritics option (default behaviour unchanged)",
+    "search.service now uses the shared aiErrorToHttp mapper",
+    "fake Gemini server dispatches question-answering prompts",
+    "mobile meeting detail, entity detail and Home gain entry points to chat"
+  ],
+  "contracts": [
+    "api-spec section 6 question answering endpoints",
+    "packages/shared qa types",
+    "QA_MIN_SIMILARITY environment variable",
+    "qa_messages schema"
+  ]
+}

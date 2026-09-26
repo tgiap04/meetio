@@ -1,7 +1,7 @@
 # Meetio — Mô hình dữ liệu
 
 **Cơ sở dữ liệu:** PostgreSQL 15+ với extension `pgvector` và `unaccent`  
-**Cập nhật:** 2026-09-26  
+**Cập nhật:** 2026-09-27  
 **Liên quan:** [User Stories](../user_stories.md) · [Kiến trúc](system-architecture.md) · [API](api-spec.md)
 
 ---
@@ -34,6 +34,7 @@
 | `display_name` | TEXT | |
 | `retention_days` | INT | NULL = giữ vĩnh viễn ([US-06](../user_stories.md#us-06--xem-và-đặt-chính-sách-lưu-trữ)) |
 | `recording_consent_at` | TIMESTAMPTZ | Mốc xác nhận đã thông báo cho người tham dự ([US-04](../user_stories.md#us-04--thông-báo-và-ghi-nhận-sự-đồng-ý-ghi-âm)) |
+| `consent_version` | INT | Phiên bản nội dung đồng ý đã chấp nhận; NULL = chưa từng đồng ý. Cột thêm ở phase 16 — người đã đồng ý trước đó được backfill thành `1`; phiên bản hiện hành là `2`. Thấp hơn phiên bản hiện hành thì `PublicUser.consent_required` trả `true` và `POST /meetings` từ chối bằng `CONSENT_REQUIRED` |
 | `monthly_token_budget` | BIGINT | [NFR-07](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr) |
 | `notification_settings` | JSONB | Mặc định `{}`. Bản đặc tả cũ cho `PATCH /users/me` sửa "cài đặt thông báo" nhưng không có cột nào lưu — client ghi được mà không đọc lại được |
 | `created_at` / `updated_at` / `deleted_at` | TIMESTAMPTZ | `deleted_at` phục vụ xóa mềm 30 ngày ([US-05](../user_stories.md#us-05--xóa-tài-khoản-và-toàn-bộ-dữ-liệu)) |
@@ -94,6 +95,7 @@ hẳn quyền sở hữu — tài khoản trước đó ngừng nhận push trê
 | `pipeline_started_at` | TIMESTAMPTZ | Lúc lượt chạy hiện tại bắt đầu |
 | `pipeline_changed_since` | TIMESTAMPTZ | Lúc lượt chạy **trước** bắt đầu; đoạn nào sửa sau mốc này mới bị lượt `changed` xử lý lại |
 | `ready_notified_at` | TIMESTAMPTZ | Claim một lần bằng UPDATE có điều kiện, đảm bảo push "đã xử lý xong" chỉ gửi đúng một lần mỗi cuộc họp ([US-30](../user_stories.md#us-30--nhận-thông-báo-khi-phân-tích-xong)) |
+| `retention_notified_at` | TIMESTAMPTZ | Claim một lần bằng UPDATE có điều kiện (tác vụ lưu trữ, §7) — push "sắp bị xóa sau 7 ngày" đã gửi, không gửi lại. Cột thêm ở phase 16 |
 | `created_at` / `updated_at` / `deleted_at` | TIMESTAMPTZ | |
 
 ```sql
@@ -332,7 +334,7 @@ thêm vì AI không bao giờ tạo lại nó.
 `id` UUID PK · `user_id` FK · `meeting_id` FK NULL (NULL = hỏi xuyên cuộc họp, một luồng toàn cục
 dùng chung cho mọi câu hỏi không gắn cuộc họp) · `role` enum(`user`,`assistant`) · `content` TEXT ·
 `citations` JSONB NULL · `confidence` REAL NULL · `not_found` BOOLEAN NOT NULL DEFAULT false ·
-`filters` JSONB NULL · `tokens_used` INT NULL · `created_at`
+`filters` JSONB NULL · `tokens_used` INT NULL · `latency_ms` INT NULL · `created_at`
 
 ```sql
 CREATE INDEX idx_qa_user_meeting ON qa_messages (user_id, meeting_id, created_at);
@@ -352,6 +354,10 @@ vẫn hiển thị đúng tên/ngày cuộc họp cũ dù cuộc họp đó đ�
 **không** lưu trong JSONB này — nó được tính lại ở mỗi lần đọc, bằng cách đối chiếu `chunk_id` với
 `meeting_chunks` còn tồn tại (và cuộc họp chưa xóa): `true` nếu đoạn còn đó, `false` nếu transcript
 đã được sửa và cắt lại từ đó nên đoạn trích đã mất.
+
+`latency_ms`: đặt ở tin nhắn `assistant`, tổng thời gian từ lúc nhận câu hỏi tới lúc trả lời xong.
+Cột thêm ở phase 16 để theo dõi [NFR-05](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr) ở
+production qua `yarn workspace @meetio/api ops:metrics`.
 
 ---
 
@@ -382,4 +388,4 @@ Ràng buộc duy nhất trên `(meeting_id, step)` là thứ khiến việc ch�
 | Xóa cuộc họp | CASCADE: segments, chunks, mentions, relations, action items, qa_messages, jobs |
 | Sau khi xóa cuộc họp | Thực thể không còn `entity_mention` nào → xóa nốt. Còn mention ở cuộc họp khác → giữ nguyên ([US-26](../user_stories.md#us-26--xóa-cuộc-họp)) |
 | Xóa tài khoản | Đặt `deleted_at`, chặn đăng nhập ngay; xóa vật lý sau 30 ngày qua tác vụ định kỳ. `push_tokens` CASCADE theo `user_id` — thiết bị ngừng nhận push ngay khi tài khoản bị xóa vật lý |
-| Hết hạn lưu trữ | Tác vụ hằng ngày xóa cuộc họp quá `retention_days`, có thông báo trước 7 ngày |
+| Hết hạn lưu trữ | Tác vụ **mỗi giờ**: cuộc họp quá `retention_days` (tính từ `ended_at`, hoặc `created_at` nếu chưa kết thúc) bị xóa qua đúng luồng xóa cuộc họp ở dòng đầu bảng này; 7 ngày trước hạn, `retention_notified_at` được đặt và gửi một push chung. Cuộc họp đang `recording`/`paused` không bao giờ bị đụng tới |

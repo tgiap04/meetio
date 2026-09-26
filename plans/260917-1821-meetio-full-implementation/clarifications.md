@@ -53,3 +53,10 @@
 - Q: Lối vào hỏi đáp khi chưa có design? → A: Nút nổi "Hỏi AI" ở màn chi tiết cuộc họp (chat trong cuộc họp); dòng "Hỏi AI về các cuộc họp" trên Home (chat toàn cục); nút "Hỏi về thực thể này" ở màn chi tiết thực thể (US-39)
 - Q: Hiểu câu hỏi nối tiếp thế nào? → A: Tìm ngữ cảnh bằng câu hiện tại ghép câu hỏi liền trước; model trả lời nhận thêm 5 lượt gần nhất; không gọi thêm model để viết lại câu hỏi
 - Q: Lịch sử hỏi xuyên cuộc họp? → A: Một luồng toàn cục; bộ lọc thời gian / thực thể áp cho từng câu và hiện dạng nhãn trên câu đó; xóa được
+
+## Session 2026-09-27 (Phase 16)
+- Q: OQ-04 — hạn mức token AI mặc định mỗi người dùng mỗi tháng? → A: Không giới hạn mặc định; chỉ chặn người được đặt hạn mức riêng (monthly_token_budget); cảnh báo 80% cho người có hạn mức
+- Q: Màn đồng ý nói sai ("lưu bản ghi âm") và không nêu việc gửi transcript sang Google Gemini (NFR-01)? → A: Sửa nội dung cho đúng (âm thanh không rời máy; văn bản gửi về máy chủ Meetio và Google Gemini để xử lý AI) và tăng phiên bản đồng ý — người đã đồng ý bản cũ phải đồng ý lại trước khi ghi
+- Q: Cuộc họp đến hạn lưu trữ (retention_days)? → A: Xóa hẳn như người dùng tự xóa; báo trước 7 ngày bằng push một lần; tính từ lúc cuộc họp kết thúc
+- Q: Bộ đo hiệu năng NFR-05/06 trong CI khi không có khóa Gemini? → A: CI đo phần của hệ thống với Gemini giả (hỏng thì gãy build); số đo có Gemini thật chạy bằng script (graph:check, qa:check) và ghi vào bảng NFR
+- Q: NFR-13 yêu cầu iOS 15+ nhưng Expo SDK 57 bắt buộc iOS 16.4+? → A: Nâng yêu cầu lên iOS 16.4+ (sửa user_stories.md NFR-13); không hạ Expo SDK
