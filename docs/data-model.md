@@ -1,7 +1,7 @@
 # Meetio — Mô hình dữ liệu
 
 **Cơ sở dữ liệu:** PostgreSQL 15+ với extension `pgvector` và `unaccent`  
-**Cập nhật:** 2026-09-25  
+**Cập nhật:** 2026-09-26  
 **Liên quan:** [User Stories](../user_stories.md) · [Kiến trúc](system-architecture.md) · [API](api-spec.md)
 
 ---
@@ -144,6 +144,9 @@ lần cũng chỉ sinh một bản ghi ([US-14](../user_stories.md#us-14--không
 | `token_count` | INT, NULL | Số token thật từ Gemini `countTokens`, ghi cùng lúc với `embedding`. NULL = đã cắt đoạn, chưa nhúng |
 | `embedding` | vector(768), NULL | `gemini-embedding-001`, đã chuẩn hoá L2. NULL = đã cắt đoạn, chưa nhúng |
 | `content_hash` | TEXT | sha256 của `"start:end:content"` — giữ nguyên id/embedding/trích dẫn của chunk không đổi khi chạy lại |
+| `extraction` | JSONB, NULL | `{entities[], relations[]}` bước `extract` trả về cho chunk này (phase 13). NULL: chưa xử lý, **hoặc** đã xử lý nhưng model trả sai schema 3 lần liền nên chunk bị bỏ qua — phân biệt hai trường hợp bằng `extracted_at` |
+| `extracted_at` | TIMESTAMPTZ, NULL | Lúc bước `extract` xử lý xong chunk này (dù có `extraction` hay không). NULL = còn chờ xử lý |
+| `resolved_at` | TIMESTAMPTZ, NULL | Lúc bước `resolve` đã gắn `extraction` của chunk này vào đồ thị (tạo/khớp entity, ghi mention/relation). NULL = còn chờ, hoặc chunk chưa `extracted_at` |
 | `created_at` | TIMESTAMPTZ | |
 
 ```sql
@@ -152,6 +155,13 @@ CREATE INDEX idx_chunks_embedding ON meeting_chunks
 CREATE INDEX idx_chunks_user ON meeting_chunks (user_id);
 CREATE UNIQUE INDEX uq_chunks_meeting_hash ON meeting_chunks (meeting_id, content_hash);
 ```
+
+`extracted_at IS NULL` chọn nhóm chunk kế tiếp cho bước `extract` (4 chunk/lần gọi Gemini, xem
+[system-architecture.md §3](system-architecture.md#3-luồng-2--pipeline-phân-tích)); `extracted_at IS
+NOT NULL AND resolved_at IS NULL` chọn chunk kế tiếp cho bước `resolve` (từng chunk một, có khóa
+advisory theo người dùng). Một lượt `changed` chỉ cắt lại đúng chunk bị đoạn sửa chạm tới
+(`content_hash` đổi → hàng mới → cả ba cột này lại NULL), nên retry chỉ trả tiền cho phần thật sự
+đổi.
 
 Cột `user_id` được nhân bản ở đây là cố ý: truy vấn tương đồng vector cần lọc quyền **ngay trong**
 câu lệnh tìm kiếm. Bắt nó join ngược về `meetings` để lọc sẽ phá hỏng hiệu quả của index HNSW.
@@ -180,7 +190,8 @@ Thực thể chuẩn, dùng chung cho mọi cuộc họp của một người d�
 | `normalized_name` | TEXT | Bỏ dấu, thường hóa, bỏ kính ngữ — dùng để khớp chính xác |
 | `type` | entity_type | enum: `person`/`project`/`organization`/`topic`/`product`/`other` |
 | `description` | TEXT | Do AI sinh, gộp dần qua các lần nhắc |
-| `aliases` | TEXT[] | Các tên đã được gộp vào ([US-40](../user_stories.md#us-40--gộp-các-thực-thể-bị-trùng)) |
+| `aliases` | TEXT[] | Các tên đã được gộp vào, giữ nguyên dạng gốc để hiển thị ([US-40](../user_stories.md#us-40--gộp-các-thực-thể-bị-trùng)) |
+| `normalized_aliases` | TEXT[] | Bản chuẩn hóa song song của `aliases` (phase 13) — tier khớp chính xác so khớp `normalized_name` **hoặc** bất kỳ phần tử nào ở đây, nên một thực thể đổi tên hay được gộp vẫn được nhận ra ở lần nhắc sau bằng tên cũ |
 | `embedding` | vector(768) | Nhúng từ tên + mô tả |
 | `is_user_edited` | BOOLEAN | True thì pipeline không được ghi đè ([US-41](../user_stories.md#us-41--sửa-thực-thể-sai)) |
 | `merged_into_id` | UUID | Trỏ tới thực thể chuẩn nếu bản ghi này đã bị gộp |
@@ -191,6 +202,7 @@ CREATE INDEX idx_entities_embedding ON entities
   USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX idx_entities_user_norm ON entities (user_id, normalized_name);
 CREATE INDEX idx_entities_aliases ON entities USING gin (aliases);
+CREATE INDEX idx_entities_normalized_aliases ON entities USING gin (normalized_aliases);
 ```
 
 ### `entity_mentions`
@@ -231,6 +243,51 @@ là tín hiệu về độ tin cậy, và mỗi dòng giữ được nguồn tr�
 Ghi lại các cặp người dùng đã bác bỏ, để hệ thống không đề xuất lại mãi.
 
 `user_id` · `entity_a_id` · `entity_b_id` · `rejected_at` — PK gộp `(user_id, entity_a_id, entity_b_id)`
+
+### `entity_merge_suggestions`
+Cặp thực thể tier khớp-theo-vector nghi là trùng, chờ người dùng duyệt ở
+`GET /entities/merge-suggestions` (phase 13, [OQ-03](../user_stories.md#5-câu-hỏi-còn-mở)).
+
+| Cột | Kiểu | Ghi chú |
+|-----|------|---------|
+| `id` | UUID | PK |
+| `user_id` | UUID | FK → `users`, CASCADE |
+| `entity_a_id` / `entity_b_id` | UUID | FK → `entities`, CASCADE. Lưu theo thứ tự `a < b` (`CHECK`) nên một cặp chỉ tồn tại tối đa một dòng |
+| `score` | REAL | Cosine similarity `[0, 1]` giữa embedding tên+mô tả hai bên |
+| `created_at` | TIMESTAMPTZ | |
+
+```sql
+CREATE INDEX idx_merge_suggestions_entity_b ON entity_merge_suggestions (entity_b_id);
+```
+
+`UNIQUE (user_id, entity_a_id, entity_b_id)` cộng `ON CONFLICT DO NOTHING` khi ghi: cùng một cặp
+gặp lại ở cuộc họp khác không tạo thêm dòng. Duyệt (`POST /entities/merge`) hoặc bác bỏ
+(`POST .../reject`) đều xóa dòng tương ứng — reject còn ghi thêm vào `entity_merge_rejections` để
+không đề xuất lại; một type edit khiến hai bên khác `type` làm đề xuất hết hiệu lực (lọc ở câu
+truy vấn đọc, không xóa dòng).
+
+### `entity_merges`
+Ghi lại chính xác những gì một lần gộp đã di chuyển, để tách lại được trong 30 ngày
+([US-40](../user_stories.md#us-40--gộp-các-thực-thể-bị-trùng)).
+
+| Cột | Kiểu | Ghi chú |
+|-----|------|---------|
+| `id` | UUID | PK — chính là `:id` của `POST /entities/merge/:id/undo` |
+| `user_id` | UUID | FK → `users`, CASCADE |
+| `keep_id` | UUID | FK → `entities`, CASCADE — thực thể được giữ lại |
+| `merged_id` | UUID | FK → `entities`, CASCADE — thực thể đã gộp vào `keep_id` |
+| `snapshot` | JSONB | Tên/alias đã thêm vào `keep`, id các mention/relation đã chuyển chủ, các quan hệ giữa hai bên bị xóa vì thành self-loop, và các con đã gộp tiếp vào `merged_id` — đủ để undo khôi phục đúng những gì, không hơn |
+| `created_at` | TIMESTAMPTZ | |
+| `undone_at` | TIMESTAMPTZ, NULL | Đặt khi đã tách lại — undo chỉ chạy được một lần |
+
+```sql
+CREATE INDEX idx_entity_merges_keep ON entity_merges (keep_id, created_at);
+CREATE INDEX idx_entity_merges_merged ON entity_merges (merged_id);
+```
+
+Undo bị từ chối (**409** `INVALID_STATE_TRANSITION`) khi `undone_at` đã có, khi `created_at` quá 30
+ngày, hoặc khi `merged_id` đã bị gộp tiếp vào một thực thể khác từ đó
+([api-spec.md §7](api-spec.md#7-đồ-thị-tri-thức)).
 
 ---
 

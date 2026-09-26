@@ -1,37 +1,41 @@
 {
-  "task": "Phase 12: chunking with overlap and pause-aware boundaries, embedding with real token accounting, semantic search across a user's meetings, a multi-key Gemini pool with round-robin rotation and 429 cooldown, and the mobile search screen",
+  "task": "Phase 13: graph extraction (4 chunks per Gemini call, strict schema, retry then skip), three-tier entity resolution over the user-scoped graph (normalized name, vector suggestions only, user decisions), graph API (list, detail, timeline, edit, delete, merge, undo within 30 days, reject suggestion, per-meeting graph) and the mobile knowledge-graph screens",
   "mode": "interactive",
   "acceptanceCriteria": [
-    "chunks keep segment_start_seq and segment_end_seq and overlap consecutive chunks",
-    "a transcript edit re-processes only the chunks containing it",
-    "embedding runs in batches of 20 and records real token counts from countTokens",
-    "search never returns another user's data and the owner filter is inside the SQL statement",
-    "search answers under 2 seconds on a 500-meeting library",
-    "several comma-separated Gemini keys rotate round-robin and a rate-limited key rests while others serve",
-    "keys never appear in logs or the database",
-    "mobile search shows transcript matches that open the transcript at the matching segment"
+    "one project named in three meetings becomes one entity with three mentions",
+    "an answer failing the extraction schema is retried at most twice, then only that group of chunks is skipped and the meeting carries on",
+    "every relation cites the chunk and meeting that produced it; relations the model cannot back up are dropped",
+    "vector similarity only proposes merges while auto-merge is unconfigured; thresholds are environment configuration",
+    "after a manual merge the old name is still found through aliases and a merge can be undone within 30 days",
+    "an entity marked is_user_edited is never overwritten by a later pipeline run",
+    "a rejected pair is never proposed again",
+    "every graph query is filtered by user_id and never shows another user's graph",
+    "mobile shows the entity list by type, entity detail with relations and timeline that open the transcript, merge review, and the meeting graph with real data"
   ],
   "touchpoints": [
-    "apps/api/src/chunking/",
-    "apps/api/src/search/",
-    "apps/api/src/ai/",
-    "apps/api/src/database/vector.repository.ts",
-    "apps/api/src/database/migrations/1758000000015-SplitChunkingFromEmbedding.ts",
-    "apps/api/src/common/throttler/user-throttler.guard.ts",
-    "apps/api/scripts/",
-    "packages/shared/src/search/",
+    "apps/api/src/graph/",
+    "apps/api/src/ai/gemini.client.ts",
+    "apps/api/src/database/migrations/1758000000016-AddGraphPipelineState.ts",
+    "apps/api/src/database/entities/meeting-chunk.entity.ts",
+    "apps/api/src/database/entities/entity-record.entity.ts",
+    "apps/api/src/meetings/meeting-deletion.service.ts",
+    "apps/api/src/app.module.ts",
+    "apps/api/scripts/entity-resolution-eval.ts",
+    "apps/api/src/test-support/",
+    "packages/shared/src/graph/",
     "apps/mobile/"
   ],
   "blastRadius": [
-    "meeting_chunks embedding and token_count now nullable plus content_hash",
-    "pipeline now runs chunk and embed for real, pausing at extract",
-    "GeminiClient constructor and GEMINI_API_KEY format",
-    "api test scripts split into unit, e2e and schema phases",
-    "mobile transcript screen accepts a seq route param"
+    "pipeline now runs extract and resolve for real and pauses at summarize",
+    "meeting_chunks gains extraction, extracted_at, resolved_at; entities gains normalized_aliases; new tables entity_merge_suggestions and entity_merges",
+    "meeting deletion now also removes entities merged into an orphaned entity",
+    "GeminiClient generateText accepts a response schema; embed accepts SEMANTIC_SIMILARITY",
+    "mobile knowledge-graph mock fixture removed; search tab shows Node chip and People group"
   ],
   "contracts": [
-    "api-spec section 6 GET /search",
-    "GEMINI_API_KEY comma-separated format",
-    "meeting_chunks schema"
+    "api-spec section 7 knowledge graph endpoints and GET /meetings/:id/graph",
+    "packages/shared graph types",
+    "ENTITY_SUGGEST_THRESHOLD and ENTITY_AUTO_MERGE_THRESHOLD environment variables",
+    "entities and meeting_chunks schema"
   ]
 }

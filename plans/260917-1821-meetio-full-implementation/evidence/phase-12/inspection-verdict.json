@@ -1,0 +1,80 @@
+{
+  "score": 8,
+  "criticalCount": 0,
+  "decision": "REWORK",
+  "acceptanceCovered": [
+    "chunks keep segment_start_seq and segment_end_seq and overlap consecutive chunks",
+    "a transcript edit re-processes only the chunks containing it",
+    "embedding runs in batches of 20 and records real token counts from countTokens",
+    "search never returns another user's data and the owner filter is inside the SQL statement",
+    "search answers under 2 seconds on a 500-meeting library",
+    "several comma-separated Gemini keys rotate round-robin and a rate-limited key rests while others serve",
+    "keys never appear in logs or the database",
+    "mobile search shows transcript matches that open the transcript at the matching segment"
+  ],
+  "regressionChecked": [
+    "gemini-call-runner.ts isInvalidKey re-verified against @google/genai's real error shape (HTTP 400 + API_KEY_INVALID/API key not valid only); new test proves a 403 (billing/API-disabled) keeps the key usable and the next call still reaches it",
+    "gemini.client.ts embed() usage-record ordering re-verified: record() now runs before the dimension check, with a test asserting the real token count lands even when the vector-size check fails",
+    "chunker.ts rechunkWithinRanges late-upload branch re-verified at unit level (chunker.spec.ts) and against the Phase 04 state-machine rule that blocks segment ingestion once a meeting leaves recording/paused/ended/queued",
+    "pipeline-engine.integration.spec.ts flakiness (resumeStalled sweeping other suites' meetings in the shared DB) traced to a real cross-test data race and fixed by scoping the backdate/cutoff to the test's own meeting; 3 back-to-back full runs green",
+    "temper-results.json re-read: 8/8 commands real exit 0 (shared build, api test:unit 310, test:e2e 87, test:schema 5, mobile 797, both typechecks, eslint --max-warnings=0) — up from 294 unit tests at the prior review, consistent with the new/edited test files"
+  ],
+  "contractStatus": "OK",
+  "refuted": [],
+  "unproven": [
+    "countTokens support and real error/quota body shape on gemini-embedding-001 against the live Gemini API (GEMINI_API_KEY is still empty; scripts/gemini-live-check.ts has not been run)",
+    "Real-world semantic search relevance/quality of the 768-dim truncated gemini-embedding-001 vectors"
+  ],
+  "reachableRegressions": [],
+  "findings": [
+    {
+      "severity": "High",
+      "category": "Error boundaries",
+      "location": "apps/api/src/ai/gemini-call-runner.ts:13-18",
+      "summary": "Previously: isInvalidKey matched any HTTP 403 containing PERMISSION_DENIED, which Google sets for nearly every 403 cause, so an unrelated 403 (billing off, API not enabled, IAM/referrer restriction) would permanently disable a valid key. FIXED: isInvalidKey now requires HTTP 400 + /API_KEY_INVALID|API key not valid/ (Google's actual invalid-key signal). A 403 now logs 'key kept' and throws AiServiceUnavailableError without touching the pool. New test gemini-call-runner.spec.ts:59-66 sends a realistic 403 PERMISSION_DENIED \"Billing is disabled\" body on a single-key pool and asserts the key still serves the next call.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "API contracts",
+      "location": "apps/api/src/ai/gemini.client.ts:130-135",
+      "summary": "Previously: a vector-size/count mismatch threw before this.record(), losing the usage_records row for countTokens calls already billed. FIXED: record() now runs immediately after the Gemini calls settle, before the dimension check; gemini.client.spec.ts asserts the real token count is recorded even when the size check subsequently fails.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Completeness",
+      "location": "apps/api/src/chunking/chunker.ts:105-126",
+      "summary": "Not changed, by design, and accepted: segment ingestion is rejected (409 INVALID_STATE_TRANSITION) once a meeting leaves recording/paused/ended/queued (Phase 04 decision), so a changed-scope run never actually finds segments past the last chunked range in production; the tail branch is defensive. Now covered at the unit level by chunker.spec.ts:93-99 (\"chunks segments that arrived after the last range\"), which proves the branch's own logic even though the integration path that would reach it is architecturally closed off. Acceptable given the cited state-machine rule; the earlier note that nothing tested the branch no longer holds.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Query efficiency",
+      "location": "apps/api/src/pipeline/pipeline-control.service.ts:47-51",
+      "summary": "Not changed, and accepted: a changed-scope reindex still resets every processing_jobs row to pending, but chunk reconciles by content_hash and embed only touches embedding IS NULL rows, so re-running unaffected chunks makes zero Gemini calls regardless of step status. The original concern (future non-idempotent Phase 13-15 steps re-running wastefully) is a forward design note for whoever builds those phases, not a defect in this phase's own idempotency, which holds.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Documentation",
+      "location": "docs/api-spec.md:165",
+      "summary": "GET /search §6 still documents only ?q=&from=&to=&limit=, missing offset and the response shape. Assigned to doc-writer in the Delivery step per the coordinator; not yet changed. Tracked, not blocking this inspection since packages/shared/src/search/search.types.ts and the DTOs remain the accurate, internally-consistent contract.",
+      "disposition": "Defer"
+    },
+    {
+      "severity": "Low",
+      "category": "Concurrency",
+      "location": "apps/api/src/pipeline/__tests__/pipeline-engine.integration.spec.ts:48-49",
+      "summary": "Fixed since prior review: resumeStalled(now+60s) previously swept every processing meeting in the shared test DB, occasionally marking another suite's meeting as extract-succeeded (observed ~1 in 6 full runs) when run in parallel with chunk-embed tests. Now backdates only its own meeting to 2000-01-01 with cutoff 2000-01-02, scoping the sweep. 3 back-to-back full runs green.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Low",
+      "category": "Test quality",
+      "location": "apps/api/src/chunking/__tests__/chunker-edge-cases.spec.ts:32-46",
+      "summary": "Tester-added tests trimmed: a spec using a non-UUID meetingId against an uninitialized DataSource (failing for the wrong reason) was deleted; three vacuous cases removed from the key-pool edge-case spec; the chunker overlap test now asserts unique content and strictly increasing chunk starts instead of an unused variable. Improves signal without reducing real coverage.",
+      "disposition": "Accept"
+    }
+  ]
+}

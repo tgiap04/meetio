@@ -1,7 +1,7 @@
 # Meetio — Đặc tả API
 
 **Base URL:** `/api` · **Xác thực:** Bearer JWT trên mọi endpoint trừ mục 1  
-**Cập nhật:** 2026-09-25  
+**Cập nhật:** 2026-09-26  
 **Liên quan:** [User Stories](../user_stories.md) · [Kiến trúc](system-architecture.md) · [Mô hình dữ liệu](data-model.md)
 
 ---
@@ -230,15 +230,153 @@ không gọi LLM để nó bịa ([US-36](../user_stories.md#us-36--câu-trả-l
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| GET | `/entities` | `?type=&q=&limit=` — thực thể của người dùng |
-| GET | `/entities/:id` | Chi tiết kèm quan hệ và các cuộc họp đã nhắc |
-| GET | `/entities/:id/timeline` | Dòng thời gian các lần được nhắc ([US-39](../user_stories.md#us-39--theo-dõi-một-thực-thể-qua-thời-gian)) |
-| PATCH | `/entities/:id` | Sửa `canonical_name`, `type`. Đặt `is_user_edited = true` |
-| DELETE | `/entities/:id` | Xóa thực thể và các quan hệ gắn với nó |
+| GET | `/meetings/:id/graph` | Đồ thị (entities + relations) mà riêng cuộc họp này sinh ra (màn 10) |
+| GET | `/entities` | `?type=&q=&limit=&offset=` — thực thể của người dùng |
 | GET | `/entities/merge-suggestions` | Các cặp nghi trùng chờ người dùng duyệt |
 | POST | `/entities/merge` | Body `{keep_id, merge_ids[]}` — gộp, tên cũ thành alias |
-| POST | `/entities/merge/:id/undo` | Tách lại, trong vòng 30 ngày |
+| POST | `/entities/merge/:id/undo` | Tách lại, trong vòng 30 ngày. `:id` là id **bản ghi gộp** (`entity_merges.id` trả về ở `merges[].id`), không phải id thực thể |
 | POST | `/entities/merge-suggestions/:id/reject` | Ghi vào bảng chặn, không đề xuất lại |
+| GET | `/entities/:id` | Chi tiết kèm quan hệ, các cuộc họp đã nhắc và lịch sử gộp còn tách được |
+| GET | `/entities/:id/timeline` | Dòng thời gian các lần được nhắc ([US-39](../user_stories.md#us-39--theo-dõi-một-thực-thể-qua-thời-gian)) |
+| PATCH | `/entities/:id` | Sửa `canonical_name`, `type`. Đặt `is_user_edited = true` |
+| DELETE | `/entities/:id` | Xóa thực thể, các bản ghi đã gộp vào nó, và (cascade) mention/relation/suggestion liên quan |
+
+Mọi `:id` thực thể không tồn tại, không thuộc về người gọi, hoặc không parse được thành UUID đều
+trả **404** `NOT_FOUND` như nhau — không phân biệt "sai định dạng" với "không tìm thấy", tránh lộ
+thêm thông tin (cùng nguyên tắc [§0](#0-qui-ước-chung)).
+
+**`GET /entities` — tham số**
+
+| Tham số | Kiểu | Ràng buộc |
+|---------|------|-----------|
+| `type` | string | Tùy chọn. Một giá trị hoặc danh sách phẩy, ví dụ `organization,product` (`person`\|`project`\|`organization`\|`topic`\|`product`\|`other`) |
+| `q` | string | Tùy chọn, 1–100 ký tự. Khớp theo tên hoặc alias đã chuẩn hóa (bỏ dấu, không phân biệt hoa/thường) |
+| `limit` | int | Tùy chọn, 1–100, mặc định 20 |
+| `offset` | int | Tùy chọn, 0–10000, mặc định 0 |
+
+→ `EntityListResponse`:
+
+```json
+{
+  "items": [
+    { "id": "…", "canonical_name": "Dự án ABC", "type": "project", "aliases": ["Project ABC"],
+      "mention_count": 12, "meeting_count": 4, "last_mentioned_at": "2026-09-20T08:00:00.000Z" }
+  ],
+  "next_offset": 20
+}
+```
+
+`next_offset` là `null` khi hết trang. `q` chuẩn hóa về chuỗi rỗng (ví dụ chỉ toàn `%`, `…`) trả
+`items: []` ngay, không quét toàn bảng.
+
+**`GET /entities/:id`** → `EntityDetail` (mở rộng `EntitySummary` ở trên):
+
+```json
+{
+  "id": "…", "canonical_name": "…", "type": "person", "aliases": ["…"],
+  "mention_count": 12, "meeting_count": 4, "last_mentioned_at": "…",
+  "description": "…", "is_user_edited": false,
+  "relations": [
+    { "id": "…", "direction": "outgoing", "relationship": "phụ trách",
+      "other": { "id": "…", "canonical_name": "Dự án ABC", "type": "project" },
+      "confidence": 0.9, "meeting_id": "…", "meeting_title": "Họp sprint 12",
+      "chunk_id": "…", "segment_seq": 142 }
+  ],
+  "meetings": [{ "id": "…", "title": "…", "started_at": "…", "mention_count": 3 }],
+  "merges": [
+    { "id": "…", "merged_entity_id": "…", "merged_name": "anh Bình",
+      "merged_at": "2026-09-10T00:00:00.000Z", "undo_until": "2026-10-10T00:00:00.000Z" }
+  ]
+}
+```
+
+`relations` liệt kê tối đa 200 dòng, mới nhất theo cuộc họp trước; `direction: outgoing` nghĩa là
+thực thể đang xem là `source` (`this → relationship → other`). `merges` chỉ liệt kê các lần gộp còn
+trong hạn 30 ngày và chưa bị tách lại hay gộp tiếp — dùng `id` của mỗi dòng cho
+`POST /entities/merge/:id/undo`.
+
+**`GET /entities/:id/timeline?limit=&offset=`** (cùng ràng buộc `limit`/`offset` như `/entities`) →
+`EntityTimelineResponse`:
+
+```json
+{
+  "items": [
+    { "meeting_id": "…", "meeting_title": "Họp sprint 12", "meeting_date": "2026-09-15T09:00:00.000Z",
+      "chunk_id": "…", "segment_seq": 142, "surface_form": "anh Bình", "excerpt": "…" }
+  ],
+  "next_offset": null
+}
+```
+
+Sắp xếp cuộc họp cũ nhất trước, rồi theo thứ tự transcript trong mỗi cuộc họp
+([US-39](../user_stories.md#us-39--theo-dõi-một-thực-thể-qua-thời-gian)).
+
+**`PATCH /entities/:id`** — body `{canonical_name?, type?}` (không trường nào bắt buộc) → `EntityDetail`.
+Đổi tên giữ tên cũ làm alias; đổi `type` không đụng alias. Luôn đặt `is_user_edited = true` — từ đó
+pipeline không bao giờ ghi đè `canonical_name`/`type`/alias của thực thể này nữa
+([US-41](../user_stories.md#us-41--sửa-thực-thể-sai)).
+
+**`DELETE /entities/:id`** → **204**. Xóa cả những thực thể đã bị gộp vào nó (`merged_into_id`) —
+cascade DB xóa theo mention/relation/suggestion.
+
+**`GET /entities/merge-suggestions`** → `MergeSuggestionsResponse`:
+
+```json
+{ "items": [{ "id": "…", "score": 0.87,
+              "a": { "id": "…", "canonical_name": "Bình", "type": "person", "…": "EntitySummary" },
+              "b": { "id": "…", "canonical_name": "anh Bình", "type": "person", "…": "EntitySummary" } }] }
+```
+
+Tối đa 50 đề xuất, điểm cao trước. `score` là cosine similarity `[0, 1]` giữa embedding tên+mô tả
+của hai thực thể (mục 5, [OQ-03](../user_stories.md#5-câu-hỏi-còn-mở)).
+
+**`POST /entities/merge-suggestions/:id/reject`** → **204**. `:id` là id đề xuất
+(`entity_merge_suggestions.id`); ghi cặp vào bảng chặn nên vector tier không đề xuất lại cặp đó
+([US-40](../user_stories.md#us-40--gộp-các-thực-thể-bị-trùng)).
+
+**`POST /entities/merge`** — body:
+
+```json
+{ "keep_id": "…", "merge_ids": ["…", "…"] }
+```
+
+`merge_ids`: 1–20 phần tử, UUID, không trùng lặp, không chứa `keep_id`. Mọi id không phải thực thể
+sống (đã bị gộp trước đó, không tồn tại, hoặc không thuộc người gọi) → **404** `NOT_FOUND`. Tên và
+alias của các thực thể bị gộp chuyển thành alias của `keep_id`; con đã gộp vào chúng chuyển thẳng
+sang `keep_id`. → `MergeEntitiesResponse`:
+
+```json
+{ "entity": { "…": "EntityDetail của keep_id sau khi gộp" },
+  "merges": [{ "id": "…", "merged_entity_id": "…", "merged_name": "…", "merged_at": "…", "undo_until": "…" }] }
+```
+
+`merges` có đúng một dòng cho mỗi id trong `merge_ids` — dùng `id` của dòng tương ứng để tách riêng
+lẻ qua `POST /entities/merge/:id/undo`.
+
+**`POST /entities/merge/:id/undo`** — `:id` là id **bản ghi gộp** (không phải id thực thể) → `EntityDetail`
+của thực thể `keep` sau khi tách. Chỉ những gì lần gộp đó di chuyển được trả lại; mention/relation
+thực thể `keep` nhận thêm từ sau lần gộp vẫn ở lại với nó. **409** `INVALID_STATE_TRANSITION` khi:
+
+| Điều kiện | Thông điệp |
+|-----------|-----------|
+| Đã quá 30 ngày kể từ lúc gộp | "Đã quá 30 ngày, không tách lại được" |
+| Bản ghi gộp này đã được tách lại rồi | "Lần gộp này đã được tách lại" |
+| Thực thể bị gộp đã bị gộp tiếp vào nơi khác từ đó | "Thực thể đã được gộp tiếp vào nơi khác" |
+
+**`GET /meetings/:id/graph`** (màn 10) → `MeetingGraphResponse`:
+
+```json
+{
+  "nodes": [{ "id": "…", "canonical_name": "Dự án ABC", "type": "project", "mention_count": 5 }],
+  "edges": [{ "source_id": "…", "target_id": "…", "relationship": "phụ trách", "count": 2,
+              "chunk_id": "…", "segment_seq": 87 }]
+}
+```
+
+Chỉ gồm entity/relation mà **cuộc họp này** tạo mention/relation, không phải toàn bộ đồ thị của
+người dùng. `edges[].count` là số lần cuộc họp này nói ra đúng quan hệ đó (nguồn/đích/tên quan hệ
+giống hệt); `chunk_id`/`segment_seq` trích dẫn lần phát biểu đầu tiên. `:id` không thuộc về người
+gọi hoặc không tồn tại → **404** `MEETING_NOT_FOUND` (khác `entities/*`, vì đây là id cuộc họp).
 
 ---
 

@@ -33,3 +33,9 @@
 - Q: Khóa bị 429 nghỉ bao lâu? → A: Theo `retryDelay` Gemini trả về, mặc định 60 giây; lỗi hết hạn mức theo ngày thì nghỉ tới đầu ngày mới theo giờ Pacific; các mốc cấu hình được; mọi khóa đang nghỉ thì bước pipeline lỗi để retry theo backoff Phase 11
 - Q: Ghi token cho embedding thế nào? → A: Gọi `countTokens` (miễn phí) để lấy số token thật, ghi `usage_records` và `meeting_chunks.token_count`; nếu model embedding từ chối `countTokens` thì dừng lại hỏi, không đoán số
 - Q: Màn Tìm kiếm khi chưa có thực thể (Phase 13)? → A: Chip Transcript = kết quả ngữ nghĩa (chạm nhảy tới đoạn), chip Meeting = tìm theo tiêu đề; ẩn chip Node và nhóm Người tới Phase 13
+
+## Session 2026-09-26 (Phase 13)
+- Q: Phạm vi mobile khi các màn thực thể chưa có design? → A: Làm theo phong cách sẵn có — nối màn 10 với dữ liệu thật, thêm danh sách thực thể, chi tiết + dòng thời gian, duyệt gộp; mở chip Node + nhóm Người ở tab Tìm kiếm; lối vào qua "Xem chi tiết" ở màn 10 và tab Tìm kiếm
+- Q: Chip lọc ở màn Knowledge Graph? → A: Tất cả / Người / Dự án / Chủ đề / Khác (tổ chức, sản phẩm, other gộp vào Khác); bỏ Task
+- Q: Tầng khớp vector khi chưa hiệu chỉnh ngưỡng (OQ-03)? → A: Chỉ đề xuất gộp, không tự gộp; tự gắn chỉ khi tên chuẩn hóa trùng; ngưỡng là biến môi trường, bật tự gộp sau khi có bộ dữ liệu vàng
+- Q: Cách gọi Gemini để trích xuất? → A: Gom 4 chunk mỗi lượt gọi; mọi thực thể/quan hệ phải trích dẫn chunk nguồn, trích dẫn sai thì loại

@@ -4,7 +4,7 @@
 [Khớp thực thể](../../docs/system-architecture.md#5-khớp-và-gộp-thực-thể)
 
 ## Tổng quan
-**Ưu tiên:** Cao · **Trạng thái:** ⬜ pending · **Phụ thuộc:** Phase 12
+**Ưu tiên:** Cao · **Trạng thái:** ✅ implemented — pending live Gemini verification + OQ-03 gold dataset · **Phụ thuộc:** Phase 12
 
 Rút thực thể và quan hệ từ transcript, khớp vào đồ thị dùng chung toàn tài khoản, và cho người dùng
 sửa chữa những gì máy hiểu sai.
@@ -51,15 +51,15 @@ lọc rẻ nhất và bắt được phần lớn trường hợp trùng.
 11. Dựng bộ dữ liệu vàng gán tay từ 10 cuộc họp thật để hiệu chỉnh ngưỡng và đóng OQ-03.
 
 ## Todo
-- [ ] Prompt trích xuất + kiểm định schema
-- [ ] Xử lý sai schema có thử lại và bỏ qua
-- [ ] Chuẩn hóa tên tiếng Việt
-- [ ] Khớp ba tầng
-- [ ] Ghi entity_mentions và relations
-- [ ] Endpoint đồ thị đầy đủ
-- [ ] Bảng chặn đề xuất đã bác bỏ
-- [ ] Màn hình thực thể + dòng thời gian + duyệt gộp
-- [ ] Bộ dữ liệu vàng và hiệu chỉnh ngưỡng (đóng OQ-03)
+- [x] Prompt trích xuất + kiểm định schema
+- [x] Xử lý sai schema có thử lại và bỏ qua
+- [x] Chuẩn hóa tên tiếng Việt
+- [x] Khớp ba tầng
+- [x] Ghi entity_mentions và relations
+- [x] Endpoint đồ thị đầy đủ
+- [x] Bảng chặn đề xuất đã bác bỏ
+- [x] Màn hình thực thể + dòng thời gian + duyệt gộp
+- [ ] Bộ dữ liệu vàng và hiệu chỉnh ngưỡng (đóng OQ-03) — script sẵn, chờ dữ liệu
 
 ## Chuẩn hoàn thành
 - Cùng một dự án nhắc ở 3 cuộc họp cho ra **một** thực thể có 3 mention.
@@ -81,3 +81,62 @@ Mọi truy vấn đồ thị lọc theo `user_id`. Đồ thị của người d�
 
 ## Tiếp theo
 Mở khóa Phase 14 (tóm tắt) và Phase 15 (hỏi đáp GraphRAG).
+
+## Thiết kế thi công (2026-09-26)
+Quyết định người dùng: [clarifications.md › Phase 13](clarifications.md). Hợp đồng API: `packages/shared/src/graph/graph.types.ts`.
+
+**Migration 016** — `meeting_chunks`: `extraction jsonb`, `extracted_at`, `resolved_at` (trạng thái từng chunk → retry tiếp
+từ chỗ dở, lượt `changed` chỉ xử lý chunk mới). `entities.normalized_aliases text[]` (GIN) cho tầng 1.
+Bảng `entity_merge_suggestions (user_id, entity_a_id < entity_b_id, score)` unique theo cặp; `entity_merges`
+(keep_id, merged_id, snapshot jsonb: id mention/relation đã dời, alias cũ của keep; `undone_at`) cho tách lại 30 ngày.
+
+**Bước `extract`** — chunk chưa `extracted_at`, gom 4 chunk/lượt, nhãn `C1..C4`; JSON schema bắt buộc
+(`responseSchema`) + kiểm định tay. Sai schema → thử thêm 2 lần → bỏ nhóm (extracted_at set, extraction NULL, log
+meeting_id + chunk id, không log nội dung). Thực thể/quan hệ trích dẫn nhãn không có hoặc quan hệ có đầu mút không
+nằm trong thực thể của cùng chunk → loại.
+
+**Bước `resolve`** — mỗi chunk một transaction, `pg_advisory_xact_lock` theo user (hai cuộc họp song song không tạo
+bản trùng). Tầng 1: `(user_id, type, normalized_name | normalized_aliases)`, bỏ qua thực thể đã gộp. Không khớp →
+embed "tên — mô tả" (SEMANTIC_SIMILARITY) rồi tạo mới; láng giềng cùng loại ≥ `ENTITY_SUGGEST_THRESHOLD` (0.85) và
+chưa bị bác bỏ → đề xuất gộp. `ENTITY_AUTO_MERGE_THRESHOLD` mặc định tắt. Thực thể `is_user_edited` không bị sửa
+tên/loại/mô tả. Cuối bước: xóa thực thể mồ côi (không mention, chưa sửa tay, chưa gộp).
+
+**API** (`graph` module, lọc `user_id`, ẩn `merged_into_id`): danh sách/chi tiết/timeline/sửa/xóa, đề xuất + bác bỏ,
+gộp + tách lại (30 ngày; 409 khi hết hạn/đã tách), `GET /meetings/:id/graph` cho màn 10.
+
+**Mobile** (implementer): màn 10 dữ liệu thật (chip Tất cả/Người/Dự án/Chủ đề/Khác), danh sách thực thể, chi tiết +
+quan hệ + timeline (chạm → transcript `?seq=`), sửa/xóa, duyệt đề xuất gộp + hoàn tác; tab Tìm kiếm mở chip Node và
+nhóm Người. Nút "hỏi trong phạm vi thực thể" (US-39) ẩn tới Phase 15.
+
+**Dừng pipeline** ở `summarize` (chưa có handler, Phase 14). **Chưa làm được:** bộ dữ liệu vàng 10 cuộc họp thật
+(OQ-03) và số đo "60 phút < 2 phút" cần khóa Gemini — có script `graph:eval` chờ dữ liệu.
+
+## Lệch thiết kế (Deviations)
+
+**Vị trí handler:** handlers (`extract-step.handler.ts`, `resolve-step.handler.ts`) sống ở `apps/api/src/graph/` chứ không phải `jobs/processors/`, tuân theo mô hình Phase 12.
+
+**Mobile routes:** màn thực thể nằm ở `app/(app)/entities.tsx`, `entity-detail.tsx`, `merge-suggestions.tsx` (đơn giản), không phải `entities/index.tsx` + `[id].tsx`.
+
+**Tầng vector:** chỉ gợi ý gộp, không tự gộp trừ khi `ENTITY_AUTO_MERGE_THRESHOLD` được set (quyết định người dùng, OQ-03).
+
+**Gộp 4 chunk/lần:** extraction gom 4 chunk mỗi request tới Gemini (thay vì mỗi lần 1 chunk).
+
+**US-39 ẩn:** affordance "hỏi trong phạm vi thực thể" giấu cho tới Phase 15.
+
+**Sửa lỗi:** delete cuộc họp bây giờ khóa per-user graph lock; jest không load migrations except ở schema suite (TEST_LOAD_MIGRATIONS=1), fix lỗi intermittent "reading 'identifier'".
+
+## Mục mở
+
+**Gemini verification:** User điền `GEMINI_API_KEY` và chạy `gemini:check` để xác nhận khóa hoạt động và `responseSchema` đúng cách.
+
+**OQ-03 gold dataset:** User label 10 cuộc họp thật, sau đó chạy `yarn workspace @meetio/api graph:eval gold.json` để đo độ chính xác khớp và tối ưu `ENTITY_SUGGEST_THRESHOLD` + `ENTITY_AUTO_MERGE_THRESHOLD`.
+
+**Mobile hook tests:** 6 test hook cũ dùng mô hình `mounted-harness` có thể lên lỗi không ổn định — để dán lại ở Phase 16.
+
+## Bản ghi kiểm chứng
+
+- **Code review:** typecheck ✅, eslint ✅, criticalities: 0
+- **Tests:** 332 API unit + 105 e2e + 5 schema + 915 mobile = 1.357 xanh
+- **Live verification:** blocked chờ `GEMINI_API_KEY` + bộ dữ liệu OQ-03
+- **Performance:** extraction script sẵn, "60 phút < 2 phút" chưa đo
+- **ResponseSchema:** Gemini sẽ kiểm tra khi chạy thật

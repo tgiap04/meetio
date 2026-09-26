@@ -1,0 +1,37 @@
+{
+  "task": "Phase 12: chunking with overlap and pause-aware boundaries, embedding with real token accounting, semantic search across a user's meetings, a multi-key Gemini pool with round-robin rotation and 429 cooldown, and the mobile search screen",
+  "mode": "interactive",
+  "acceptanceCriteria": [
+    "chunks keep segment_start_seq and segment_end_seq and overlap consecutive chunks",
+    "a transcript edit re-processes only the chunks containing it",
+    "embedding runs in batches of 20 and records real token counts from countTokens",
+    "search never returns another user's data and the owner filter is inside the SQL statement",
+    "search answers under 2 seconds on a 500-meeting library",
+    "several comma-separated Gemini keys rotate round-robin and a rate-limited key rests while others serve",
+    "keys never appear in logs or the database",
+    "mobile search shows transcript matches that open the transcript at the matching segment"
+  ],
+  "touchpoints": [
+    "apps/api/src/chunking/",
+    "apps/api/src/search/",
+    "apps/api/src/ai/",
+    "apps/api/src/database/vector.repository.ts",
+    "apps/api/src/database/migrations/1758000000015-SplitChunkingFromEmbedding.ts",
+    "apps/api/src/common/throttler/user-throttler.guard.ts",
+    "apps/api/scripts/",
+    "packages/shared/src/search/",
+    "apps/mobile/"
+  ],
+  "blastRadius": [
+    "meeting_chunks embedding and token_count now nullable plus content_hash",
+    "pipeline now runs chunk and embed for real, pausing at extract",
+    "GeminiClient constructor and GEMINI_API_KEY format",
+    "api test scripts split into unit, e2e and schema phases",
+    "mobile transcript screen accepts a seq route param"
+  ],
+  "contracts": [
+    "api-spec section 6 GET /search",
+    "GEMINI_API_KEY comma-separated format",
+    "meeting_chunks schema"
+  ]
+}

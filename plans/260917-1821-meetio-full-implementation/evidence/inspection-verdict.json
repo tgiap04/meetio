@@ -1,80 +1,72 @@
 {
-  "score": 8,
+  "score": 9,
   "criticalCount": 0,
-  "decision": "REWORK",
+  "decision": "BLOCKED",
   "acceptanceCovered": [
-    "chunks keep segment_start_seq and segment_end_seq and overlap consecutive chunks",
-    "a transcript edit re-processes only the chunks containing it",
-    "embedding runs in batches of 20 and records real token counts from countTokens",
-    "search never returns another user's data and the owner filter is inside the SQL statement",
-    "search answers under 2 seconds on a 500-meeting library",
-    "several comma-separated Gemini keys rotate round-robin and a rate-limited key rests while others serve",
-    "keys never appear in logs or the database",
-    "mobile search shows transcript matches that open the transcript at the matching segment"
+    "one project named in three meetings becomes one entity with three mentions (graph-pipeline.integration.spec.ts:36-58, graph.e2e.spec.ts:56-63)",
+    "an answer failing the extraction schema is retried at most twice, then only that group of chunks is skipped and the meeting carries on (extract-step.handler.ts:57-79, graph-pipeline.integration.spec.ts:60-78)",
+    "every relation cites the chunk and meeting that produced it; relations the model cannot back up are dropped (extraction-schema.ts:98-114, resolve-step.handler.ts:66-75)",
+    "vector similarity only proposes merges while auto-merge is unconfigured; thresholds are environment configuration (entity-resolver.ts:15,66-79, graph.module.ts:17-29, graph-pipeline.integration.spec.ts:105-139)",
+    "after a manual merge the old name is still found through aliases and a merge can be undone within 30 days (entity-merge.service.ts:60-140, graph.e2e.spec.ts:100-134)",
+    "an entity marked is_user_edited is never overwritten by a later pipeline run (entity-resolver.ts:58-59,68,96; resolve-step.handler.ts:41; graph-pipeline.integration.spec.ts:92-103)",
+    "a rejected pair is never proposed again (entity-resolver.ts:102-111, entity-edit.service.ts:52-67, graph.e2e.spec.ts:147-158)",
+    "every graph query is filtered by user_id and never shows another user's graph (graph.controller.ts, entity-query.service.ts, entity-merge.service.ts, entity-edit.service.ts, graph-overview.service.ts:16-22 now filters e.user_id too; graph.e2e.spec.ts:84-98 cross-user 404 sweep)",
+    "mobile shows the entity list by type, entity detail with relations and timeline that open the transcript, merge review, and the meeting graph with real data (apps/mobile/app/(app)/entities.tsx, entity-detail.tsx, merge-suggestions.tsx with undo wired to the returned merge id, src/hooks/use-meeting-graph-query.ts)"
   ],
   "regressionChecked": [
-    "gemini-call-runner.ts isInvalidKey re-verified against @google/genai's real error shape (HTTP 400 + API_KEY_INVALID/API key not valid only); new test proves a 403 (billing/API-disabled) keeps the key usable and the next call still reaches it",
-    "gemini.client.ts embed() usage-record ordering re-verified: record() now runs before the dimension check, with a test asserting the real token count lands even when the vector-size check fails",
-    "chunker.ts rechunkWithinRanges late-upload branch re-verified at unit level (chunker.spec.ts) and against the Phase 04 state-machine rule that blocks segment ingestion once a meeting leaves recording/paused/ended/queued",
-    "pipeline-engine.integration.spec.ts flakiness (resumeStalled sweeping other suites' meetings in the shared DB) traced to a real cross-test data race and fixed by scoping the backdate/cutoff to the test's own meeting; 3 back-to-back full runs green",
-    "temper-results.json re-read: 8/8 commands real exit 0 (shared build, api test:unit 310, test:e2e 87, test:schema 5, mobile 797, both typechecks, eslint --max-warnings=0) — up from 294 unit tests at the prior review, consistent with the new/edited test files"
+    "Critical fix re-verified by direct code read: meeting-deletion.service.ts:35-36 now takes EntityResolver.lockUserGraph before meetings.lockOwned, matching every other graph writer's lock order; no other transaction acquires the meetings row lock before the graph lock, so this ordering introduces no new deadlock potential",
+    "New deterministic e2e (graph.e2e.spec.ts:263-289) proves the fix under real concurrency: holds the graph lock in a second pg connection, confirms the DELETE is still pending after 400ms, inserts a new mention for the entity, commits, then confirms the DELETE completes and the entity survives with mention_count 1 (not deleted) — this is the exact race described in the prior critical finding, closed",
+    "Medium fix re-verified: graph-overview.service.ts:20 meetingGraph node query now carries 'AND e.user_id = $2', matching the edges query's existing filter",
+    "Low item (stale cross-type merge suggestion) fixed: graph-overview.service.ts:41-45 suggestions query now requires 'a.type = b.type' at read time, so a later type edit hides the suggestion rather than leaving it live",
+    "New real bug caught and fixed independently of my review: entity-query.service.ts:19-21 — a q with no letters/digits (e.g. '%') previously normalized to '' and matched every entity; now returns an empty page. Covered by graph.e2e.spec.ts:178-181 ('treats % and _ in the search text literally')",
+    "Concurrent-resolve test reworked from sequential-different-names to a real race: graph-pipeline.integration.spec.ts:209-216 runs 4 meetings resolving the same new name ('anh Bình') concurrently via Promise.all and asserts one entity with 4 mentions — this actually exercises the per-user advisory lock (previously the test used different names sequentially, which could not have caught a missing lock)",
+    "Self-loop-undo and flattened-merge tests reworked to go through the real EntityMergeService.merge/undo instead of hand-built SQL snapshots (graph-pipeline.integration.spec.ts:195-207), so the snapshot shape itself is now under test, not just assumed",
+    "Flaky infra root-caused and fixed: TypeORM migration-glob dynamic import race under Jest (data-source.ts now skips migration loading under Jest unless TEST_LOAD_MIGRATIONS=1) and a stale-harness leak in the Phase 12 mobile search-query test (now unmounts after each test) — both independently plausible, common root causes for the symptoms described (identifier read failures in concurrent dynamic import, and cross-test state bleed from a mounted hook harness)",
+    "temper-results.json read directly: 8/8 commands real exit 0 — shared build; api test:unit 332 (up from 329, +3 consistent with the reworked/added tests); api test:e2e 105 (up from 95, +10, consistent with the new lock-order e2e, the wildcard/empty-q e2e, the PATCH-type-renormalize e2e, and others); test:schema 5; mobile 915 (up from 914, +1 consistent with the merge-suggestions undo test); both typechecks and eslint --max-warnings=0 clean"
   ],
   "contractStatus": "OK",
   "refuted": [],
   "unproven": [
-    "countTokens support and real error/quota body shape on gemini-embedding-001 against the live Gemini API (GEMINI_API_KEY is still empty; scripts/gemini-live-check.ts has not been run)",
-    "Real-world semantic search relevance/quality of the 768-dim truncated gemini-embedding-001 vectors"
+    "Live Gemini structured output (responseSchema) and SEMANTIC_SIMILARITY embedding behavior — no GEMINI_API_KEY available in this pass",
+    "60-minute meeting extracted in under 2 minutes — needs a real key, not measured",
+    "OQ-03 gold-dataset threshold calibration — scripts/entity-resolution-eval.ts is correctly wired but has never been run against real labelled data; current 0.85/off thresholds remain provisional defaults"
   ],
   "reachableRegressions": [],
   "findings": [
     {
-      "severity": "High",
-      "category": "Error boundaries",
-      "location": "apps/api/src/ai/gemini-call-runner.ts:13-18",
-      "summary": "Previously: isInvalidKey matched any HTTP 403 containing PERMISSION_DENIED, which Google sets for nearly every 403 cause, so an unrelated 403 (billing off, API not enabled, IAM/referrer restriction) would permanently disable a valid key. FIXED: isInvalidKey now requires HTTP 400 + /API_KEY_INVALID|API key not valid/ (Google's actual invalid-key signal). A 403 now logs 'key kept' and throws AiServiceUnavailableError without touching the pool. New test gemini-call-runner.spec.ts:59-66 sends a realistic 403 PERMISSION_DENIED \"Billing is disabled\" body on a single-key pool and asserts the key still serves the next call.",
-      "disposition": "Accept"
-    },
-    {
-      "severity": "Medium",
-      "category": "API contracts",
-      "location": "apps/api/src/ai/gemini.client.ts:130-135",
-      "summary": "Previously: a vector-size/count mismatch threw before this.record(), losing the usage_records row for countTokens calls already billed. FIXED: record() now runs immediately after the Gemini calls settle, before the dimension check; gemini.client.spec.ts asserts the real token count is recorded even when the size check subsequently fails.",
-      "disposition": "Accept"
-    },
-    {
-      "severity": "Medium",
-      "category": "Completeness",
-      "location": "apps/api/src/chunking/chunker.ts:105-126",
-      "summary": "Not changed, by design, and accepted: segment ingestion is rejected (409 INVALID_STATE_TRANSITION) once a meeting leaves recording/paused/ended/queued (Phase 04 decision), so a changed-scope run never actually finds segments past the last chunked range in production; the tail branch is defensive. Now covered at the unit level by chunker.spec.ts:93-99 (\"chunks segments that arrived after the last range\"), which proves the branch's own logic even though the integration path that would reach it is architecturally closed off. Acceptable given the cited state-machine rule; the earlier note that nothing tested the branch no longer holds.",
-      "disposition": "Accept"
-    },
-    {
-      "severity": "Medium",
-      "category": "Query efficiency",
-      "location": "apps/api/src/pipeline/pipeline-control.service.ts:47-51",
-      "summary": "Not changed, and accepted: a changed-scope reindex still resets every processing_jobs row to pending, but chunk reconciles by content_hash and embed only touches embedding IS NULL rows, so re-running unaffected chunks makes zero Gemini calls regardless of step status. The original concern (future non-idempotent Phase 13-15 steps re-running wastefully) is a forward design note for whoever builds those phases, not a defect in this phase's own idempotency, which holds.",
-      "disposition": "Accept"
-    },
-    {
-      "severity": "Medium",
-      "category": "Documentation",
-      "location": "docs/api-spec.md:165",
-      "summary": "GET /search §6 still documents only ?q=&from=&to=&limit=, missing offset and the response shape. Assigned to doc-writer in the Delivery step per the coordinator; not yet changed. Tracked, not blocking this inspection since packages/shared/src/search/search.types.ts and the DTOs remain the accurate, internally-consistent contract.",
-      "disposition": "Defer"
-    },
-    {
-      "severity": "Low",
+      "severity": "Critical",
       "category": "Concurrency",
-      "location": "apps/api/src/pipeline/__tests__/pipeline-engine.integration.spec.ts:48-49",
-      "summary": "Fixed since prior review: resumeStalled(now+60s) previously swept every processing meeting in the shared test DB, occasionally marking another suite's meeting as extract-succeeded (observed ~1 in 6 full runs) when run in parallel with chunk-embed tests. Now backdates only its own meeting to 2000-01-01 with cutoff 2000-01-02, scoping the sweep. 3 back-to-back full runs green.",
+      "location": "apps/api/src/meetings/meeting-deletion.service.ts:35-36",
+      "summary": "(Prior finding, now fixed) Meeting deletion did not hold the per-user graph advisory lock, so it could race a concurrent resolve/merge/edit and delete an entity that had just gained a legitimate new mention. Fixed by taking EntityResolver.lockUserGraph as the transaction's first statement, before the meeting row lock. Verified by a new deterministic e2e that blocks the DELETE on a held lock, inserts a mention, commits, and confirms the entity survives (graph.e2e.spec.ts:263-289).",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Data leakage",
+      "location": "apps/api/src/graph/graph-overview.service.ts:20",
+      "summary": "(Prior finding, now fixed) meetingGraph's node query lacked an explicit user_id filter, relying on an unstated invariant. Fixed: query now carries 'AND e.user_id = $2', matching the edges query.",
       "disposition": "Accept"
     },
     {
       "severity": "Low",
-      "category": "Test quality",
-      "location": "apps/api/src/chunking/__tests__/chunker-edge-cases.spec.ts:32-46",
-      "summary": "Tester-added tests trimmed: a spec using a non-UUID meetingId against an uninitialized DataSource (failing for the wrong reason) was deleted; three vacuous cases removed from the key-pool edge-case spec; the chunker overlap test now asserts unique content and strictly increasing chunk starts instead of an unused variable. Improves signal without reducing real coverage.",
+      "category": "Completeness",
+      "location": "apps/api/src/graph/graph-overview.service.ts:44",
+      "summary": "(Prior finding, now fixed) A merge suggestion between entities that no longer share a type (after a later PATCH edit) could still surface. Fixed: suggestions query now requires 'a.type = b.type' at read time.",
       "disposition": "Accept"
+    },
+    {
+      "severity": "High",
+      "category": "Input validation",
+      "location": "apps/api/src/graph/entity-query.service.ts:19-21",
+      "summary": "Independently found and fixed during rework (not from my prior review): a search string with no letters or digits (e.g. '%', punctuation only) normalized to the empty string, which then matched every entity via 'LIKE %%'  — effectively an unintended wildcard-everything search. Now short-circuits to an empty page. Covered by graph.e2e.spec.ts:178-181.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Low",
+      "category": "Structure",
+      "location": "apps/api/src/graph/extraction-schema.ts:110",
+      "summary": "The relation-matching find() re-normalizes each candidate entity's name per call instead of reusing the 'known' map already built during entity parsing. No correctness issue, minor dedup opportunity. Not addressed in this round; still deferred.",
+      "disposition": "Defer"
     }
   ]
 }
