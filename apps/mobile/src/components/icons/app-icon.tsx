@@ -72,6 +72,15 @@ const GLYPH = {
 
   // --- Library + search rows (screens 12, 13) ----------------------------
   waveform: 'activity',
+
+  // --- Knowledge graph (Phase 13) -----------------------------------------
+  // The ten parallel screen-build phases that owned this file are long
+  // finished; Phase 13 is the sole active screen work, so it adds the three
+  // names its entity screens genuinely need rather than reusing an
+  // unrelated glyph.
+  trash: 'trash-2',
+  merge: 'git-merge',
+  undo: 'corner-up-left',
 } as const satisfies Record<string, keyof typeof Feather.glyphMap>;
 
 export type AppIconName = keyof typeof GLYPH;

@@ -53,44 +53,9 @@ export interface ActionItem {
 }
 
 // --- Knowledge graph (screen 10) --------------------------------------------
-
-/** Drives the filter chips (Person / Project / Task). */
-export type GraphNodeType = 'person' | 'task' | 'project';
-
-/**
- * Drives node colour. The design colours each node individually rather than
- * by type — two Person nodes differ (blue vs. lavender), as do the two Task
- * nodes (mint vs. amber) — so colour cannot be derived from `type` alone.
- * `orange` is reserved for the single central Project node.
- */
-export type GraphPaletteKey = 'blue' | 'lavender' | 'mint' | 'amber' | 'orange';
-
-export interface GraphNode {
-  readonly id: string;
-  readonly label: string;
-  readonly type: GraphNodeType;
-  readonly paletteKey: GraphPaletteKey;
-  readonly isCentral: boolean;
-  /**
-   * The type caption drawn beneath the node's label ("Person", "Task"). The
-   * central node has no room for this inside its circle, so the design
-   * renders it outside, on a short connector dash of its own — same role,
-   * different position. Only the central node carries this field.
-   */
-  readonly caption?: string;
-}
-
-export interface GraphEdge {
-  readonly fromId: string;
-  readonly toId: string;
-}
-
-export interface GraphRelation {
-  readonly id: string;
-  readonly subjectId: string;
-  readonly verb: string;
-  readonly objectId: string;
-}
+// Retired by Phase 13: screen 10 now renders `GET /meetings/:id/graph`'s real
+// `MeetingGraphNode`/`MeetingGraphEdge` (`@meetio/shared`), not this fixture
+// shape — see `src/components/knowledge-graph/`.
 
 // --- Recording setup (screen 05) --------------------------------------------
 

@@ -1,68 +1,61 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { Pressable, Text } from 'react-native';
-import { RelationList } from './relation-list';
-import { GRAPH_NODES, GRAPH_RELATIONS } from '../../mocks';
-import { colors } from '../../theme/colors';
+import { Text } from 'react-native';
+import type { MeetingGraphEdge, MeetingGraphNode } from '@meetio/shared';
+import { RelationList, type RelationListProps } from './relation-list';
 
-function render() {
+const NODES: readonly MeetingGraphNode[] = [
+  { id: 'anh', canonical_name: 'Nguyễn Văn Anh', type: 'person', mention_count: 3 },
+  { id: 'api', canonical_name: 'API', type: 'topic', mention_count: 2 },
+];
+
+const RELATIONS: readonly MeetingGraphEdge[] = [
+  { source_id: 'anh', target_id: 'api', relationship: 'phụ trách', count: 1, chunk_id: 'c1', segment_seq: 12 },
+];
+
+function render(props: RelationListProps) {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<RelationList nodes={GRAPH_NODES} relations={GRAPH_RELATIONS} />);
+    renderer = TestRenderer.create(<RelationList {...props} />);
   });
   return renderer;
 }
 
-function flattenStyle(style: unknown): Record<string, unknown> {
-  if (Array.isArray(style)) {
-    return Object.assign({}, ...style.map(flattenStyle));
-  }
-  return (style as Record<string, unknown>) ?? {};
-}
-
-function findText(renderer: TestRenderer.ReactTestRenderer, text: string) {
-  return renderer.root.findAll((node) => node.type === Text && node.props.children === text)[0];
+function allTexts(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root.findAllByType(Text).map((t) => t.props.children).flat();
 }
 
 describe('RelationList', () => {
-  it('always renders all three relation rows, subject through object', () => {
-    const renderer = render();
-    const verbTexts = renderer.root
-      .findAllByType(Text)
-      .map((node) => (typeof node.props.children === 'string' ? node.props.children : ''))
-      .join(' ');
-    for (const relation of GRAPH_RELATIONS) {
-      expect(verbTexts).toContain(relation.verb);
-    }
-    expect(findText(renderer, 'Nguyễn Văn Anh')).toBeDefined();
-    expect(findText(renderer, 'API')).toBeDefined();
-    expect(findText(renderer, 'Dự án ABC')).toBeDefined();
-    expect(findText(renderer, 'Lê Thị Mai')).toBeDefined();
-    expect(findText(renderer, 'Authentication')).toBeDefined();
+  it('renders the subject → verb → object sentence', () => {
+    const renderer = render({ nodes: NODES, onRelationPress: jest.fn(), onViewDetailsPress: jest.fn(), relations: RELATIONS });
+    expect(allTexts(renderer).join('')).toContain('phụ trách');
   });
 
-  it('renders each entity name in its node palette colour', () => {
-    const renderer = render();
-    const subjectText = findText(renderer, 'Nguyễn Văn Anh');
-    expect(flattenStyle(subjectText.props.style).color).toBe(colors.entityBlueText);
-  });
-
-  it('falls back to the raw id when a relation references an unknown node', () => {
-    let renderer!: TestRenderer.ReactTestRenderer;
+  it('tapping a row calls onRelationPress with that edge', () => {
+    const onRelationPress = jest.fn();
+    const renderer = render({ nodes: NODES, onRelationPress, onViewDetailsPress: jest.fn(), relations: RELATIONS });
+    const row = renderer.root
+      .findAll((n) => n.props.accessibilityRole === 'button' && typeof n.props.onPress === 'function')
+      .find((n) => n.findAllByType(Text).some((t) => String(t.props.children).includes('phụ trách')));
     act(() => {
-      renderer = TestRenderer.create(
-        <RelationList
-          nodes={GRAPH_NODES}
-          relations={[{ id: 'r', subjectId: 'ghost-node', verb: 'liên quan', objectId: 'api' }]}
-        />,
-      );
+      row?.props.onPress();
     });
-    expect(findText(renderer, 'ghost-node')).toBeDefined();
+    expect(onRelationPress).toHaveBeenCalledWith(RELATIONS[0]);
   });
 
-  it('renders "Xem chi tiết" as inert — no onPress handler, not a Pressable', () => {
-    const renderer = render();
-    const link = findText(renderer, 'Xem chi tiết');
-    expect(link.props.onPress).toBeUndefined();
-    expect(renderer.root.findAllByType(Pressable)).toHaveLength(0);
+  it('tapping "Xem chi tiết" calls onViewDetailsPress', () => {
+    const onViewDetailsPress = jest.fn();
+    const renderer = render({ nodes: NODES, onRelationPress: jest.fn(), onViewDetailsPress, relations: RELATIONS });
+    const buttons = renderer.root.findAll(
+      (n) => n.props.accessibilityRole === 'button' && typeof n.props.onPress === 'function',
+    );
+    act(() => {
+      buttons[buttons.length - 1].props.onPress();
+    });
+    expect(onViewDetailsPress).toHaveBeenCalled();
+  });
+
+  it('shows an empty message when there are no relations', () => {
+    const renderer = render({ nodes: [], onRelationPress: jest.fn(), onViewDetailsPress: jest.fn(), relations: [] });
+    expect(allTexts(renderer).join(' ')).toContain('Chưa có quan hệ nào');
   });
 });

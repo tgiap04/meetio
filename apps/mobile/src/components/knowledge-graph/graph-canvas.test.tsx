@@ -1,73 +1,66 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { View } from 'react-native';
+import type { MeetingGraphEdge, MeetingGraphNode } from '@meetio/shared';
 import { GraphCanvas } from './graph-canvas';
 import { GraphEdge } from './graph-edge';
 import { GraphNode } from './graph-node';
-import { GRAPH_EDGES, GRAPH_NODES } from '../../mocks';
-import type { GraphNodeType } from '../../mocks/types';
 
-function render(activeType: GraphNodeType | 'all') {
+const NODES: readonly MeetingGraphNode[] = [
+  { id: 'du-an-abc', canonical_name: 'Dự án ABC', type: 'project', mention_count: 9 },
+  { id: 'nguyen-van-anh', canonical_name: 'Nguyễn Văn Anh', type: 'person', mention_count: 3 },
+  { id: 'api', canonical_name: 'API', type: 'topic', mention_count: 2 },
+];
+
+const EDGES: readonly MeetingGraphEdge[] = [
+  { source_id: 'nguyen-van-anh', target_id: 'api', relationship: 'phụ trách', count: 1, chunk_id: 'c1', segment_seq: 1 },
+  { source_id: 'api', target_id: 'du-an-abc', relationship: 'thuộc', count: 1, chunk_id: 'c2', segment_seq: 4 },
+];
+
+function render(nodes: readonly MeetingGraphNode[], edges: readonly MeetingGraphEdge[]) {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<GraphCanvas activeType={activeType} edges={GRAPH_EDGES} nodes={GRAPH_NODES} />);
+    renderer = TestRenderer.create(<GraphCanvas edges={edges} nodes={nodes} />);
   });
-  // The test renderer never fires a real layout pass — trigger it manually,
-  // the same event RN would deliver once the canvas View measures itself.
   const canvas = renderer.root.findByProps({ testID: 'graph-canvas' });
   act(() => {
-    canvas.props.onLayout({ nativeEvent: { layout: { width: 300, height: 500 } } });
+    canvas.props.onLayout({ nativeEvent: { layout: { width: 300, height: 460 } } });
   });
   return renderer;
-}
-
-function nodeIds(renderer: TestRenderer.ReactTestRenderer) {
-  return renderer.root
-    .findAllByType(GraphNode)
-    .map((n) => n.props.node.id)
-    .sort();
 }
 
 describe('GraphCanvas', () => {
   it('renders nothing before the canvas has measured its size', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<GraphCanvas activeType="all" edges={GRAPH_EDGES} nodes={GRAPH_NODES} />);
+      renderer = TestRenderer.create(<GraphCanvas edges={EDGES} nodes={NODES} />);
     });
     expect(renderer.root.findAllByType(GraphNode)).toHaveLength(0);
     expect(renderer.root.findAllByType(GraphEdge)).toHaveLength(0);
     expect(renderer.root.findByProps({ testID: 'graph-canvas' }).type).toBe(View);
   });
 
-  it('shows all five nodes and four edges under "Tất cả"', () => {
-    const renderer = render('all');
-    expect(nodeIds(renderer)).toEqual(['api', 'authentication', 'du-an-abc', 'le-thi-mai', 'nguyen-van-anh']);
-    expect(renderer.root.findAllByType(GraphEdge)).toHaveLength(4);
+  it('renders every given node once measured', () => {
+    const renderer = render(NODES, EDGES);
+    const ids = renderer.root.findAllByType(GraphNode).map((n) => n.props.node.id).sort();
+    expect(ids).toEqual(['api', 'du-an-abc', 'nguyen-van-anh']);
   });
 
-  it('filters to the two Person nodes plus the central node, and their edges only', () => {
-    const renderer = render('person');
-    expect(nodeIds(renderer)).toEqual(['du-an-abc', 'le-thi-mai', 'nguyen-van-anh']);
+  it('renders every given edge whose endpoints are present', () => {
+    const renderer = render(NODES, EDGES);
     expect(renderer.root.findAllByType(GraphEdge)).toHaveLength(2);
   });
 
-  it('filters to the two Task nodes plus the central node, and their edges only', () => {
-    const renderer = render('task');
-    expect(nodeIds(renderer)).toEqual(['api', 'authentication', 'du-an-abc']);
-    expect(renderer.root.findAllByType(GraphEdge)).toHaveLength(2);
-  });
-
-  it('never renders an edge with a hidden endpoint', () => {
-    const renderer = render('project');
-    // Only the central node itself is "project" type — no other node has an
-    // edge to draw, so filtering to it alone must leave zero edges.
-    expect(nodeIds(renderer)).toEqual(['du-an-abc']);
+  it('does not crash on an edge with a missing endpoint', () => {
+    const badEdges: readonly MeetingGraphEdge[] = [
+      { source_id: 'nguyen-van-anh', target_id: 'ghost', relationship: 'x', count: 1, chunk_id: 'c1', segment_seq: 1 },
+    ];
+    const renderer = render(NODES, badEdges);
     expect(renderer.root.findAllByType(GraphEdge)).toHaveLength(0);
   });
 
-  it('always keeps the central node visible, regardless of filter', () => {
-    for (const type of ['all', 'person', 'project', 'task'] as const) {
-      const renderer = render(type);
-      expect(nodeIds(renderer)).toContain('du-an-abc');
-    }
+  it('renders a single node with no edges', () => {
+    const renderer = render([NODES[0]], []);
+    expect(renderer.root.findAllByType(GraphNode)).toHaveLength(1);
+    expect(renderer.root.findAllByType(GraphEdge)).toHaveLength(0);
   });
 });

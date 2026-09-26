@@ -3,9 +3,6 @@ import {
   ABOUT_MEETIO_ENTRIES,
   ACTION_ITEMS,
   AUDIO_SOURCE_OPTIONS,
-  GRAPH_EDGES,
-  GRAPH_NODES,
-  GRAPH_RELATIONS,
   MEETING_SUMMARY,
   MEETINGS,
   RECORDING_SETTINGS_DEFAULTS,
@@ -28,11 +25,6 @@ function collectAllStrings(): string[] {
   }
   strings.push(MEETING_SUMMARY.paragraph);
   for (const item of ACTION_ITEMS) strings.push(item.title, item.assignee);
-  for (const node of GRAPH_NODES) {
-    strings.push(node.label);
-    if (node.caption) strings.push(node.caption);
-  }
-  for (const relation of GRAPH_RELATIONS) strings.push(relation.verb);
   for (const option of AUDIO_SOURCE_OPTIONS) {
     strings.push(option.label);
     if (option.description) strings.push(option.description);
@@ -94,43 +86,6 @@ describe('meeting-detail.mock', () => {
     expect(ACTION_ITEMS).toHaveLength(3);
     const ids = ACTION_ITEMS.map((a) => a.id);
     expect(new Set(ids).size).toBe(ids.length);
-  });
-});
-
-describe('knowledge-graph.mock', () => {
-  it('holds five nodes with unique ids', () => {
-    expect(GRAPH_NODES).toHaveLength(5);
-    const ids = GRAPH_NODES.map((n) => n.id);
-    expect(new Set(ids).size).toBe(ids.length);
-  });
-
-  it('has exactly one central node, and only it carries a caption', () => {
-    const central = GRAPH_NODES.filter((n) => n.isCentral);
-    expect(central).toHaveLength(1);
-    expect(central[0].id).toBe('du-an-abc');
-    expect(central[0].caption).toBeDefined();
-    for (const node of GRAPH_NODES.filter((n) => !n.isCentral)) {
-      expect(node.caption).toBeUndefined();
-    }
-  });
-
-  it('every edge and relation references nodes that exist', () => {
-    const nodeIds = new Set(GRAPH_NODES.map((n) => n.id));
-    for (const edge of GRAPH_EDGES) {
-      expect(nodeIds.has(edge.fromId)).toBe(true);
-      expect(nodeIds.has(edge.toId)).toBe(true);
-    }
-    for (const relation of GRAPH_RELATIONS) {
-      expect(nodeIds.has(relation.subjectId)).toBe(true);
-      expect(nodeIds.has(relation.objectId)).toBe(true);
-    }
-  });
-
-  it('every node carries a distinct palette key from its sibling of the same type', () => {
-    const personKeys = GRAPH_NODES.filter((n) => n.type === 'person').map((n) => n.paletteKey);
-    const taskKeys = GRAPH_NODES.filter((n) => n.type === 'task').map((n) => n.paletteKey);
-    expect(new Set(personKeys).size).toBe(personKeys.length);
-    expect(new Set(taskKeys).size).toBe(taskKeys.length);
   });
 });
 

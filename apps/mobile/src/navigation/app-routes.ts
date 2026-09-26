@@ -25,6 +25,13 @@ export const MEETING_DETAIL_ROUTE = '/(app)/meeting-detail';
 export const MEETING_TRANSCRIPT_ROUTE = '/(app)/meeting-transcript';
 export const MEETING_GRAPH_ROUTE = '/(app)/meeting-graph';
 
+// --- Knowledge graph (P13) ---------------------------------------------------
+// Flat `?id=`-param screens, same convention as meeting-detail/-transcript
+// above, rather than an Expo Router dynamic `[id]` segment.
+export const ENTITIES_LIST_ROUTE = '/(app)/entities';
+export const ENTITY_DETAIL_ROUTE = '/(app)/entity-detail';
+export const MERGE_SUGGESTIONS_ROUTE = '/(app)/merge-suggestions';
+
 // --- Existing stacked screens (unchanged, listed for discoverability) ------
 // `PERMISSION_ROUTE` was dropped here by P13's tap audit: the mic-permission
 // screen is reached exclusively through the boot resolver's own

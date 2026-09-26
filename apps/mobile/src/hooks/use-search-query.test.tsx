@@ -11,6 +11,9 @@ jest.mock('../api/search', () => ({
 const mockedSearchTranscripts = searchTranscripts as jest.Mock;
 
 let hookResult: ReturnType<typeof useInfiniteSearchQuery>;
+// Every harness writes the shared `hookResult`; one left mounted would overwrite it when its
+// query settles late, so each test's harness is unmounted before the next one starts.
+const mounted: TestRenderer.ReactTestRenderer[] = [];
 
 function Harness({ q, enabled }: { q: string; enabled: boolean }) {
   hookResult = useInfiniteSearchQuery(q, enabled);
@@ -27,12 +30,16 @@ function renderHarness(q: string, enabled: boolean) {
       </QueryClientProvider>,
     );
   });
+  mounted.push(renderer);
   return renderer;
 }
 
 describe('useInfiniteSearchQuery', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+  afterEach(() => {
+    act(() => mounted.splice(0).forEach((r) => r.unmount()));
   });
 
   it('does not call the API when disabled', () => {

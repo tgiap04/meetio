@@ -27,8 +27,13 @@ jest.mock('../../hooks/use-meetings-query', () => ({
   useInfiniteMeetingsQuery: (...args: unknown[]) => mockUseInfiniteMeetingsQuery(...args),
 }));
 
+const mockUseInfiniteEntitiesQuery = jest.fn();
+jest.mock('../../hooks/use-entities-query', () => ({
+  useInfiniteEntitiesQuery: (...args: unknown[]) => mockUseInfiniteEntitiesQuery(...args),
+}));
+
 import SearchScreen from '../../../app/(app)/(tabs)/search';
-import { MEETING_DETAIL_ROUTE, MEETING_TRANSCRIPT_ROUTE } from '../../navigation/app-routes';
+import { ENTITY_DETAIL_ROUTE, MEETING_DETAIL_ROUTE, MEETING_TRANSCRIPT_ROUTE } from '../../navigation/app-routes';
 
 function semanticItem(overrides: Record<string, unknown> = {}) {
   return {
@@ -98,6 +103,44 @@ function mockMeetingIdle() {
   });
 }
 
+function entityItem(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'e1',
+    canonical_name: 'Nguyễn Văn Anh',
+    type: 'person',
+    aliases: [],
+    mention_count: 3,
+    meeting_count: 1,
+    last_mentioned_at: null,
+    ...overrides,
+  };
+}
+
+function mockEntitiesIdle() {
+  mockUseInfiniteEntitiesQuery.mockReturnValue({
+    isPending: true,
+    isError: false,
+    data: undefined,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: jest.fn(),
+    refetch: jest.fn(),
+  });
+}
+
+function mockEntitiesSuccess(items: ReturnType<typeof entityItem>[], overrides: Record<string, unknown> = {}) {
+  mockUseInfiniteEntitiesQuery.mockReturnValue({
+    isPending: false,
+    isError: false,
+    data: { pages: [{ items, next_offset: null }] },
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: jest.fn(),
+    refetch: jest.fn(),
+    ...overrides,
+  });
+}
+
 function mockMeetingSuccess(items: ReturnType<typeof meetingItem>[], overrides: Record<string, unknown> = {}) {
   const fetchNextPage = jest.fn();
   mockUseInfiniteMeetingsQuery.mockReturnValue({
@@ -149,6 +192,7 @@ describe('(tabs)/search screen', () => {
     jest.clearAllMocks();
     mockSemanticIdle();
     mockMeetingIdle();
+    mockEntitiesIdle();
   });
 
   afterEach(() => {
@@ -169,9 +213,53 @@ describe('(tabs)/search screen', () => {
     expect(mockUseInfiniteMeetingsQuery).toHaveBeenCalledWith({ q: '', limit: 20 }, { enabled: false });
   });
 
-  it('never renders the removed "Node" chip', () => {
+  it('renders the unhidden "Node" chip', () => {
     const renderer = render();
-    expect(allTexts(renderer)).not.toContain('Node');
+    expect(allTexts(renderer)).toContain('Node');
+  });
+
+  it('shows "Thực thể" and "Người" sections for a settled query under "Node"/"Tất cả"', () => {
+    const renderer = render();
+    typeQuery(renderer, 'anh');
+    mockEntitiesSuccess([entityItem()]);
+    act(() => {
+      renderer.update(<SearchScreen />);
+    });
+    expect(allTexts(renderer)).toContain('Thực thể (1)');
+    expect(allTexts(renderer)).toContain('Người (1)');
+    expect(allTexts(renderer)).toContain('Nguyễn Văn Anh');
+  });
+
+  it('tapping an entity result pushes entity detail with its id', () => {
+    const renderer = render();
+    typeQuery(renderer, 'anh');
+    mockEntitiesSuccess([entityItem({ id: 'e9' })]);
+    act(() => {
+      renderer.update(<SearchScreen />);
+    });
+    act(() => {
+      renderer.root.findAllByProps({ accessibilityRole: 'button' })
+        .find((n) => n.findAllByType(Text).some((t) => t.props.children === 'Nguyễn Văn Anh'))
+        ?.props.onPress();
+    });
+    expect(mockPush).toHaveBeenCalledWith({ pathname: ENTITY_DETAIL_ROUTE, params: { id: 'e9' } });
+  });
+
+  it('the "Node" chip hides transcript and meeting sections', () => {
+    const renderer = render();
+    typeQuery(renderer, 'ngân sách');
+    mockSemanticSuccess([semanticItem()]);
+    mockMeetingSuccess([meetingItem()]);
+    mockEntitiesSuccess([entityItem()]);
+    act(() => {
+      renderer.update(<SearchScreen />);
+    });
+    act(() => {
+      findChip(renderer, 'Node')?.props.onPress();
+    });
+    expect(allTexts(renderer)).not.toContain('Transcript (1)');
+    expect(allTexts(renderer)).not.toContain('Cuộc họp (1)');
+    expect(allTexts(renderer)).toContain('Thực thể (1)');
   });
 
   it('enables both queries once a 2+ char query settles, and renders both sections', () => {
@@ -250,11 +338,12 @@ describe('(tabs)/search screen', () => {
     expect(mockUseInfiniteSearchQuery).toHaveBeenLastCalledWith('ngân sách', false);
   });
 
-  it('shows "không tìm thấy" when both enabled sections settle with zero items', () => {
+  it('shows "không tìm thấy" when every enabled section settles with zero items', () => {
     const renderer = render();
     typeQuery(renderer, 'zzz');
     mockSemanticSuccess([]);
     mockMeetingSuccess([]);
+    mockEntitiesSuccess([]);
     act(() => {
       renderer.update(<SearchScreen />);
     });
@@ -265,10 +354,11 @@ describe('(tabs)/search screen', () => {
     const renderer = render();
     typeQuery(renderer, 'ngân sách');
     mockMeetingSuccess([meetingItem()]);
+    mockEntitiesSuccess([]);
     act(() => {
       renderer.update(<SearchScreen />);
     });
-    expect(renderer.root.findByProps({ testID: 'loading-state' })).toBeTruthy();
+    expect(renderer.root.findAllByProps({ testID: 'loading-state' }).length).toBeGreaterThan(0);
   });
 
   it('shows a friendly, retryable message when semantic search is unavailable (503)', () => {

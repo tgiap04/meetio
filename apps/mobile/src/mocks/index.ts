@@ -14,6 +14,5 @@ export * from './types';
 export { MEETINGS } from './meetings.mock';
 export { TRANSCRIPT_LINES } from './transcript.mock';
 export { MEETING_SUMMARY, ACTION_ITEMS } from './meeting-detail.mock';
-export { GRAPH_NODES, GRAPH_EDGES, GRAPH_RELATIONS } from './knowledge-graph.mock';
 export { AUDIO_SOURCE_OPTIONS, RECORDING_SETTINGS_DEFAULTS } from './recording-options.mock';
 export { SETTINGS_ENTRIES, ABOUT_MEETIO_ENTRIES } from './settings-entries.mock';
