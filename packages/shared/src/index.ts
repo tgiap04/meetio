@@ -8,3 +8,4 @@ export * from './notifications';
 export * from './search';
 export * from './graph';
 export * from './actions';
+export * from './qa';

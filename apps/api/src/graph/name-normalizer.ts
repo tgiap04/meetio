@@ -27,7 +27,7 @@ const stripDiacritics = (s: string) =>
  * ("công ty Sao Mai" → "sao mai"). The honorific is only dropped when a name follows it —
  * "Anh" on its own is a name.
  */
-export function normalizeEntityName(name: string, type: EntityType | string): string {
+export function normalizeEntityName(name: string, type: EntityType | string, opts: { keepDiacritics?: boolean } = {}): string {
   let words = name
     .toLowerCase()
     .normalize('NFC')
@@ -38,10 +38,13 @@ export function normalizeEntityName(name: string, type: EntityType | string): st
   if (type === 'person') {
     while (words.length > 1 && HONORIFICS.has(words[0])) words = words.slice(1);
   }
-  let key = stripDiacritics(words.join(' '));
+  const plain = stripDiacritics(words.join(' '));
   for (const prefix of CATEGORY_WORDS[type] ?? []) {
     // Only when a name is left after it: "Dự án" on its own stays "du an".
-    if (key.startsWith(`${prefix} `)) key = key.slice(prefix.length + 1);
+    if (plain.startsWith(`${prefix} `)) words = words.slice(prefix.split(' ').length);
   }
-  return key;
+  return opts.keepDiacritics ? words.join(' ') : stripDiacritics(words.join(' '));
 }
+
+/** Does the text carry Vietnamese diacritics? Text typed without them can only be matched without them. */
+export const hasDiacritics = (text: string) => stripDiacritics(text) !== text;

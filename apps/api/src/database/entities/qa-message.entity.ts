@@ -42,6 +42,14 @@ export class QaMessage {
   @Column({ type: 'real', nullable: true })
   confidence!: number | null;
 
+  /** Nothing answered it — said plainly, the model was not asked to guess. */
+  @Column({ name: 'not_found', type: 'boolean', default: false })
+  not_found!: boolean;
+
+  /** Global questions: the date range / entity they were asked with. */
+  @Column({ type: 'jsonb', nullable: true })
+  filters!: Record<string, string | null> | null;
+
   @Column({ name: 'tokens_used', type: 'int', nullable: true })
   tokens_used!: number | null;
 

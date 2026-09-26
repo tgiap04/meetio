@@ -1,8 +1,7 @@
-import { HttpException, HttpStatus, Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { ApiErrorCode } from '@meetio/shared';
+import { Injectable } from '@nestjs/common';
 import { VectorRepository } from '../database/vector.repository.js';
 import { GeminiClient } from '../ai/gemini.client.js';
-import { AiServiceUnavailableError, QuotaExceededError } from '../ai/ai-errors.js';
+import { aiErrorToHttp } from '../ai/ai-http-error.js';
 import type { SearchQueryDto, SearchResponseDto } from './dto/search.dto.js';
 
 const DEFAULT_LIMIT = 10;
@@ -35,7 +34,7 @@ export class SearchService {
         taskType: 'RETRIEVAL_QUERY',
       }));
     } catch (error) {
-      throw toHttpError(error);
+      throw aiErrorToHttp(error);
     }
     // One extra row tells whether another page exists without a COUNT over the index.
     const rows = await this.vectors.searchChunks(userId, vector, {
@@ -59,14 +58,4 @@ export class SearchService {
       next_offset: rows.length > limit ? offset + limit : null,
     };
   }
-}
-
-function toHttpError(error: unknown): unknown {
-  if (error instanceof QuotaExceededError) {
-    return new HttpException({ code: ApiErrorCode.QUOTA_EXCEEDED, message: error.message, details: {} }, HttpStatus.TOO_MANY_REQUESTS);
-  }
-  if (error instanceof AiServiceUnavailableError) {
-    return new ServiceUnavailableException({ code: ApiErrorCode.AI_SERVICE_UNAVAILABLE, message: error.message, details: {} });
-  }
-  return error;
 }
