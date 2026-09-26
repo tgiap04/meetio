@@ -1,0 +1,44 @@
+{
+  "task": "Phase 14: summarize pipeline step (cited points and decisions, two tiers for long meetings, insufficient-content handling, meeting language), action item extraction with assignee resolved only from explicitly named people and relative deadlines resolved against the meeting date, action item API (per meeting, cross-meeting with filters, assignees, create, update, delete) and the mobile summary, action items and cross-meeting to-do screens",
+  "mode": "interactive",
+  "acceptanceCriteria": [
+    "every summary point and decision has at least one chunk id and opens the transcript at its source",
+    "a 60-minute meeting is summarized in under 60 seconds",
+    "a 2-minute meeting without content is answered plainly as not enough to summarize",
+    "an unclear assignee stays empty and is never guessed, with a test against guessing",
+    "action items can be edited, added manually, ticked done and deleted; done items sink to the end",
+    "a pipeline re-run keeps action items the user ticked, edited or added and does not duplicate them",
+    "the cross-meeting list filters correctly by assignee and by meeting and links back to the meeting",
+    "every summary and action query is scoped to the owning user",
+    "the summary is written in the meeting's language"
+  ],
+  "touchpoints": [
+    "apps/api/src/summaries/",
+    "apps/api/src/actions/",
+    "apps/api/src/meetings/meeting-query.service.ts",
+    "apps/api/src/meetings/meeting-mappers.ts",
+    "apps/api/src/meetings/dto/meeting-responses.dto.ts",
+    "apps/api/src/database/migrations/1758000000017-AddSummaryAndActionEditState.ts",
+    "apps/api/src/database/entities/meeting.entity.ts",
+    "apps/api/src/database/entities/action-item.entity.ts",
+    "apps/api/src/app.module.ts",
+    "apps/api/scripts/graph-live-check.mjs",
+    "apps/api/src/test-support/",
+    "packages/shared/src/actions/",
+    "packages/shared/src/meetings/meetings.types.ts",
+    "apps/mobile/"
+  ],
+  "blastRadius": [
+    "the pipeline now runs all five steps and meetings reach ready",
+    "MeetingActionItem gains meeting_id, assignee_name, source_chunk_id, segment_seq, created_at; MeetingDetailResponse gains summary_insufficient and typed summary_citations",
+    "meetings gains summary_insufficient; action_items gains is_user_edited",
+    "export still reads meetings.summary as text, now bullet lines",
+    "e2e suites that waited for the pipeline to pause at summarize now wait for ready"
+  ],
+  "contracts": [
+    "api-spec section 5 summaries and action items",
+    "packages/shared actions types and MeetingActionItem",
+    "meetings and action_items schema",
+    "SUMMARY_SINGLE_PASS_TOKENS environment variable"
+  ]
+}

@@ -48,3 +48,8 @@
 - Q: Lối vào màn "Việc cần làm" tổng hợp xuyên cuộc họp? → A: Một dòng trên Home "Việc cần làm · N đang mở", không đổi thanh tab
 - Q: Pipeline chạy lại thì action item do AI tạo xử lý thế nào? → A: Giữ việc người dùng đã tick/sửa/thêm tay; thay việc AI tạo chưa ai đụng tới; bỏ bản mới trùng nội dung với việc được giữ
 - Q: Hạn chót nói kiểu tương đối? → A: Quy ra ngày theo ngày họp (YYYY-MM-DD); không quy được rõ ràng thì để trống
+
+## Session 2026-09-26 (Phase 15)
+- Q: Lối vào hỏi đáp khi chưa có design? → A: Nút nổi "Hỏi AI" ở màn chi tiết cuộc họp (chat trong cuộc họp); dòng "Hỏi AI về các cuộc họp" trên Home (chat toàn cục); nút "Hỏi về thực thể này" ở màn chi tiết thực thể (US-39)
+- Q: Hiểu câu hỏi nối tiếp thế nào? → A: Tìm ngữ cảnh bằng câu hiện tại ghép câu hỏi liền trước; model trả lời nhận thêm 5 lượt gần nhất; không gọi thêm model để viết lại câu hỏi
+- Q: Lịch sử hỏi xuyên cuộc họp? → A: Một luồng toàn cục; bộ lọc thời gian / thực thể áp cho từng câu và hiện dạng nhãn trên câu đó; xóa được

@@ -329,13 +329,29 @@ Không có `is_manual` — chỉ việc AI tạo mới ghi dòng ở đây; xóa
 thêm vì AI không bao giờ tạo lại nó.
 
 ### `qa_messages`
-`id` UUID PK · `user_id` FK · `meeting_id` FK NULL (NULL = hỏi xuyên cuộc họp) ·
-`role` enum(`user`,`assistant`) · `content` TEXT · `citations` JSONB (mảng `{chunk_id, meeting_id}`) ·
-`confidence` REAL · `tokens_used` INT · `created_at`
+`id` UUID PK · `user_id` FK · `meeting_id` FK NULL (NULL = hỏi xuyên cuộc họp, một luồng toàn cục
+dùng chung cho mọi câu hỏi không gắn cuộc họp) · `role` enum(`user`,`assistant`) · `content` TEXT ·
+`citations` JSONB NULL · `confidence` REAL NULL · `not_found` BOOLEAN NOT NULL DEFAULT false ·
+`filters` JSONB NULL · `tokens_used` INT NULL · `created_at`
 
 ```sql
 CREATE INDEX idx_qa_user_meeting ON qa_messages (user_id, meeting_id, created_at);
 ```
+
+`not_found`: đặt ở tin nhắn `assistant` khi không có gì trong các cuộc họp trả lời được câu hỏi —
+model không được gọi để đoán ([US-35](../user_stories.md#us-35--hỏi-đáp-trong-một-cuộc-họp)).
+
+`filters`: đặt ở tin nhắn `user` của một câu hỏi `/qa` (xuyên cuộc họp) có kèm ít nhất một trong
+`from`/`to`/`entity_id`; hình dạng `{from, to, entity_id, entity_name}`, mọi trường có thể `null`.
+`null` ở tin nhắn `user` không kèm bộ lọc nào và luôn `null` ở tin nhắn `assistant`.
+
+`citations` (tin nhắn `assistant`, `null`/rỗng khi `not_found`): mảng
+`{chunk_id, meeting_id, meeting_title, meeting_date, segment_seq, excerpt}` — `meeting_title` và
+`meeting_date` được chốt lại **tại thời điểm trả lời** (không tra cứu `meetings` mỗi lần đọc), nên
+vẫn hiển thị đúng tên/ngày cuộc họp cũ dù cuộc họp đó đổi tên sau này. Cờ `available` mà API trả về
+**không** lưu trong JSONB này — nó được tính lại ở mỗi lần đọc, bằng cách đối chiếu `chunk_id` với
+`meeting_chunks` còn tồn tại (và cuộc họp chưa xóa): `true` nếu đoạn còn đó, `false` nếu transcript
+đã được sửa và cắt lại từ đó nên đoạn trích đã mất.
 
 ---
 

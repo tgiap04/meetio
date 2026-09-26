@@ -279,9 +279,11 @@ nhớ đừng tạo lại.
 |--------|------|-------|
 | GET | `/search` | Tìm ngữ nghĩa xuyên cuộc họp của chính người gọi ([US-22](../user_stories.md#us-22--tìm-kiếm-ngữ-nghĩa-xuyên-các-cuộc-họp)) |
 | POST | `/meetings/:id/qa` | Hỏi trong một cuộc họp. Body `{question}` |
+| GET | `/meetings/:id/qa` | Lịch sử hỏi đáp của cuộc họp (mới nhất trước, phân trang bằng `before`) |
+| DELETE | `/meetings/:id/qa` | Xóa lịch sử hỏi đáp của cuộc họp này (chỉ luồng này, không đụng luồng toàn cục) |
 | POST | `/qa` | Hỏi xuyên cuộc họp. Body `{question, from?, to?, entity_id?}` |
-| GET | `/meetings/:id/qa` | Lịch sử hỏi đáp của cuộc họp |
-| DELETE | `/meetings/:id/qa` | Xóa lịch sử hỏi đáp |
+| GET | `/qa` | Lịch sử hỏi đáp xuyên cuộc họp (luồng toàn cục) |
+| DELETE | `/qa` | Xóa lịch sử hỏi đáp xuyên cuộc họp (chỉ luồng toàn cục) |
 
 **`GET /search` — tham số:**
 
@@ -321,23 +323,110 @@ tiếp; `null` nghĩa là hết trang.
 (503) khi Gemini không dùng được để nhúng câu hỏi — xem [§9](#9-mã-lỗi). Tần suất bị giới hạn
 60 lần/phút/người dùng ([§10](#10-giới-hạn-tần-suất)), vượt hạn mức trả `RATE_LIMITED` (429).
 
-**Khuôn phản hồi hỏi đáp:**
+### Hỏi đáp — nội dung yêu cầu
+
+**`POST /meetings/:id/qa`**
+
+```json
+{ "question": "Ai nhận phần tích hợp thanh toán?" }
+```
+
+`question`: bắt buộc, chuỗi 1–1000 ký tự, phải có ít nhất một ký tự không phải khoảng trắng — chuỗi
+rỗng hoặc chỉ toàn khoảng trắng trả `VALIDATION_ERROR` (400). Cuộc họp phải thuộc về người gọi và đã
+xử lý xong ít nhất một đoạn có embedding, nếu không trả `MEETING_NOT_READY` (409).
+
+**`POST /qa`** — như trên, cộng thêm bộ lọc áp dụng cho câu hỏi này (không lưu làm mặc định cho câu sau):
+
+```json
+{ "question": "Deadline dự án nào gần nhất?", "from": "2026-09-01", "to": "2026-09-30", "entity_id": "…" }
+```
+
+| Trường | Kiểu | Ràng buộc |
+|---|---|---|
+| `question` | string | Như trên |
+| `from` | ISO 8601 | Tùy chọn. Chỉ ngày (`YYYY-MM-DD`, không giờ) → cả ngày đó theo **giờ Việt Nam** (00:00:00 tới 23:59:59.999, UTC+7); có giờ thì lấy đúng thời điểm đó |
+| `to` | ISO 8601 | Tùy chọn, cùng quy tắc — chỉ ngày → 23:59:59.999 giờ Việt Nam của ngày đó |
+| `entity_id` | UUID | Tùy chọn — giới hạn ngữ cảnh vào một thực thể ([US-39](../user_stories.md#us-39--hỏi-đáp-về-một-thực-thể)) |
+
+Chuỗi không đúng ISO 8601 trả `VALIDATION_ERROR` (400). `entity_id` không đúng định dạng UUID cũng
+trả `VALIDATION_ERROR` (400); đúng định dạng nhưng không tồn tại, không thuộc người gọi, hoặc đã bị
+gộp vào thực thể khác thì trả `NOT_FOUND` (404) — cùng quy tắc "tồn tại của người khác cũng là 404"
+ở [§0](#0-qui-ước-chung).
+
+### Hỏi đáp — khuôn phản hồi
+
+`POST /meetings/:id/qa` và `POST /qa` đều trả **200** với cùng khuôn `AskResponse` — cặp tin nhắn vừa
+ghi vào lịch sử:
 
 ```json
 {
-  "answer": "Anh Bình nhận phần tích hợp thanh toán, hạn cuối tuần sau.",
-  "citations": [
-    { "chunk_id": "…", "meeting_id": "…", "meeting_title": "Họp sprint 12",
-      "meeting_date": "2026-09-15", "excerpt": "…", "segment_seq": 142 }
-  ],
-  "confidence": 0.86,
-  "tokens_used": 3120
+  "question": {
+    "id": "…", "role": "user", "content": "Ai nhận phần tích hợp thanh toán?",
+    "citations": [], "confidence": null, "not_found": false, "low_confidence": false,
+    "filters": null, "created_at": "2026-09-26T10:00:00.000Z"
+  },
+  "answer": {
+    "id": "…", "role": "assistant", "content": "Anh Bình nhận phần tích hợp thanh toán, hạn cuối tuần sau.",
+    "citations": [
+      { "chunk_id": "…", "meeting_id": "…", "meeting_title": "Họp sprint 12",
+        "meeting_date": "2026-09-15T09:00:00.000Z", "segment_seq": 142,
+        "excerpt": "…", "available": true }
+    ],
+    "confidence": 0.86, "not_found": false, "low_confidence": false,
+    "filters": null, "created_at": "2026-09-26T10:00:01.000Z"
+  }
 }
 ```
 
-`citations` không bao giờ được rỗng khi `confidence` từ trung bình trở lên. Không tìm được ngữ cảnh
-đủ liên quan thì trả `answer` nói rõ là không tìm thấy, `citations: []` và `confidence: 0` — chứ
-không gọi LLM để nó bịa ([US-36](../user_stories.md#us-36--câu-trả-lời-luôn-kèm-nguồn-trích-dẫn)).
+`QaMessage` (dùng chung cho cả tin nhắn hỏi và trả lời, và cho lịch sử ở dưới):
+
+| Trường | Kiểu | Ghi chú |
+|---|---|---|
+| `id`, `role`, `content`, `created_at` | — | `role` là `user` hoặc `assistant` |
+| `citations` | `QaCitation[]` | Rỗng cho tin nhắn `user`; rỗng khi `assistant` trả "không tìm thấy" |
+| `confidence` | number \| null | Chỉ có ở `assistant`: `0` khi không tìm thấy, ngược lại theo mức model tự báo (`high`→0.9, `medium`→0.6, `low`→0.3); nếu model không trích được citation hợp lệ thì bị hạ còn tối đa 0.3 dù tự báo cao hơn |
+| `not_found` | boolean | Chỉ có ý nghĩa ở `assistant`: không có gì trong các cuộc họp trả lời được câu hỏi này — model không được gọi để đoán |
+| `low_confidence` | boolean | Chỉ `assistant`, và chỉ khi `not_found` là false: `confidence < 0.5` → client nên hiển thị cảnh báo ([US-36](../user_stories.md#us-36--câu-trả-lời-luôn-kèm-nguồn-trích-dẫn)) |
+| `filters` | `QaFilters \| null` | Chỉ đặt ở tin nhắn `user` của một câu hỏi `/qa` có kèm ít nhất một trong `from`/`to`/`entity_id`; `entity_name` là tên thực thể tại thời điểm hỏi |
+
+`QaCitation`: `chunk_id`, `meeting_id`, `meeting_title`, `meeting_date` (ISO hoặc `null`), `segment_seq`
+(chạm vào để mở transcript đúng chỗ), `excerpt` (tối đa 200 ký tự, thêm `…` nếu bị cắt), `available`
+(`false` nếu đoạn trích đã không còn tồn tại — transcript bị sửa và cắt lại từ sau khi câu trả lời này
+được lưu; tính lại mỗi lần đọc, không lưu cứng).
+
+### Hỏi đáp — lịch sử
+
+**`GET /meetings/:id/qa`** và **`GET /qa`** — tham số:
+
+| Tham số | Kiểu | Ràng buộc |
+|---|---|---|
+| `before` | UUID | Tùy chọn — id một tin nhắn, tải các tin **cũ hơn** nó |
+| `limit` | int | Tùy chọn, 1–100, mặc định 50 |
+
+Trả **200** `QaHistoryResponse`:
+
+```json
+{ "items": [ /* QaMessage[], cũ nhất trước */ ], "next_before": "…" }
+```
+
+`items` là trang tin nhắn theo thứ tự cũ → mới; `next_before` truyền lại làm `before` để tải trang cũ
+hơn tiếp theo, `null` khi đã hết. `GET /meetings/:id/qa` và `DELETE /meetings/:id/qa` đòi cuộc họp
+thuộc về người gọi, nếu không trả `MEETING_NOT_FOUND` (404). `DELETE` trả **204**, không nội dung, và
+mỗi luồng (một cuộc họp, hoặc luồng toàn cục `/qa`) xóa độc lập — xóa luồng này không đụng luồng kia.
+
+### Hỏi đáp — lỗi riêng
+
+Ngoài các mã dùng chung ở [§9](#9-mã-lỗi):
+
+| Mã | HTTP | Route | Khi nào |
+|---|---|---|---|
+| `VALIDATION_ERROR` | 400 | Cả hai `POST` | Câu hỏi rỗng/toàn khoảng trắng, hoặc `from`/`to`/`entity_id` sai định dạng |
+| `MEETING_NOT_READY` | 409 | `POST /meetings/:id/qa` | Cuộc họp thuộc về người gọi nhưng chưa có đoạn nào xử lý xong (chưa có embedding) |
+| `MEETING_NOT_FOUND` | 404 | 4 route theo `/meetings/:id/qa` | Cuộc họp không tồn tại hoặc không thuộc về người gọi |
+| `NOT_FOUND` | 404 | `POST /qa` | `entity_id` không tồn tại, không thuộc người gọi, hoặc đã bị gộp |
+| `RATE_LIMITED` | 429 | Cả hai `POST` | Quá 30 lần/giờ/người dùng ([§10](#10-giới-hạn-tần-suất)) — áp dụng riêng cho `POST`, không tính các route `GET`/`DELETE` |
+| `QUOTA_EXCEEDED` | 429 | Cả hai `POST` | Vượt hạn mức token tháng |
+| `AI_SERVICE_UNAVAILABLE` | 503 | Cả hai `POST` | Gemini không dùng được để nhúng câu hỏi hoặc sinh câu trả lời, hoặc model trả sai khuôn 3 lần liên tiếp |
 
 ---
 
@@ -571,7 +660,7 @@ bao giờ ra response.
 | Nhóm | Hạn mức |
 |------|---------|
 | `/auth/*` | 10 lần / phút / IP |
-| Hỏi đáp (`/qa`, `/meetings/:id/qa`) | 30 lần / giờ / người dùng |
+| Hỏi đáp — chỉ `POST /qa`, `POST /meetings/:id/qa` (không tính `GET`/`DELETE`, thuộc nhóm "Còn lại") | 30 lần / giờ / người dùng |
 | `/search` | 60 lần / phút / người dùng |
 | WebSocket `transcript_segment` | 120 sự kiện / phút / cuộc họp |
 | Còn lại | 300 lần / phút / người dùng |

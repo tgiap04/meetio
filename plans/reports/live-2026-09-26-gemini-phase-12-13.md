@@ -40,3 +40,15 @@ Run 1 (at 0.85): true duplicates scored 0.96–0.98 (Vietcombank 0.983, Meetio 0
 | 2 (weekday added to prompt) | 26.0s | PASS | cited | 6/6 right person or empty | "thứ Sáu" → 10-02 ✓, "thứ Hai" → 09-28 ✓, "thứ Tư tuần sau" → 09-30 ✓ |
 
 Directional only for OQ-02 (one synthetic meeting); the gold set of real meetings is still needed.
+
+## Phase 15 — `yarn workspace @meetio/api qa:check` (120-min + 20-min synthetic meetings, gemini-2.5-flash)
+
+- Best-chunk similarity (question alone): answerable 0.613–0.763, unanswerable 0.552–0.593 → default gate
+  `QA_MIN_SIMILARITY=0.6` separates this set, with a narrow margin (0.613 vs 0.593).
+- Answers: 6/6 answerable correct with citations; the cross-meeting question cited both meetings; 4/4 out-of-scope
+  "not found"; follow-up "Còn anh Bình thì sao?" understood.
+- Latency: p95 3.1s then 3.8s over 12 questions (NFR < 5s, PASS).
+- Found and fixed: accent-blind entity-name matching took "cuối tuần" for the person "Tuấn", passing the gate. Names are
+  now matched with accents when the text has them (each line of a follow-up search text on its own terms).
+- Known trade-off: in one thread, an unrelated question asked right after a relevant one is searched together with it
+  (the follow-up design), so it passes the gate and the model decides — it answered "not found" 4/4.

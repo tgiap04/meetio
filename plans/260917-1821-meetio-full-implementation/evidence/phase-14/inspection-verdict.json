@@ -1,0 +1,74 @@
+{
+  "score": 9,
+  "criticalCount": 0,
+  "decision": "BLOCKED",
+  "acceptanceCovered": [
+    "every summary point and decision has at least one chunk id and opens the transcript at its source (summarize-step.handler.ts:78-82, summary-schema.ts:82-88 structurally drops any uncited line, summarize-step.integration.spec.ts:67-84 pins exact chunk_ids and segment_seq)",
+    "a 60-minute meeting is summarized in under 60 seconds (live graph:check run: 17.6s and 26.0s for the 60-minute synthetic meeting, both under the 60s NFR — unchanged this round)",
+    "a 2-minute meeting without content is answered plainly as not enough to summarize (summarize-step.handler.ts:11,49-51,66-68 MIN_SUMMARY_WORDS gate with no model call; integration.spec.ts:86-92)",
+    "an unclear assignee stays empty and is never guessed, with a test against guessing (assignee-resolver.ts:10-21; integration.spec.ts:94-115 tests an ambiguous duplicate name and a name not mentioned in this meeting both resolve to null)",
+    "action items can be edited, added manually, ticked done and deleted; done items sink to the end (actions.service.ts:79-131, action-item-rows.ts:24; actions.e2e.spec.ts:76-101)",
+    "a pipeline re-run keeps action items the user ticked, edited or added and does not duplicate them, AND now also does not resurrect one the user deleted (summarize-step.handler.ts:97-112 dedups against both kept content and action_item_dismissals; integration.spec.ts:117-142 kept/edited/added case, :145-158 new dismissal case using the real ActionsService.remove through a reworded re-run, :160-169 new empty-PATCH-is-a-no-op case)",
+    "the cross-meeting list filters correctly by assignee and by meeting and links back to the meeting (actions.service.ts:41-77; actions.e2e.spec.ts:103-116)",
+    "every summary and action query is scoped to the owning user (actions.service.ts ownedMeeting/ownedPerson on every write path; actions.e2e.spec.ts:118-137 sweeps summary/list/create/update/delete/filters/malformed-id against a stranger token)",
+    "the summary is written in the meeting's language (summary-prompt.ts:6,13-15; live-check confirms Vietnamese output and correct relative-deadline resolution)"
+  ],
+  "regressionChecked": [
+    "Previously-flagged High (export losing summary line structure) verified fixed: export-document.ts:60-73 summaryBlocks() re-derives {kind:'list'|'text'} blocks from the stored '\\u2022 '-prefixed, blank-line-separated summary text; render-html.ts:14-21 turns list blocks into real <ul><li>, text blocks into <p>; renderMarkdown (export-document.ts:86-95) turns list blocks into real '- ' Markdown list items. New export-document.spec.ts pins exact output for a multi-point summary with an embedded '<beta>' (escaping verified: '&lt;beta&gt;' in HTML) and a 'Quyết định:' heading landing as its own paragraph between two lists, plus the insufficiency sentence as a plain paragraph in both formats. Read all four assertions myself against the actual summaryBlocks()/renderHtml()/renderMarkdown() implementations, not just the test file — the fix is real, not vacuous.",
+    "Previously-flagged Medium 1 (deleted AI tasks resurrecting) verified fixed: migration 1758000000017 adds action_item_dismissals(meeting_id, content_key) PK, CASCADE on meeting delete; ActionsService.remove (actions.service.ts:116-131) now runs inside a transaction, uses DELETE ... RETURNING (verified against the same TypeORM driver semantics checked last round: RETURNING or not, a DELETE always yields [rows, rowCount] from dataSource.query — here the RETURNING columns are what's read), and inserts a dismissal row keyed on actionContentKey(content) only for non-manual (AI) items — manual deletions are correctly left untracked, since they never collide with a future AI proposal. summarize-step.handler.ts:99-101 unions kept-content keys and dismissal keys into one 'seen' set before dedup. Test at summarize-step.integration.spec.ts:145-158 goes through the real ActionsService (not a raw SQL DELETE), then reruns the pipeline with the same task reworded in casing and punctuation and confirms it does not come back — this actually exercises actionContentKey's normalization (name-normalizer.ts's case/accent/punctuation folding), not just an exact-string check.",
+    "New: an empty PATCH ({}) used to unconditionally set is_user_edited=true, silently pinning an untouched AI task against future re-runs merely because the client sent a no-op PATCH. Now actions.service.ts:94 computes `changes` from whether any of the four patchable fields is present, and returns the item unchanged at line 99 when there are none, skipping the UPDATE entirely. Verified this doesn't weaken the real-edit path: the `changes` check only short-circuits when every one of content/assignee_entity_id/due_date/status is `undefined`; a real per-field PATCH (including explicit `null` to clear a field, which is `!== undefined`) still takes the write path. Covered by integration.spec.ts:160-169.",
+    "meetings-delete-maintenance.e2e.spec.ts's 'requeue' test change (loop condition `status === 'queued'` instead of `!== 'processing'`, assertion `['processing','ready']` instead of `'processing'`) is a correct loosening, not a weakened assertion — it still fails if the meeting stays `queued` past the deadline; it now also accepts that a fully-implemented five-step pipeline can race past `processing` to `ready` before the poll observes it, which is exactly what having all steps live now makes possible.",
+    "Mobile 'Việc cần làm' filters: use-action-filters-query.ts confirmed calling GET /actions/filters (single round trip for open_total + assignees + meetings) — matches the backend contract in actions.service.ts:55-77, replacing the earlier client-side assignee-summing + GET /meetings workaround the phase-13 review would have had to flag had it shipped that way.",
+    "temper-results.json read directly, all real exit codes: 8/8 pass — api unit 362 (+14 from last round, consistent with the new dismissal/empty-PATCH/export tests), e2e 123 (+12), schema 5, mobile 985, both typechecks and eslint --max-warnings=0 clean."
+  ],
+  "contractStatus": "OK",
+  "refuted": [],
+  "unproven": [
+    "OQ-02 gold-dataset accuracy for assignee resolution: still no hand-labelled gold set of real meetings; the live graph:check numbers remain directional evidence from one synthetic meeting only, as recorded last round. Unchanged, not re-claimed as resolved by this round's fixes."
+  ],
+  "reachableRegressions": [],
+  "findings": [
+    {
+      "severity": "High",
+      "category": "Structure",
+      "location": "apps/api/src/export/render-html.ts:14-21",
+      "summary": "(Fixed this round, re-confirmed.) Exported HTML/PDF now renders the summary's bullet lists and decisions heading as real <ul><li>/<p> blocks via summaryBlocks(), instead of collapsing into one run-on line; pinned by export-document.spec.ts.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "High",
+      "category": "Structure",
+      "location": "apps/api/src/export/export-document.ts:86-95",
+      "summary": "(Fixed this round, re-confirmed.) Markdown export now writes a real '- ' list instead of '\\u2022 '-prefixed lines joined by a single soft-break newline.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "API contracts",
+      "location": "apps/api/src/summaries/summarize-step.handler.ts:97-101",
+      "summary": "(Fixed this round, re-confirmed.) A deleted AI action item is now recorded in action_item_dismissals and excluded from re-insertion on the next pipeline run, closing the resurrection gap flagged last round.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Low",
+      "category": "API contracts",
+      "location": "apps/api/src/actions/actions.service.ts:94-99",
+      "summary": "New, found by the coordinator during test review and fixed proactively: an empty PATCH no longer marks an untouched AI item as user-edited. Good catch — this closes a second, more subtle path to the same class of bug as the dismissal fix (an accidental no-op PATCH would otherwise have permanently pinned an AI item against every future re-run).",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Concurrency",
+      "location": "apps/api/src/actions/actions.service.ts:96",
+      "summary": "Unchanged from last round, accepted as-is: if the summarize step's reconciliation DELETE commits before a concurrent user PATCH's FOR UPDATE SELECT runs on the same untouched AI item, the PATCH throws itemNotFound (404) instead of applying. Traced again against the same code (only the surrounding update() gained the empty-PATCH short-circuit, not this race) — still no data corruption, still just a confusing response the coordinator has explicitly decided to accept rather than fix.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Low",
+      "category": "Query efficiency",
+      "location": "apps/api/src/actions/actions.service.ts:46-51",
+      "summary": "(Carried over, unaddressed this round — not asked for.) The cross-meeting list's assignee filter compares COALESCE(keep.id, ae.id), which cannot use idx_action_items_assignee directly; fine at current per-user row counts.",
+      "disposition": "Defer"
+    }
+  ]
+}

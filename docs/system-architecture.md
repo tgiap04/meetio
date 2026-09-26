@@ -277,53 +277,100 @@ chạy xong.
 ## 4. Luồng 3 — Truy hồi và hỏi đáp (GraphRAG)
 
 Bản đặc tả cũ hoàn toàn không mô tả luồng này, dù đây chính là tính năng khác biệt của sản phẩm.
+Cài đặt thật ở `apps/api/src/qa/` (`retriever.ts`, `context-builder.ts`, `answer-generator.ts`,
+`qa.service.ts`).
 
 ```
-Câu hỏi của người dùng
+Câu hỏi của người dùng (nối với câu hỏi liền trước nếu đây là câu tiếp nối)
   │
-  ├─ 1. Nhúng câu hỏi ──────────► vector truy vấn
+  ├─ 1. Nhúng câu hỏi ──────────► 2 vector song song: taskType RETRIEVAL_QUERY (so với chunk)
+  │                               và SEMANTIC_SIMILARITY (so với thực thể) — cùng nội dung câu hỏi
   │
   ├─ 2. Tìm điểm neo (song song)
-  │      ├─ tìm theo vector trên meeting_chunks  → top 10 đoạn
-  │      └─ tìm theo vector trên entities        → top 5 thực thể
+  │      ├─ điểm neo đoạn: quét chính xác trên meeting_chunks → top 10 đoạn (CHUNK_ANCHORS)
+  │      └─ điểm neo thực thể: khớp tên (có dấu, xem bên dưới) trước, gần vector sau
+  │                             → top 5 thực thể (ENTITY_ANCHORS)
   │
-  ├─ 3. Mở rộng trên đồ thị ────► từ các thực thể neo, đi 1 bậc quan hệ
-  │                               lấy các chunk sinh ra những quan hệ đó
+  ├─ 3. Mở rộng trên đồ thị ────► chỉ khi có ít nhất 1 thực thể neo khớp theo TÊN (không tính khớp
+  │      (nếu có neo theo tên)    thuần theo vector): đi 1 bậc quan hệ (`relations`) và các đoạn có
+  │                               nhắc tới thực thể đó (`entity_mentions`) → tối đa 20 đoạn
   │
-  ├─ 4. Gom và xếp hạng ────────► hợp nhất chunk từ bước 2 và 3, khử trùng,
-  │                               xếp lại theo độ liên quan, cắt còn ~6000 token
+  ├─ 4. Gom và xếp hạng ────────► hợp nhất theo `chunk.id` (đoạn trùng giữ điểm cao hơn), đoạn tới
+  │                               qua đồ thị được cộng thêm 0.05 điểm (GRAPH_BONUS), xếp theo điểm
+  │                               giảm dần rồi duyệt theo thứ tự đó, giữ mỗi đoạn nếu còn vừa ngân
+  │                               sách ~6000 token (CONTEXT_TOKEN_BUDGET — đoạn điểm cao nhất luôn
+  │                               được giữ dù một mình đã vượt ngân sách; đoạn sau vượt ngân sách bị
+  │                               bỏ qua nhưng vẫn xét tiếp các đoạn điểm thấp hơn, đoạn nào còn vừa
+  │                               chỗ trống thì vẫn được thêm), rồi sắp các đoạn giữ lại theo thứ tự
+  │                               cuộc họp/thời điểm và gán nhãn S1..Sn kèm tên và ngày cuộc họp
   │
-  ├─ 5. Sinh câu trả lời ───────► LLM nhận: câu hỏi + ngữ cảnh + 5 lượt hội thoại gần nhất
-  │                               bắt buộc trả về chunk_ids dùng làm trích dẫn
+  ├─ 5. Sinh câu trả lời ───────► LLM nhận: các đoạn đã gán nhãn + tối đa 5 lượt hội thoại gần nhất
+  │                               (nếu có) + câu hỏi; bắt buộc trả JSON đúng khuôn, thử lại tối đa
+  │                               3 lần nếu sai khuôn, sau đó báo lỗi AI_SERVICE_UNAVAILABLE
   │
-  └─ 6. Trả về ─────────────────► { answer, citations[], confidence }
+  └─ 6. Trả về + lưu lại ───────► cặp tin nhắn user/assistant ghi vào `qa_messages`, trả về theo
+                                  khuôn `AskResponse` ([api-spec §6](api-spec.md#6-tìm-kiếm-và-hỏi-đáp))
 ```
+
+**Cổng trước khi gọi model (chống bịa đặt bằng cách không hỏi):** nếu độ tương đồng cao nhất trong
+số các đoạn neo (bước 2) đạt ngưỡng `QA_MIN_SIMILARITY` (mặc định 0.6, cấu hình qua biến môi trường
+cùng tên), **hoặc** câu hỏi nêu tên được ít nhất một thực thể (khớp theo tên, không chỉ theo vector)
+thì mới đi tiếp tới bước 4-5. Nếu không, trả thẳng câu "không tìm thấy", `confidence: 0`,
+`not_found: true` — model không được gọi. Ngưỡng 0.6 được hiệu chỉnh bằng đo thật (không phải chọn
+tùy ý): trên bộ dữ liệu kiểm thử `yarn workspace @meetio/api qa:check`, câu có đáp án đạt độ tương
+đồng 0.613–0.763, câu ngoài phạm vi đạt 0.552–0.593 — biên giữa hai nhóm hẹp nhất là 0.613 so với
+0.593 (chi tiết: `plans/reports/live-2026-09-26-gemini-phase-12-13.md`).
+
+**Khớp tên thực thể có dấu:** khớp bỏ dấu trước (để câu hỏi gõ không dấu vẫn tìm ra người có dấu),
+sau đó lọc lại: nếu chữ trong câu hỏi có dấu thì thực thể phải khớp có dấu mới được nhận — bỏ dấu
+mù (so mọi thứ sau khi bỏ hết dấu) từng khiến "cuối tuần" khớp nhầm ông "Tuấn". Mỗi dòng của câu
+hỏi (câu tiếp nối gồm 2 dòng: câu trước + câu hiện tại) được so trên chính quy tắc dấu của dòng đó.
+
+**Khuôn câu trả lời của model** (`ANSWER_RESPONSE_SCHEMA`): `not_found` (boolean), `answer`
+(string), `sources` (mảng nhãn `"S1"`, `"S2"`…), `confidence` (`"high"`\|`"medium"`\|`"low"`, ánh xạ
+số 0.9 / 0.6 / **0.3**). Nhãn trong `sources` không khớp đoạn nào đã đưa (model bịa nhãn) thì bị bỏ
+qua âm thầm; nếu sau khi lọc không còn trích dẫn hợp lệ nào, độ tin cậy bị hạ xuống tối đa 0.3 dù
+model tự báo cao hơn. `not_found` cũng có thể tự đến từ model (không chỉ từ cổng ở trên) khi ngữ
+cảnh được cấp không đủ trả lời — vẫn giữ nguyên `answer` (thường là một câu giải thích ngắn) nhưng
+`confidence` ép về 0.
+
+**Câu tiếp nối (follow-up):** câu hỏi hiện tại luôn được ghép với câu hỏi (không phải câu trả lời)
+liền trước trong cùng luồng thành một chuỗi tìm kiếm, để "Còn việc kia thì sao?" vẫn tìm ra ngữ
+cảnh đúng. Đánh đổi đã biết: một câu hỏi *không* liên quan hỏi ngay sau một câu liên quan cũng bị
+ghép chung khi tìm — nên có thể qua được cổng độ tương đồng nhờ câu trước, và việc từ chối trả lời
+lúc đó dồn hết vào model quyết định (đo thật: 4/4 trường hợp model vẫn trả lời đúng là "không tìm
+thấy").
+
+**Hội thoại trước đó** truyền cho model là 5 lượt gần nhất (`HISTORY_TURNS`, một lượt = 1 câu hỏi +
+1 câu trả lời) của cùng luồng — chỉ để hiểu ngữ cảnh câu tiếp nối, **không** được model dùng làm
+nguồn trích dẫn.
+
+**Không ghi log nội dung hỏi đáp:** khi model trả sai khuôn JSON, log chỉ ghi user id và số lần thử
+lại — không bao giờ ghi câu hỏi, các đoạn ngữ cảnh, hay văn bản model trả về
+([NFR-04](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)).
 
 **Phạm vi truy vấn**
 - Hỏi trong một cuộc họp ([US-35](../user_stories.md#us-35--hỏi-đáp-trong-một-cuộc-họp)): lọc theo `meeting_id`.
 - Hỏi xuyên cuộc họp ([US-37](../user_stories.md#us-37--hỏi-đáp-xuyên-nhiều-cuộc-họp)): lọc theo `user_id`,
-  tùy chọn thêm khoảng thời gian.
+  tùy chọn thêm khoảng thời gian và/hoặc một thực thể ([US-39](../user_stories.md#us-39--hỏi-đáp-về-một-thực-thể)).
 - **Mọi truy vấn đều lọc theo `user_id` ở tầng dữ liệu**, không dựa vào việc tầng ứng dụng nhớ lọc.
-
-**Chống bịa đặt:** prompt bắt buộc chỉ trả lời trong phạm vi ngữ cảnh được cấp. Không có chunk nào
-đủ độ tương đồng tối thiểu thì trả lời thẳng là không tìm thấy, không gọi LLM. Câu trả lời không
-kèm được trích dẫn thì bị coi là độ tin cậy thấp và hiển thị kèm cảnh báo.
 
 **`GET /search` ([US-22](../user_stories.md#us-22--tìm-kiếm-ngữ-nghĩa-xuyên-các-cuộc-họp)) là một
 luồng riêng, đơn giản hơn** — không mở rộng qua đồ thị, không gọi LLM sinh câu trả lời: nhúng câu
-hỏi rồi trả thẳng các chunk gần nhất của người dùng đó, có phân trang. Điểm khác biệt đáng chú ý:
-`VectorRepository.searchChunks` quét **chính xác** (`ORDER BY (embedding <=> q) + 0`, cố tình cộng
-`+ 0` để trình lập kế hoạch Postgres không chọn chỉ mục HNSW), chứ không đi qua chỉ mục HNSW gần
-đúng như `findSimilarChunks`/`findSimilarEntities` dùng ở bước 2 phía trên. Lý do: một truy vấn
-HNSW lọc thêm theo `user_id` sẽ đi lạc — bước walk HNSW trả về các vector gần nhất của **mọi**
+hỏi rồi trả thẳng các chunk gần nhất của người dùng đó, có phân trang. Cả `/search` **và** các bước
+tìm điểm neo của hỏi đáp ở trên đều quét **chính xác** trên `meeting_chunks`/`entities`
+(`ORDER BY (embedding <=> q) + 0`, cố tình cộng `+ 0` để trình lập kế hoạch Postgres không chọn chỉ
+mục HNSW) — **không route nào trong hai route này đi qua chỉ mục HNSW gần đúng**. Lý do: một truy
+vấn HNSW lọc thêm theo `user_id` sẽ đi lạc — bước walk HNSW trả về các vector gần nhất của **mọi**
 người dùng trước, `WHERE user_id = …` mới lọc sau, nên với dữ liệu thưa (hoặc các entry chết do
 việc cắt/nhúng lại chunk sau khi sửa transcript để lại, chờ `VACUUM`) một trang có thể **rỗng** dù
 người dùng đó thực sự có chunk khớp — đã đo được ca này khi kiểm thử Phase 12. Quét chính xác qua
 `idx_chunks_user` luôn đầy đủ, và đủ nhanh: 41 ms (p95) với 7.500 chunk, 300 ms (p95) với 50.000
-chunk cho một người dùng — trong ngân sách < 2s
-(chi tiết đo: `plans/reports/perf-2026-09-26-semantic-search.md`). Chỉ cân nhắc đổi cách (partition
-theo người dùng, hay các tính năng lọc-trong-index mới của pgvector) nếu một người dùng vượt xa mốc
-đó.
+chunk cho một người dùng — trong ngân sách < 2s cho `/search`; hỏi đáp đo được p95 3.1–3.8 giây trên
+12 câu hỏi thật, trong ngân sách < 5s
+(chi tiết đo: `plans/reports/perf-2026-09-26-semantic-search.md`,
+`plans/reports/live-2026-09-26-gemini-phase-12-13.md`). Chỉ cân nhắc đổi cách (partition theo người
+dùng, hay các tính năng lọc-trong-index mới của pgvector) nếu một người dùng vượt xa các mốc đó.
 
 ---
 
