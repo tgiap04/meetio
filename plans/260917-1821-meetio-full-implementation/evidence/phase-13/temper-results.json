@@ -5,56 +5,56 @@
       "exitCode": 0,
       "status": "pass",
       "summary": "yarn workspace @meetio/shared build → exit 0",
-      "ts": "2026-09-26T15:43:09.945Z"
+      "ts": "2026-09-26T13:19:17.121Z"
     },
     {
       "command": "yarn workspace @meetio/api test:unit",
       "exitCode": 0,
       "status": "pass",
-      "summary": "Test Suites: 45 passed, 45 total | Tests:       362 passed, 362 total",
-      "ts": "2026-09-26T15:43:20.844Z"
+      "summary": "Test Suites: 41 passed, 41 total | Tests:       333 passed, 333 total",
+      "ts": "2026-09-26T13:19:28.941Z"
     },
     {
       "command": "yarn workspace @meetio/api test:e2e",
       "exitCode": 0,
       "status": "pass",
-      "summary": "Test Suites: 19 passed, 19 total | Tests:       123 passed, 123 total",
-      "ts": "2026-09-26T15:44:00.081Z"
+      "summary": "Test Suites: 17 passed, 17 total | Tests:       105 passed, 105 total",
+      "ts": "2026-09-26T13:19:58.505Z"
     },
     {
       "command": "yarn workspace @meetio/api test:schema",
       "exitCode": 0,
       "status": "pass",
       "summary": "Test Suites: 1 passed, 1 total | Tests:       5 passed, 5 total",
-      "ts": "2026-09-26T15:44:08.827Z"
+      "ts": "2026-09-26T13:20:17.520Z"
     },
     {
       "command": "yarn workspace @meetio/mobile test",
       "exitCode": 0,
       "status": "pass",
-      "summary": "Test Suites: 181 passed, 181 total | Tests:       985 passed, 985 total",
-      "ts": "2026-09-26T15:44:14.403Z"
+      "summary": "Test Suites: 169 passed, 169 total | Tests:       915 passed, 915 total",
+      "ts": "2026-09-26T13:20:23.603Z"
     },
     {
       "command": "yarn workspace @meetio/api typecheck",
       "exitCode": 0,
       "status": "pass",
       "summary": "yarn workspace @meetio/api typecheck → exit 0",
-      "ts": "2026-09-26T15:44:16.728Z"
+      "ts": "2026-09-26T13:20:26.041Z"
     },
     {
       "command": "yarn workspace @meetio/mobile typecheck",
       "exitCode": 0,
       "status": "pass",
       "summary": "yarn workspace @meetio/mobile typecheck → exit 0",
-      "ts": "2026-09-26T15:44:19.263Z"
+      "ts": "2026-09-26T13:20:28.578Z"
     },
     {
       "command": "npx eslint --max-warnings=0 apps/api/src apps/api/scripts packages/shared/src apps/mobile",
       "exitCode": 0,
       "status": "pass",
       "summary": "npx eslint --max-warnings=0 apps/api/src apps/api/scripts packages/shared/src apps/mobile → exit 0",
-      "ts": "2026-09-26T15:44:22.567Z"
+      "ts": "2026-09-26T13:20:32.020Z"
     }
   ]
 }

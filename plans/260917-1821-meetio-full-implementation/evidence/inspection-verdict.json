@@ -3,79 +3,71 @@
   "criticalCount": 0,
   "decision": "BLOCKED",
   "acceptanceCovered": [
-    "one project named in three meetings becomes one entity with three mentions (graph-pipeline.integration.spec.ts:36-58, graph.e2e.spec.ts:56-63, and now demonstrated live: graph-live-check.mjs run 3 found each of the 9 expected entities exactly once, incl. 'ABC' as one project)",
-    "an answer failing the extraction schema is retried at most twice, then only that group of chunks is skipped and the meeting carries on (extract-step.handler.ts:57-83, graph-pipeline.integration.spec.ts:63-79 reworked to key on chunk content rather than call order, since groups now run in parallel)",
-    "every relation cites the chunk and meeting that produced it; relations the model cannot back up are dropped (extraction-schema.ts:98-114, resolve-step.handler.ts:66-75)",
-    "vector similarity only proposes merges while auto-merge is unconfigured; thresholds are environment configuration (entity-resolver.ts:15-19,66-79 — default suggestThreshold raised 0.85→0.95 from the live-check measurement; graph.module.ts:17-29 env override still honored)",
-    "after a manual merge the old name is still found through aliases and a merge can be undone within 30 days (entity-merge.service.ts:60-140, graph.e2e.spec.ts:100-134)",
-    "an entity marked is_user_edited is never overwritten by a later pipeline run (entity-resolver.ts:58-59,68,96; resolve-step.handler.ts:41; graph-pipeline.integration.spec.ts:92-103)",
-    "a rejected pair is never proposed again (entity-resolver.ts:102-111, entity-edit.service.ts:52-67, graph.e2e.spec.ts:147-158)",
-    "every graph query is filtered by user_id and never shows another user's graph (graph.controller.ts, entity-query.service.ts, entity-merge.service.ts, entity-edit.service.ts, graph-overview.service.ts:16-22,41-45; graph.e2e.spec.ts:84-98 cross-user 404 sweep)",
-    "mobile shows the entity list by type, entity detail with relations and timeline that open the transcript, merge review, and the meeting graph with real data (apps/mobile/app/(app)/entities.tsx, entity-detail.tsx, merge-suggestions.tsx, src/hooks/use-meeting-graph-query.ts)"
+    "every summary point and decision has at least one chunk id and opens the transcript at its source (summarize-step.handler.ts:78-82, summary-schema.ts:82-88 structurally drops any uncited line, summarize-step.integration.spec.ts:67-84 pins exact chunk_ids and segment_seq)",
+    "a 60-minute meeting is summarized in under 60 seconds (live graph:check run: 17.6s and 26.0s for the 60-minute synthetic meeting, both under the 60s NFR — unchanged this round)",
+    "a 2-minute meeting without content is answered plainly as not enough to summarize (summarize-step.handler.ts:11,49-51,66-68 MIN_SUMMARY_WORDS gate with no model call; integration.spec.ts:86-92)",
+    "an unclear assignee stays empty and is never guessed, with a test against guessing (assignee-resolver.ts:10-21; integration.spec.ts:94-115 tests an ambiguous duplicate name and a name not mentioned in this meeting both resolve to null)",
+    "action items can be edited, added manually, ticked done and deleted; done items sink to the end (actions.service.ts:79-131, action-item-rows.ts:24; actions.e2e.spec.ts:76-101)",
+    "a pipeline re-run keeps action items the user ticked, edited or added and does not duplicate them, AND now also does not resurrect one the user deleted (summarize-step.handler.ts:97-112 dedups against both kept content and action_item_dismissals; integration.spec.ts:117-142 kept/edited/added case, :145-158 new dismissal case using the real ActionsService.remove through a reworded re-run, :160-169 new empty-PATCH-is-a-no-op case)",
+    "the cross-meeting list filters correctly by assignee and by meeting and links back to the meeting (actions.service.ts:41-77; actions.e2e.spec.ts:103-116)",
+    "every summary and action query is scoped to the owning user (actions.service.ts ownedMeeting/ownedPerson on every write path; actions.e2e.spec.ts:118-137 sweeps summary/list/create/update/delete/filters/malformed-id against a stranger token)",
+    "the summary is written in the meeting's language (summary-prompt.ts:6,13-15; live-check confirms Vietnamese output and correct relative-deadline resolution)"
   ],
   "regressionChecked": [
-    "Live-key evidence (plans/reports/live-2026-09-26-gemini-phase-12-13.md), re-derived from the raw script and re-verified against the code, not taken on the coordinator's word: extract-step.handler.ts:12-14,36-68 now fans out EXTRACT_PARALLEL=4 groups concurrently via a bounded worker pool (Array.from(...).map(worker), Promise.all); each group still commits its own transaction and the UPDATE now additionally guards on 'extracted_at IS NULL' for idempotency under any future retry overlap. This is what took the 60-minute synthetic meeting's extract+resolve from 411.0s (sequential, run 1) to 84.2s (run 3, PASS <120s NFR) — the parallelism, not a faster model call, explains the win, and is safe because groups are independent (no shared entity-creation state until the later resolve step, which is gated behind the graph advisory lock reviewed in the prior round)",
-    "responseSchema is honoured by the real Gemini API: run 3's live check reports 21/21 extraction calls passed schema validation across ~18 calls — this closes the previously-unproven claim about live structured-output behavior",
-    "The parallel-extraction test rework (graph-pipeline.integration.spec.ts:63-75) is non-vacuous: it now keys the scripted failure on chunk content ('đoạn 0') rather than call order, which is the correct fix for a test that would otherwise be racy once groups run concurrently; re-read and confirmed the assertion (k.calls.generate === EXTRACT_ATTEMPTS + 1, and the skip/carry-on outcome) is unchanged and still meaningful",
-    "gemini-call-runner.ts 5xx backoff changed from 1s/4s (fixed, 3 calls) to doubling-with-jitter (1,2,4,8,16s, configurable retries via GEMINI_MAX_RETRIES, default 5) — re-read alongside the isInvalidKey logic accepted in the phase-12 review: this diff only touches the serverFailures branch, not the 400/API_KEY_INVALID branch, so the previously-accepted key-eviction fix is untouched by this change",
-    "ai.module.ts default GEMINI_TEXT_MODEL changed gemini-flash-latest → gemini-2.5-flash, a recorded user decision after every full live run against flash-latest returned HTTP 503 'high demand'; .env.example updated to match",
-    "entity-query.service.ts:19-30 search fix re-verified consistent with the new per-type category-word normalization: needles are now computed once per EntityType and OR'd, with the empty-needle short-circuit preserved. graph.e2e.spec.ts:178-183 reworked to prove the target entity is still found by its bare name, its full transcript form, and a category-word-prefixed form",
-    "temper-results.json read directly: 8/8 real exit 0 — unit 333 (+1 from the prior round), e2e 105, schema 5, mobile 915, both typechecks and eslint --max-warnings=0 clean"
+    "Previously-flagged High (export losing summary line structure) verified fixed: export-document.ts:60-73 summaryBlocks() re-derives {kind:'list'|'text'} blocks from the stored '\\u2022 '-prefixed, blank-line-separated summary text; render-html.ts:14-21 turns list blocks into real <ul><li>, text blocks into <p>; renderMarkdown (export-document.ts:86-95) turns list blocks into real '- ' Markdown list items. New export-document.spec.ts pins exact output for a multi-point summary with an embedded '<beta>' (escaping verified: '&lt;beta&gt;' in HTML) and a 'Quyết định:' heading landing as its own paragraph between two lists, plus the insufficiency sentence as a plain paragraph in both formats. Read all four assertions myself against the actual summaryBlocks()/renderHtml()/renderMarkdown() implementations, not just the test file — the fix is real, not vacuous.",
+    "Previously-flagged Medium 1 (deleted AI tasks resurrecting) verified fixed: migration 1758000000017 adds action_item_dismissals(meeting_id, content_key) PK, CASCADE on meeting delete; ActionsService.remove (actions.service.ts:116-131) now runs inside a transaction, uses DELETE ... RETURNING (verified against the same TypeORM driver semantics checked last round: RETURNING or not, a DELETE always yields [rows, rowCount] from dataSource.query — here the RETURNING columns are what's read), and inserts a dismissal row keyed on actionContentKey(content) only for non-manual (AI) items — manual deletions are correctly left untracked, since they never collide with a future AI proposal. summarize-step.handler.ts:99-101 unions kept-content keys and dismissal keys into one 'seen' set before dedup. Test at summarize-step.integration.spec.ts:145-158 goes through the real ActionsService (not a raw SQL DELETE), then reruns the pipeline with the same task reworded in casing and punctuation and confirms it does not come back — this actually exercises actionContentKey's normalization (name-normalizer.ts's case/accent/punctuation folding), not just an exact-string check.",
+    "New: an empty PATCH ({}) used to unconditionally set is_user_edited=true, silently pinning an untouched AI task against future re-runs merely because the client sent a no-op PATCH. Now actions.service.ts:94 computes `changes` from whether any of the four patchable fields is present, and returns the item unchanged at line 99 when there are none, skipping the UPDATE entirely. Verified this doesn't weaken the real-edit path: the `changes` check only short-circuits when every one of content/assignee_entity_id/due_date/status is `undefined`; a real per-field PATCH (including explicit `null` to clear a field, which is `!== undefined`) still takes the write path. Covered by integration.spec.ts:160-169.",
+    "meetings-delete-maintenance.e2e.spec.ts's 'requeue' test change (loop condition `status === 'queued'` instead of `!== 'processing'`, assertion `['processing','ready']` instead of `'processing'`) is a correct loosening, not a weakened assertion — it still fails if the meeting stays `queued` past the deadline; it now also accepts that a fully-implemented five-step pipeline can race past `processing` to `ready` before the poll observes it, which is exactly what having all steps live now makes possible.",
+    "Mobile 'Việc cần làm' filters: use-action-filters-query.ts confirmed calling GET /actions/filters (single round trip for open_total + assignees + meetings) — matches the backend contract in actions.service.ts:55-77, replacing the earlier client-side assignee-summing + GET /meetings workaround the phase-13 review would have had to flag had it shipped that way.",
+    "temper-results.json read directly, all real exit codes: 8/8 pass — api unit 362 (+14 from last round, consistent with the new dismissal/empty-PATCH/export tests), e2e 123 (+12), schema 5, mobile 985, both typechecks and eslint --max-warnings=0 clean."
   ],
   "contractStatus": "OK",
   "refuted": [],
   "unproven": [
-    "OQ-03 gold-dataset threshold calibration: scripts/entity-resolution-eval.ts is correctly wired and scripts/graph-live-check.mjs's ad hoc threshold probe (true duplicates 0.96-0.98, closest wrong pair 0.948) is directional input only — the report itself says so ('not a substitute for the gold set'). No 10-meeting hand-labelled gold set has been run. The new default (0.95) is still provisional, and the live report notes the operator's own local .env currently still sets 0.85, overriding it — that env drift is outside this review's reach (not a repo file) but worth flagging to whoever owns the deployed config."
+    "OQ-02 gold-dataset accuracy for assignee resolution: still no hand-labelled gold set of real meetings; the live graph:check numbers remain directional evidence from one synthetic meeting only, as recorded last round. Unchanged, not re-claimed as resolved by this round's fixes."
   ],
   "reachableRegressions": [],
   "findings": [
     {
-      "severity": "Critical",
-      "category": "Concurrency",
-      "location": "apps/api/src/meetings/meeting-deletion.service.ts:35-36",
-      "summary": "(Fixed in the prior round, re-confirmed unaffected by this round's changes.) Meeting deletion takes EntityResolver.lockUserGraph before the meeting row lock, closing the resolve/delete race. Re-read: nothing in this round's diff touches this file.",
+      "severity": "High",
+      "category": "Structure",
+      "location": "apps/api/src/export/render-html.ts:14-21",
+      "summary": "(Fixed this round, re-confirmed.) Exported HTML/PDF now renders the summary's bullet lists and decisions heading as real <ul><li>/<p> blocks via summaryBlocks(), instead of collapsing into one run-on line; pinned by export-document.spec.ts.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "High",
+      "category": "Structure",
+      "location": "apps/api/src/export/export-document.ts:86-95",
+      "summary": "(Fixed this round, re-confirmed.) Markdown export now writes a real '- ' list instead of '\\u2022 '-prefixed lines joined by a single soft-break newline.",
       "disposition": "Accept"
     },
     {
       "severity": "Medium",
-      "category": "Data leakage",
-      "location": "apps/api/src/graph/graph-overview.service.ts:20",
-      "summary": "(Fixed in the prior round, re-confirmed.) meetingGraph's node query filters e.user_id.",
-      "disposition": "Accept"
-    },
-    {
-      "severity": "Medium",
-      "category": "Concurrency",
-      "location": "apps/api/src/graph/name-normalizer.ts:6-11",
-      "summary": "New this round: normalizeEntityName now strips a leading category word per type ('công ty', 'ngân hàng', 'khách hàng' for organization; 'dự án' for project; 'ứng dụng' etc. for product) before the name enters tier-1 exact matching. This is the right fix for the live-check false-negative (28 entities → 25, the 9 expected each found exactly once), but it also raises tier 1's collision surface: two genuinely different organizations that happen to share a bare/prefixed name within the same type (e.g. a real 'Ngân hàng ABC' and an unrelated 'Công ty ABC', both normalizing to 'abc' under type=organization) would now auto-join at tier 1 with no suggestion step and no chance for the user to review, since tier 1 auto-attaches. This mirrors the honorific-stripping precedent for PERSON (already accepted) but the collision base rate for common category+short-name combinations in Vietnamese business speech (many small vendors/banks named after a person or place) is plausibly higher than for people's given names. No test exercises this collision; not caught by graph-live-check.mjs's synthetic transcript (each org name is unique there). Recommend a follow-up test asserting two distinct orgs that both reduce to the same normalized_name after category stripping are NOT silently the same entity if introduced with distinguishing descriptions, or documenting the trade-off explicitly as accepted (as was done for the search-precision trade-off in the live-check report's 'Remaining' section).",
-      "disposition": "Accept"
-    },
-    {
-      "severity": "Low",
-      "category": "Completeness",
-      "location": "apps/api/src/graph/graph-overview.service.ts:44",
-      "summary": "(Fixed in the prior round, re-confirmed.) Suggestions query now requires a.type = b.type at read time.",
+      "category": "API contracts",
+      "location": "apps/api/src/summaries/summarize-step.handler.ts:97-101",
+      "summary": "(Fixed this round, re-confirmed.) A deleted AI action item is now recorded in action_item_dismissals and excluded from re-insertion on the next pipeline run, closing the resurrection gap flagged last round.",
       "disposition": "Accept"
     },
     {
       "severity": "Low",
       "category": "API contracts",
-      "location": "apps/api/src/graph/entity-query.service.ts:19-21",
-      "summary": "(Fixed in the prior round, re-confirmed.) A search string with no letters/digits now returns an empty page instead of matching everything.",
+      "location": "apps/api/src/actions/actions.service.ts:94-99",
+      "summary": "New, found by the coordinator during test review and fixed proactively: an empty PATCH no longer marks an untouched AI item as user-edited. Good catch — this closes a second, more subtle path to the same class of bug as the dismissal fix (an accidental no-op PATCH would otherwise have permanently pinned an AI item against every future re-run).",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Concurrency",
+      "location": "apps/api/src/actions/actions.service.ts:96",
+      "summary": "Unchanged from last round, accepted as-is: if the summarize step's reconciliation DELETE commits before a concurrent user PATCH's FOR UPDATE SELECT runs on the same untouched AI item, the PATCH throws itemNotFound (404) instead of applying. Traced again against the same code (only the surrounding update() gained the empty-PATCH short-circuit, not this race) — still no data corruption, still just a confusing response the coordinator has explicitly decided to accept rather than fix.",
       "disposition": "Accept"
     },
     {
       "severity": "Low",
-      "category": "Structure",
-      "location": "apps/api/src/graph/entity-query.service.ts:19-30",
-      "summary": "Search precision can degrade for a query that types a category word plus a very short remainder (e.g. a 2-3 letter name): the needle computed under the matching type strips the prefix down to a short substring, which the OR'd LIKE '%...%' then matches broadly across unrelated entities of that type. Documented as an accepted, known trade-off in the live-check report's 'Remaining' section (opposite direction: typing only the category word no longer finds anything). Not a correctness or security issue — a precision/UX note only.",
-      "disposition": "Defer"
-    },
-    {
-      "severity": "Low",
-      "category": "Structure",
-      "location": "apps/api/src/graph/extraction-schema.ts:110",
-      "summary": "(Carried over, unaddressed this round.) The relation-matching find() re-normalizes each candidate entity's name per call instead of reusing the 'known' map already built during entity parsing. No correctness issue.",
+      "category": "Query efficiency",
+      "location": "apps/api/src/actions/actions.service.ts:46-51",
+      "summary": "(Carried over, unaddressed this round — not asked for.) The cross-meeting list's assignee filter compares COALESCE(keep.id, ae.id), which cannot use idx_action_items_assignee directly; fine at current per-user row counts.",
       "disposition": "Defer"
     }
   ]

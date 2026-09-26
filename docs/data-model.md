@@ -81,7 +81,8 @@ hẳn quyền sở hữu — tài khoản trước đó ngừng nhận push trê
 | `audio_source` | audio_source | enum: `device_mic` / `external_bluetooth` ([US-42](../user_stories.md#us-42--chọn-nguồn-âm-thanh)) |
 | `recording_quality` | recording_quality | enum: `standard` / `high` ([US-43](../user_stories.md#us-43--chọn-chế-độ-ghi-âm)) |
 | `summary` | TEXT | Do AI sinh |
-| `summary_citations` | JSONB | Mảng `chunk_id` cho từng ý trong tóm tắt |
+| `summary_citations` | JSONB | Mảng trích dẫn, mỗi phần tử `{kind: "point"|"decision", text, chunk_ids: string[], segment_seq}` — `chunk_ids` là id thật của các chunk được trích, `segment_seq` là seq transcript của chunk được trích đầu tiên (phase 14) |
+| `summary_insufficient` | BOOLEAN | True khi cuộc họp quá ngắn hoặc quá ít nội dung để tóm tắt — bước `summarize` không gọi model, `summary` là câu cố định giải thích lý do (phase 14) |
 | `started_at` / `ended_at` | TIMESTAMPTZ | |
 | `duration_sec` | INT | Không tính thời gian tạm dừng |
 | `failure_reason` | TEXT | Chỉ có khi `status = failed` |
@@ -305,6 +306,7 @@ ngày, hoặc khi `merged_id` đã bị gộp tiếp vào một thực thể kh�
 | `status` | action_status | enum: `open`/`done` |
 | `source_chunk_id` | UUID | Trích dẫn nguồn |
 | `is_manual` | BOOLEAN | True nếu người dùng tự thêm ([US-32](../user_stories.md#us-32--xem-danh-sách-việc-cần-làm)) |
+| `is_user_edited` | BOOLEAN | True sau bất kỳ sửa nào của người dùng (nội dung, người phụ trách, hạn, trạng thái) — một lượt `summarize` chạy lại chỉ thay các việc AI tạo mà cột này vẫn false (phase 14) |
 | `created_at` / `updated_at` | TIMESTAMPTZ | |
 
 ```sql
@@ -314,6 +316,17 @@ CREATE INDEX idx_actions_user_status ON action_items (user_id, status, due_date)
 Index này phục vụ trực tiếp màn hình tổng hợp việc cần làm ở
 [US-34](../user_stories.md#us-34--xem-việc-cần-làm-của-mình-xuyên-các-cuộc-họp) — thứ mà cột JSONB
 trong bản đặc tả cũ không thể làm được.
+
+### `action_item_dismissals`
+Việc do AI tạo mà người dùng đã xóa, theo nội dung đã chuẩn hóa — để một lượt `summarize` chạy lại
+sau đó (sửa transcript, hoặc `reindex`) không tạo lại đúng việc đó dù model lại rút ra y hệt nội
+dung (phase 14).
+
+`meeting_id` UUID FK → `meetings`, CASCADE · `content_key` TEXT (chuẩn hóa bỏ dấu/hoa-thường/dấu câu,
+cùng hàm chuẩn hóa tên thực thể) · `dismissed_at` TIMESTAMPTZ — PK gộp `(meeting_id, content_key)`.
+
+Không có `is_manual` — chỉ việc AI tạo mới ghi dòng ở đây; xóa một việc thủ công không cần nhớ gì
+thêm vì AI không bao giờ tạo lại nó.
 
 ### `qa_messages`
 `id` UUID PK · `user_id` FK · `meeting_id` FK NULL (NULL = hỏi xuyên cuộc họp) ·

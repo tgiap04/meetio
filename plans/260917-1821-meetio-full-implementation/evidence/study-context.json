@@ -1,41 +1,44 @@
 {
-  "task": "Phase 13: graph extraction (4 chunks per Gemini call, strict schema, retry then skip), three-tier entity resolution over the user-scoped graph (normalized name, vector suggestions only, user decisions), graph API (list, detail, timeline, edit, delete, merge, undo within 30 days, reject suggestion, per-meeting graph) and the mobile knowledge-graph screens",
+  "task": "Phase 14: summarize pipeline step (cited points and decisions, two tiers for long meetings, insufficient-content handling, meeting language), action item extraction with assignee resolved only from explicitly named people and relative deadlines resolved against the meeting date, action item API (per meeting, cross-meeting with filters, assignees, create, update, delete) and the mobile summary, action items and cross-meeting to-do screens",
   "mode": "interactive",
   "acceptanceCriteria": [
-    "one project named in three meetings becomes one entity with three mentions",
-    "an answer failing the extraction schema is retried at most twice, then only that group of chunks is skipped and the meeting carries on",
-    "every relation cites the chunk and meeting that produced it; relations the model cannot back up are dropped",
-    "vector similarity only proposes merges while auto-merge is unconfigured; thresholds are environment configuration",
-    "after a manual merge the old name is still found through aliases and a merge can be undone within 30 days",
-    "an entity marked is_user_edited is never overwritten by a later pipeline run",
-    "a rejected pair is never proposed again",
-    "every graph query is filtered by user_id and never shows another user's graph",
-    "mobile shows the entity list by type, entity detail with relations and timeline that open the transcript, merge review, and the meeting graph with real data"
+    "every summary point and decision has at least one chunk id and opens the transcript at its source",
+    "a 60-minute meeting is summarized in under 60 seconds",
+    "a 2-minute meeting without content is answered plainly as not enough to summarize",
+    "an unclear assignee stays empty and is never guessed, with a test against guessing",
+    "action items can be edited, added manually, ticked done and deleted; done items sink to the end",
+    "a pipeline re-run keeps action items the user ticked, edited or added and does not duplicate them",
+    "the cross-meeting list filters correctly by assignee and by meeting and links back to the meeting",
+    "every summary and action query is scoped to the owning user",
+    "the summary is written in the meeting's language"
   ],
   "touchpoints": [
-    "apps/api/src/graph/",
-    "apps/api/src/ai/gemini.client.ts",
-    "apps/api/src/database/migrations/1758000000016-AddGraphPipelineState.ts",
-    "apps/api/src/database/entities/meeting-chunk.entity.ts",
-    "apps/api/src/database/entities/entity-record.entity.ts",
-    "apps/api/src/meetings/meeting-deletion.service.ts",
+    "apps/api/src/summaries/",
+    "apps/api/src/actions/",
+    "apps/api/src/meetings/meeting-query.service.ts",
+    "apps/api/src/meetings/meeting-mappers.ts",
+    "apps/api/src/meetings/dto/meeting-responses.dto.ts",
+    "apps/api/src/database/migrations/1758000000017-AddSummaryAndActionEditState.ts",
+    "apps/api/src/database/entities/meeting.entity.ts",
+    "apps/api/src/database/entities/action-item.entity.ts",
     "apps/api/src/app.module.ts",
-    "apps/api/scripts/entity-resolution-eval.ts",
+    "apps/api/scripts/graph-live-check.mjs",
     "apps/api/src/test-support/",
-    "packages/shared/src/graph/",
+    "packages/shared/src/actions/",
+    "packages/shared/src/meetings/meetings.types.ts",
     "apps/mobile/"
   ],
   "blastRadius": [
-    "pipeline now runs extract and resolve for real and pauses at summarize",
-    "meeting_chunks gains extraction, extracted_at, resolved_at; entities gains normalized_aliases; new tables entity_merge_suggestions and entity_merges",
-    "meeting deletion now also removes entities merged into an orphaned entity",
-    "GeminiClient generateText accepts a response schema; embed accepts SEMANTIC_SIMILARITY",
-    "mobile knowledge-graph mock fixture removed; search tab shows Node chip and People group"
+    "the pipeline now runs all five steps and meetings reach ready",
+    "MeetingActionItem gains meeting_id, assignee_name, source_chunk_id, segment_seq, created_at; MeetingDetailResponse gains summary_insufficient and typed summary_citations",
+    "meetings gains summary_insufficient; action_items gains is_user_edited",
+    "export still reads meetings.summary as text, now bullet lines",
+    "e2e suites that waited for the pipeline to pause at summarize now wait for ready"
   ],
   "contracts": [
-    "api-spec section 7 knowledge graph endpoints and GET /meetings/:id/graph",
-    "packages/shared graph types",
-    "ENTITY_SUGGEST_THRESHOLD and ENTITY_AUTO_MERGE_THRESHOLD environment variables",
-    "entities and meeting_chunks schema"
+    "api-spec section 5 summaries and action items",
+    "packages/shared actions types and MeetingActionItem",
+    "meetings and action_items schema",
+    "SUMMARY_SINGLE_PASS_TOKENS environment variable"
   ]
 }

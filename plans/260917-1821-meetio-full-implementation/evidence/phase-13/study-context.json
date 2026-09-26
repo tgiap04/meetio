@@ -1,0 +1,41 @@
+{
+  "task": "Phase 13: graph extraction (4 chunks per Gemini call, strict schema, retry then skip), three-tier entity resolution over the user-scoped graph (normalized name, vector suggestions only, user decisions), graph API (list, detail, timeline, edit, delete, merge, undo within 30 days, reject suggestion, per-meeting graph) and the mobile knowledge-graph screens",
+  "mode": "interactive",
+  "acceptanceCriteria": [
+    "one project named in three meetings becomes one entity with three mentions",
+    "an answer failing the extraction schema is retried at most twice, then only that group of chunks is skipped and the meeting carries on",
+    "every relation cites the chunk and meeting that produced it; relations the model cannot back up are dropped",
+    "vector similarity only proposes merges while auto-merge is unconfigured; thresholds are environment configuration",
+    "after a manual merge the old name is still found through aliases and a merge can be undone within 30 days",
+    "an entity marked is_user_edited is never overwritten by a later pipeline run",
+    "a rejected pair is never proposed again",
+    "every graph query is filtered by user_id and never shows another user's graph",
+    "mobile shows the entity list by type, entity detail with relations and timeline that open the transcript, merge review, and the meeting graph with real data"
+  ],
+  "touchpoints": [
+    "apps/api/src/graph/",
+    "apps/api/src/ai/gemini.client.ts",
+    "apps/api/src/database/migrations/1758000000016-AddGraphPipelineState.ts",
+    "apps/api/src/database/entities/meeting-chunk.entity.ts",
+    "apps/api/src/database/entities/entity-record.entity.ts",
+    "apps/api/src/meetings/meeting-deletion.service.ts",
+    "apps/api/src/app.module.ts",
+    "apps/api/scripts/entity-resolution-eval.ts",
+    "apps/api/src/test-support/",
+    "packages/shared/src/graph/",
+    "apps/mobile/"
+  ],
+  "blastRadius": [
+    "pipeline now runs extract and resolve for real and pauses at summarize",
+    "meeting_chunks gains extraction, extracted_at, resolved_at; entities gains normalized_aliases; new tables entity_merge_suggestions and entity_merges",
+    "meeting deletion now also removes entities merged into an orphaned entity",
+    "GeminiClient generateText accepts a response schema; embed accepts SEMANTIC_SIMILARITY",
+    "mobile knowledge-graph mock fixture removed; search tab shows Node chip and People group"
+  ],
+  "contracts": [
+    "api-spec section 7 knowledge graph endpoints and GET /meetings/:id/graph",
+    "packages/shared graph types",
+    "ENTITY_SUGGEST_THRESHOLD and ENTITY_AUTO_MERGE_THRESHOLD environment variables",
+    "entities and meeting_chunks schema"
+  ]
+}

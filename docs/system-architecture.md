@@ -173,8 +173,9 @@ processing ─┬─ 1. Cắt đoạn (chunk) ── gộp transcript_segments t
             ├─ 4. Khớp thực thể (resolve) ── xem mục 5. Từng chunk một (không theo nhóm), giữ khóa
             │                                advisory theo người dùng suốt transaction ghi
             │
-            └─ 5. Tóm tắt (summarize) ── toàn bộ transcript → tóm tắt điều hành + action items,
-                                          mỗi ý bắt buộc kèm chunk nguồn
+            └─ 5. Tóm tắt (summarize) ── toàn bộ transcript, mỗi lần chạy → tóm tắt điều hành +
+                                          action items, mỗi ý/việc bắt buộc kèm chunk nguồn (chi tiết
+                                          dưới)
   │
   ▼
 ready ─── processing_status(ready) qua WebSocket, rồi đúng một push "đã xử lý xong"
@@ -186,6 +187,29 @@ Một quan hệ chỉ được giữ nếu cả `source` lẫn `target` khớp (
 model đã khai **trong đúng chunk** quan hệ đó trích dẫn; quan hệ tự trỏ vào chính nó (hai tên cùng
 một thực thể, ví dụ "Bình" và "anh Bình") cũng bị loại. Đây là hàng rào chống rủi ro "LLM bịa quan
 hệ" mà JSON schema của Gemini không tự chặn được.
+
+**Bước `summarize` luôn tóm cả cuộc họp, kể cả trên một lượt `changed`** — cắt sai một phần
+transcript mà giữ nguyên phần tóm tắt cũ dễ lẫn ý cũ với ý mới hơn là tóm lại toàn bộ, vốn chỉ tốn
+một lệnh gọi khi cuộc họp vừa với một lát. Dưới `MIN_SUMMARY_WORDS` (80) từ transcript thì
+`insufficient`, không gọi model — cuộc họp coi như không đủ nội dung để tóm. Transcript vừa
+`SUMMARY_SINGLE_PASS_TOKENS` (mặc định 60 000 token ước lượng) thì tóm trong một lệnh gọi; dài hơn
+thì chia thành nhiều lát theo token ước lượng, tóm riêng từng lát rồi gộp các ý đã tóm bằng một lệnh
+gọi thứ hai (nhãn `P1, P2, …`) — việc cần làm luôn lấy thẳng từ lượt tóm từng lát, lượt gộp không
+đụng vào. Mọi điểm chính, quyết định và việc cần làm bắt buộc trích một hoặc nhiều nhãn chunk nó
+xuất phát từ (`summary_citations`, xem [data-model.md §2](data-model.md#2-cuộc-họp-và-transcript));
+nhãn không khớp chunk nào trong nhóm gửi đi thì dòng đó bị bỏ, không giữ lại phỏng đoán. Viết bằng
+đúng ngôn ngữ cuộc họp (`source_language`); hạn của việc cần làm resolve theo ngày họp kèm thứ trong
+tuần ("thứ Sáu" → ngày thứ Sáu **sau đó**, không phải ngày họp, trừ khi transcript nói "hôm nay").
+Người phụ trách chỉ gán khi tên được nói rõ ràng, người đó có mặt (được mention) trong chính cuộc
+họp này, và tên khớp đúng **một** thực thể `person` — mơ hồ hay không nói rõ thì để trống, không
+đoán theo vai trò hay ai "có vẻ" đúng người.
+
+**Chạy lại giữ việc người dùng đã đụng tới.** Mỗi lượt `summarize` xóa hết action item AI tạo mà
+`is_user_edited = false`, rồi chèn lại kết quả mới — việc người dùng đã tick, sửa, hoặc tự thêm
+(`is_user_edited = true` hoặc `is_manual = true`) không bao giờ bị xóa. Một việc mới có nội dung đã
+chuẩn hóa trùng với một việc đang giữ, hoặc với một việc người dùng đã xóa trước đó
+(`action_item_dismissals`), không được thêm lại — tránh việc y hệt tái xuất hiện sau mỗi lần chạy
+lại.
 
 Mỗi bước là một job riêng: `jobId = <meeting>-r<run>-<step>`. `run` tăng mỗi lần cuộc họp được
 (re)queue (`meetings.pipeline_run`), nên một lượt chạy lại luôn là job mới — không bao giờ bị BullMQ
@@ -202,10 +226,10 @@ nếu quá giờ). Hết lượt thử thì bước đó và cả cuộc họp c
 (`processing_jobs.status = pending`) — không bao giờ báo `ready` giả khi vẫn còn bước chưa chạy.
 Sweep `resume-stalled-pipelines` (mỗi 5 phút) quét lại mọi cuộc họp `processing` đứng yên quá 5 phút
 và gọi lại `advance()`; khi bước đó có handler, cuộc họp tự chạy tiếp mà không cần can thiệp thủ
-công. Sau phase 13 (`extract` + `resolve` đã có handler), bước duy nhất còn thiếu là **`summarize`**
-— mọi cuộc họp hiện dừng đúng ở đó, chờ phase kế tiếp cắm handler vào registry
-(`PipelineStepRegistry`, xem `apps/api/src/graph/graph.module.ts` để thấy `extract`/`resolve` đăng
-ký theo đúng mẫu này).
+công. Từ phase 14, cả 5 bước đều có handler đăng ký vào `PipelineStepRegistry`
+(`SummarizeStepHandler` ở `apps/api/src/actions/actions.module.ts`, cùng mẫu với `extract`/`resolve`
+ở `apps/api/src/graph/graph.module.ts`) — một cuộc họp chạy hết pipeline giờ tới **`ready`**, không
+còn bước nào bỏ trống.
 
 **Chạy lại sau khi sửa transcript ([US-24](../user_stories.md#us-24--sửa-nội-dung-nhận-diện-sai),
 [US-29](../user_stories.md#us-29--thử-lại-khi-xử-lý-thất-bại)):** `POST /reindex` có hai phạm vi —

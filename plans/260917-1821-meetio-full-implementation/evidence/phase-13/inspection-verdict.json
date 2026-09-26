@@ -1,0 +1,82 @@
+{
+  "score": 9,
+  "criticalCount": 0,
+  "decision": "BLOCKED",
+  "acceptanceCovered": [
+    "one project named in three meetings becomes one entity with three mentions (graph-pipeline.integration.spec.ts:36-58, graph.e2e.spec.ts:56-63, and now demonstrated live: graph-live-check.mjs run 3 found each of the 9 expected entities exactly once, incl. 'ABC' as one project)",
+    "an answer failing the extraction schema is retried at most twice, then only that group of chunks is skipped and the meeting carries on (extract-step.handler.ts:57-83, graph-pipeline.integration.spec.ts:63-79 reworked to key on chunk content rather than call order, since groups now run in parallel)",
+    "every relation cites the chunk and meeting that produced it; relations the model cannot back up are dropped (extraction-schema.ts:98-114, resolve-step.handler.ts:66-75)",
+    "vector similarity only proposes merges while auto-merge is unconfigured; thresholds are environment configuration (entity-resolver.ts:15-19,66-79 — default suggestThreshold raised 0.85→0.95 from the live-check measurement; graph.module.ts:17-29 env override still honored)",
+    "after a manual merge the old name is still found through aliases and a merge can be undone within 30 days (entity-merge.service.ts:60-140, graph.e2e.spec.ts:100-134)",
+    "an entity marked is_user_edited is never overwritten by a later pipeline run (entity-resolver.ts:58-59,68,96; resolve-step.handler.ts:41; graph-pipeline.integration.spec.ts:92-103)",
+    "a rejected pair is never proposed again (entity-resolver.ts:102-111, entity-edit.service.ts:52-67, graph.e2e.spec.ts:147-158)",
+    "every graph query is filtered by user_id and never shows another user's graph (graph.controller.ts, entity-query.service.ts, entity-merge.service.ts, entity-edit.service.ts, graph-overview.service.ts:16-22,41-45; graph.e2e.spec.ts:84-98 cross-user 404 sweep)",
+    "mobile shows the entity list by type, entity detail with relations and timeline that open the transcript, merge review, and the meeting graph with real data (apps/mobile/app/(app)/entities.tsx, entity-detail.tsx, merge-suggestions.tsx, src/hooks/use-meeting-graph-query.ts)"
+  ],
+  "regressionChecked": [
+    "Live-key evidence (plans/reports/live-2026-09-26-gemini-phase-12-13.md), re-derived from the raw script and re-verified against the code, not taken on the coordinator's word: extract-step.handler.ts:12-14,36-68 now fans out EXTRACT_PARALLEL=4 groups concurrently via a bounded worker pool (Array.from(...).map(worker), Promise.all); each group still commits its own transaction and the UPDATE now additionally guards on 'extracted_at IS NULL' for idempotency under any future retry overlap. This is what took the 60-minute synthetic meeting's extract+resolve from 411.0s (sequential, run 1) to 84.2s (run 3, PASS <120s NFR) — the parallelism, not a faster model call, explains the win, and is safe because groups are independent (no shared entity-creation state until the later resolve step, which is gated behind the graph advisory lock reviewed in the prior round)",
+    "responseSchema is honoured by the real Gemini API: run 3's live check reports 21/21 extraction calls passed schema validation across ~18 calls — this closes the previously-unproven claim about live structured-output behavior",
+    "The parallel-extraction test rework (graph-pipeline.integration.spec.ts:63-75) is non-vacuous: it now keys the scripted failure on chunk content ('đoạn 0') rather than call order, which is the correct fix for a test that would otherwise be racy once groups run concurrently; re-read and confirmed the assertion (k.calls.generate === EXTRACT_ATTEMPTS + 1, and the skip/carry-on outcome) is unchanged and still meaningful",
+    "gemini-call-runner.ts 5xx backoff changed from 1s/4s (fixed, 3 calls) to doubling-with-jitter (1,2,4,8,16s, configurable retries via GEMINI_MAX_RETRIES, default 5) — re-read alongside the isInvalidKey logic accepted in the phase-12 review: this diff only touches the serverFailures branch, not the 400/API_KEY_INVALID branch, so the previously-accepted key-eviction fix is untouched by this change",
+    "ai.module.ts default GEMINI_TEXT_MODEL changed gemini-flash-latest → gemini-2.5-flash, a recorded user decision after every full live run against flash-latest returned HTTP 503 'high demand'; .env.example updated to match",
+    "entity-query.service.ts:19-30 search fix re-verified consistent with the new per-type category-word normalization: needles are now computed once per EntityType and OR'd, with the empty-needle short-circuit preserved. graph.e2e.spec.ts:178-183 reworked to prove the target entity is still found by its bare name, its full transcript form, and a category-word-prefixed form",
+    "temper-results.json read directly: 8/8 real exit 0 — unit 333 (+1 from the prior round), e2e 105, schema 5, mobile 915, both typechecks and eslint --max-warnings=0 clean"
+  ],
+  "contractStatus": "OK",
+  "refuted": [],
+  "unproven": [
+    "OQ-03 gold-dataset threshold calibration: scripts/entity-resolution-eval.ts is correctly wired and scripts/graph-live-check.mjs's ad hoc threshold probe (true duplicates 0.96-0.98, closest wrong pair 0.948) is directional input only — the report itself says so ('not a substitute for the gold set'). No 10-meeting hand-labelled gold set has been run. The new default (0.95) is still provisional, and the live report notes the operator's own local .env currently still sets 0.85, overriding it — that env drift is outside this review's reach (not a repo file) but worth flagging to whoever owns the deployed config."
+  ],
+  "reachableRegressions": [],
+  "findings": [
+    {
+      "severity": "Critical",
+      "category": "Concurrency",
+      "location": "apps/api/src/meetings/meeting-deletion.service.ts:35-36",
+      "summary": "(Fixed in the prior round, re-confirmed unaffected by this round's changes.) Meeting deletion takes EntityResolver.lockUserGraph before the meeting row lock, closing the resolve/delete race. Re-read: nothing in this round's diff touches this file.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Data leakage",
+      "location": "apps/api/src/graph/graph-overview.service.ts:20",
+      "summary": "(Fixed in the prior round, re-confirmed.) meetingGraph's node query filters e.user_id.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Concurrency",
+      "location": "apps/api/src/graph/name-normalizer.ts:6-11",
+      "summary": "New this round: normalizeEntityName now strips a leading category word per type ('công ty', 'ngân hàng', 'khách hàng' for organization; 'dự án' for project; 'ứng dụng' etc. for product) before the name enters tier-1 exact matching. This is the right fix for the live-check false-negative (28 entities → 25, the 9 expected each found exactly once), but it also raises tier 1's collision surface: two genuinely different organizations that happen to share a bare/prefixed name within the same type (e.g. a real 'Ngân hàng ABC' and an unrelated 'Công ty ABC', both normalizing to 'abc' under type=organization) would now auto-join at tier 1 with no suggestion step and no chance for the user to review, since tier 1 auto-attaches. This mirrors the honorific-stripping precedent for PERSON (already accepted) but the collision base rate for common category+short-name combinations in Vietnamese business speech (many small vendors/banks named after a person or place) is plausibly higher than for people's given names. No test exercises this collision; not caught by graph-live-check.mjs's synthetic transcript (each org name is unique there). Recommend a follow-up test asserting two distinct orgs that both reduce to the same normalized_name after category stripping are NOT silently the same entity if introduced with distinguishing descriptions, or documenting the trade-off explicitly as accepted (as was done for the search-precision trade-off in the live-check report's 'Remaining' section).",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Low",
+      "category": "Completeness",
+      "location": "apps/api/src/graph/graph-overview.service.ts:44",
+      "summary": "(Fixed in the prior round, re-confirmed.) Suggestions query now requires a.type = b.type at read time.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Low",
+      "category": "API contracts",
+      "location": "apps/api/src/graph/entity-query.service.ts:19-21",
+      "summary": "(Fixed in the prior round, re-confirmed.) A search string with no letters/digits now returns an empty page instead of matching everything.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Low",
+      "category": "Structure",
+      "location": "apps/api/src/graph/entity-query.service.ts:19-30",
+      "summary": "Search precision can degrade for a query that types a category word plus a very short remainder (e.g. a 2-3 letter name): the needle computed under the matching type strips the prefix down to a short substring, which the OR'd LIKE '%...%' then matches broadly across unrelated entities of that type. Documented as an accepted, known trade-off in the live-check report's 'Remaining' section (opposite direction: typing only the category word no longer finds anything). Not a correctness or security issue — a precision/UX note only.",
+      "disposition": "Defer"
+    },
+    {
+      "severity": "Low",
+      "category": "Structure",
+      "location": "apps/api/src/graph/extraction-schema.ts:110",
+      "summary": "(Carried over, unaddressed this round.) The relation-matching find() re-normalizes each candidate entity's name per call instead of reusing the 'known' map already built during entity parsing. No correctness issue.",
+      "disposition": "Defer"
+    }
+  ]
+}

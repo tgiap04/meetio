@@ -31,3 +31,12 @@ Run 1 (at 0.85): true duplicates scored 0.96–0.98 (Vietcombank 0.983, Meetio 0
 - Same concept extracted under two types ("công cụ kiểm thử tự động" product/other) is not joined — tier 1 and
   suggestions are same-type only. Low impact; revisit with the gold set.
 - 84s leaves ~30% headroom at 4 groups in flight; a longer meeting or a slower model day can exceed 120s.
+
+## Phase 14 — summarize step in `graph:check` (same synthetic 60-minute meeting, gemini-2.5-flash)
+
+| Run | summarize | NFR < 60s | Points / decisions | Action items: assignee | Relative deadlines |
+|-----|-----------|-----------|--------------------|------------------------|--------------------|
+| 1 | 17.6s | PASS | 7 / 3, all cited | 4/4 right person | "thứ Sáu" → 2026-09-26 (the meeting day, a Saturday) ✗; "thứ Hai" → 09-29 ✗ |
+| 2 (weekday added to prompt) | 26.0s | PASS | cited | 6/6 right person or empty | "thứ Sáu" → 10-02 ✓, "thứ Hai" → 09-28 ✓, "thứ Tư tuần sau" → 09-30 ✓ |
+
+Directional only for OQ-02 (one synthetic meeting); the gold set of real meetings is still needed.

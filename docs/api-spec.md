@@ -119,6 +119,10 @@ chạy lại một cuộc họp không đổi gì chỉ tốn tiền; trên `fai
 lỗi, bỏ qua các bước đã xong. `scope: "full"` luôn chạy lại từ đầu. Mỗi lần chạy tăng
 `meetings.pipeline_run`, dùng làm id hàng đợi — bản tóm tắt cũ vẫn đọc được trong lúc chờ.
 
+`GET /meetings/:id` trả thêm `summary_insufficient` (true khi cuộc họp quá ngắn hoặc quá ít nội
+dung để tóm tắt — bước `summarize` không gọi model, `summary` là câu cố định giải thích lý do thay
+vì rỗng) và `action_items[]` theo đúng khuôn `MeetingActionItem` ở [§5](#5-kết-quả-ai).
+
 ---
 
 ## 4. Transcript
@@ -145,16 +149,127 @@ tóm tắt ([US-24](../user_stories.md#us-24--sửa-nội-dung-nhận-diện-sai
 
 ---
 
-## 5. Kết quả AI
+## 5. Kết quả AI (Phase 14 — US-31→34)
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| GET | `/meetings/:id/summary` | `{summary, citations[]}` |
+| GET | `/meetings/:id/summary` | Tóm tắt có trích dẫn — `MeetingSummaryResponse` |
 | GET | `/meetings/:id/actions` | Action items của một cuộc họp |
-| GET | `/actions` | Tổng hợp mọi cuộc họp. `?status=open&assignee_entity_id=` ([US-34](../user_stories.md#us-34--xem-việc-cần-làm-của-mình-xuyên-các-cuộc-họp)) |
-| POST | `/meetings/:id/actions` | Thêm action item thủ công |
+| POST | `/meetings/:id/actions` | Thêm action item thủ công (US-32) |
+| GET | `/actions` | Tổng hợp mọi cuộc họp, phân trang — open trước, done sau (US-34) |
+| GET | `/actions/filters` | Chip lọc (người phụ trách, cuộc họp) và tổng số việc mở |
 | PATCH | `/actions/:id` | Sửa nội dung, người phụ trách, hạn, trạng thái |
 | DELETE | `/actions/:id` | |
+
+**`GET /meetings/:id/summary`** → `MeetingSummaryResponse`:
+
+```json
+{
+  "meeting_id": "…",
+  "summary": "• Điểm 1\n• Điểm 2\n\nQuyết định:\n• …",
+  "insufficient": false,
+  "points": [{ "kind": "point", "text": "…", "chunk_ids": ["…"], "segment_seq": 12 }],
+  "decisions": [{ "kind": "decision", "text": "…", "chunk_ids": ["…"], "segment_seq": 40 }],
+  "has_unprocessed_edits": false
+}
+```
+
+`summary` là `null` cho tới khi bước `summarize` chạy xong lần đầu. `insufficient` là true khi cuộc
+họp quá ngắn hoặc quá ít nội dung để tóm tắt (dưới 80 từ transcript, hoặc model không rút được điểm
+hay quyết định nào) — khi đó `summary` là câu cố định giải thích lý do, `points`/`decisions` rỗng và
+không action item nào được tạo cho lượt đó. `points`/`decisions` chính là `summary_citations` đã lọc
+theo `kind`; mỗi dòng kèm `chunk_ids` (id thật của các chunk được trích) và `segment_seq` (seq
+transcript của chunk được trích đầu tiên) để mở đúng chỗ trong transcript. `has_unprocessed_edits`
+giống hệt trường cùng tên ở `GET /meetings/:id/status`. `:id` không thuộc về người gọi, không tồn
+tại, hoặc không parse được thành UUID → **404** `MEETING_NOT_FOUND` (cả ba trường hợp như nhau,
+[§0](#0-qui-ước-chung)).
+
+**`GET /meetings/:id/actions`** → `{ items: MeetingActionItem[] }`, cùng khuôn `MeetingActionItem`
+ở dưới nhưng không lặp lại tên/ngày cuộc họp (đã biết từ `:id`). Cùng luật 404 `MEETING_NOT_FOUND`
+như `summary`.
+
+**`MeetingActionItem`** (khuôn item dùng chung mọi endpoint action item):
+
+```json
+{
+  "id": "…", "meeting_id": "…", "content": "Gửi bản demo cho khách hàng",
+  "assignee_entity_id": "…", "assignee_name": "anh Bình",
+  "due_date": "2026-10-02", "status": "open", "is_manual": false,
+  "source_chunk_id": "…", "segment_seq": 87, "created_at": "…"
+}
+```
+
+`assignee_name` là `null` khi transcript không nói rõ ai làm — không bao giờ đoán
+([US-32](../user_stories.md#us-32--xem-danh-sách-việc-cần-làm)); nếu thực thể assignee đã bị gộp,
+`assignee_entity_id`/`assignee_name` trả về của thực thể **giữ lại**. `is_manual` true nếu người
+dùng tự thêm qua `POST`. `source_chunk_id`/`segment_seq` là `null` cho việc thủ công, hoặc cho việc
+AI tạo mà chunk nguồn đã bị cắt lại từ đó (sửa transcript).
+
+**`POST /meetings/:id/actions`** — body:
+
+```json
+{ "content": "…", "assignee_entity_id": null, "due_date": "2026-10-02" }
+```
+
+`content` bắt buộc, 1–500 ký tự. `assignee_entity_id`/`due_date` tùy chọn. `due_date` sai định dạng
+(không phải `YYYY-MM-DD` hợp lệ) → **400** `VALIDATION_ERROR`. `assignee_entity_id` khác null phải
+là một thực thể `person` **còn sống** của chính người gọi — thực thể của người khác, đã bị gộp
+(`merged_into_id` khác null), hoặc không tồn tại → **404** `NOT_FOUND` ("Không tìm thấy người phụ
+trách"). Cuộc họp không thuộc người gọi → **404** `MEETING_NOT_FOUND`. → trả về `MeetingActionItem`
+vừa tạo (`is_manual: true`, `status: "open"`).
+
+**`GET /actions?status=&assignee_entity_id=&meeting_id=&limit=&offset=`**
+([US-34](../user_stories.md#us-34--xem-việc-cần-làm-của-mình-xuyên-các-cuộc-họp)):
+
+| Tham số | Kiểu | Ràng buộc |
+|---------|------|-----------|
+| `status` | string | Tùy chọn, `open`\|`done` |
+| `assignee_entity_id` | UUID | Tùy chọn — khớp cả khi thực thể đã bị gộp vào thực thể khác từ đó |
+| `meeting_id` | UUID | Tùy chọn |
+| `limit` | int | Tùy chọn, 1–100, mặc định 30 |
+| `offset` | int | Tùy chọn, 0–10000, mặc định 0 |
+
+→ `ActionListResponse`: `{ items: ActionListItem[], next_offset }` — `ActionListItem` là
+`MeetingActionItem` cộng `meeting_title`, `meeting_date`. Sắp xếp: **mở trước, xong sau**
+(`status = 'done'` xuống cuối), trong mỗi nhóm theo `due_date` tăng dần (không hạn xuống cuối), rồi
+`created_at`, rồi `id`. `next_offset` là `null` khi hết trang, ngược lại dùng cho `?offset=` trang kế.
+
+**`GET /actions/filters`** → `ActionFiltersResponse`:
+
+```json
+{
+  "open_total": 12,
+  "assignees": [{ "id": "…", "canonical_name": "anh Bình", "open_count": 5 }],
+  "meetings": [{ "id": "…", "title": "Họp sprint 12", "started_at": "…", "open_count": 3 }]
+}
+```
+
+`open_total` là tổng số việc **mở** của người gọi, không lọc gì (kể cả chưa có người phụ trách).
+`assignees`/`meetings` chỉ liệt kê người/cuộc họp **đang có ít nhất một việc mở** — `assignees` xếp
+theo `open_count` giảm dần, `meetings` xếp mới nhất trước (`started_at DESC NULLS LAST`, tối đa
+100 dòng).
+
+**`PATCH /actions/:id`** — body (không trường nào bắt buộc):
+
+```json
+{ "content": "…", "assignee_entity_id": null, "due_date": null, "status": "done" }
+```
+
+`null` ở `assignee_entity_id`/`due_date` **xóa** trường đó; trường vắng mặt (không gửi) giữ nguyên
+giá trị cũ. Body rỗng (`{}`, hoặc mọi trường đều vắng mặt) là **no-op** — không sửa gì và **không**
+đánh dấu `is_user_edited`. Bất kỳ trường nào thực sự được gửi (kể cả gửi lại đúng giá trị cũ, vì
+server không so sánh giá trị cũ/mới) đều đặt `is_user_edited = true`, để một lượt `summarize` chạy
+lại sau đó (transcript sửa, hoặc `reindex`) giữ nguyên việc này thay vì coi là AI item chưa ai đụng
+tới. `assignee_entity_id` khác null phải là thực thể `person` còn sống của chính người gọi, cùng
+luật 404 như `POST` ở trên. `due_date` sai định dạng → **400** `VALIDATION_ERROR`. `:id` không tồn
+tại, không thuộc về người gọi, hoặc không parse được thành UUID → **404** `NOT_FOUND` (không phân
+biệt ba trường hợp, cùng nguyên tắc [§0](#0-qui-ước-chung)).
+
+**`DELETE /actions/:id`** → **204**. Cùng luật 404 như `PATCH`. Xóa một việc **do AI tạo**
+(`is_manual: false`) còn ghi lại nội dung đã chuẩn hóa vào `action_item_dismissals` — một lượt
+`summarize` chạy lại sau đó sẽ không tạo lại đúng việc đó, dù model lại rút ra y hệt nội dung. Xóa
+một việc **thủ công** (`is_manual: true`) không ghi gì thêm — không phải AI tạo nên không có gì để
+nhớ đừng tạo lại.
 
 ---
 

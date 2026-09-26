@@ -21,10 +21,10 @@ thiết bị, pipeline GraphRAG phía backend, hỏi đáp có trích dẫn ngu�
 [Kiểm chứng stack](../reports/researcher-2026-09-17-stack-verification.md) ·
 **[Thiết kế giao diện](../../design.png)** (14 màn)
 
-**Hiện trạng:** Bộ khung + vòng đời + quản lý cuộc họp + hạ tầng AI + semantic search + đồ thị thực thể xong — Phase 01–06, 10–13 triển khai đầy đủ, kiểm chứng độc lập.
-**Test: 1.357 xanh** (2026-09-26): API 332 unit + 105 e2e + 5 schema (442 tổng) · mobile 915. Phase 04: máy trạng thái toàn phần; pause/resume; queued → BullMQ; cascade xóa; tự đóng 24h idle. Phase 05: WebSocket, JWT, batch 200ms, upsert ON CONFLICT DO NOTHING, ack/COMMIT, rate 120/min/meeting, p95 253ms. Phase 10: danh sách phân trang + lọc bỏ dấu, transcript ảo hóa (200/trang, `FlatList`, edit/search toàn bộ), export Markdown/HTML/PDF share sheet, xóa 10s undo. Phase 11: 5 BullMQ queue + orchestrator, retry 2s/8s/32s × 3 lần, timeout 10min/step, sweep 5min, push Expo khử trùng, GeminiClient usage-tracker (null budget = OQ-04 mở). Phase 12: chunking + embedding batch 20 + exact per-user search 41–44ms (7.5k chunk target), Gemini key pool rotation, tìm kiếm cắt xuyên cuộc họp (Transcript chip, semantic-result-row nhảy tới). Phase 13: trích xuất đồ thị 4 chunk/lần; khớp ba tầng (chính xác → vector → người dùng); gộp/tách; danh sách thực thể với dòng thời gian và đề xuất gộp.
+**Hiện trạng:** Bộ khung + vòng đời + quản lý cuộc họp + hạ tầng AI + semantic search + đồ thị thực thể + tóm tắt & việc cần làm xong — Phase 01–06, 10–14 triển khai đầy đủ, kiểm chứng độc lập.
+**Test: 1.475 xanh** (2026-09-26): API 362 unit + 123 e2e + 5 schema (490 tổng) · mobile 985. Phase 04: máy trạng thái toàn phần; pause/resume; queued → BullMQ; cascade xóa; tự đóng 24h idle. Phase 05: WebSocket, JWT, batch 200ms, upsert ON CONFLICT DO NOTHING, ack/COMMIT, rate 120/min/meeting, p95 253ms. Phase 10: danh sách phân trang + lọc bỏ dấu, transcript ảo hóa (200/trang, `FlatList`, edit/search toàn bộ), export Markdown/HTML/PDF share sheet, xóa 10s undo. Phase 11: 5 BullMQ queue + orchestrator, retry 2s/8s/32s × 3 lần, timeout 10min/step, sweep 5min, push Expo khử trùng, GeminiClient usage-tracker (null budget = OQ-04 mở). Phase 12: chunking + embedding batch 20 + exact per-user search 41–44ms (7.5k chunk target), Gemini key pool rotation, tìm kiếm cắt xuyên cuộc họp (Transcript chip, semantic-result-row nhảy tới). Phase 13: trích xuất đồ thị 4 chunk/lần; khớp ba tầng (chính xác → vector → người dùng); gộp/tách; danh sách thực thể với dòng thời gian và đề xuất gộp.
 **Phase 00:** Spike STT khung hoàn tất (46 test xanh). Đợi 60 phút audio Việt + chép tay để chạy đo 36 lượt Android/iOS.
-**Tiếp theo:** Phase 07/08 chờ Phase 00 đóng (cổng chặn cứng). Kiểm Gemini thật đã chạy 2026-09-26 ([báo cáo](../reports/live-2026-09-26-gemini-phase-12-13.md)): Phase 12 đạt (còn chưa thấy 429 thật); Phase 13 đạt schema + NFR 84s/60 phút trên gemini-2.5-flash — chỉ còn bộ dữ liệu vàng 10 cuộc họp (OQ-03). Phase 14 (tóm tắt) mở khóa ngay.
+**Tiếp theo:** Phase 07/08 chờ Phase 00 đóng (cổng chặn cứng). Kiểm Gemini thật đã chạy 2026-09-26 ([báo cáo](../reports/live-2026-09-26-gemini-phase-12-13.md)): Phase 12 đạt (còn chưa thấy 429 thật); Phase 13 đạt schema + NFR 84s/60 phút trên gemini-2.5-flash — chỉ còn bộ dữ liệu vàng (OQ-03). Phase 14 (tóm tắt) 60 phút = 17.6s + 26.0s đạt NFR < 60s, gán người chính xác/trống (4/4 rồi 6/6), OQ-02 chờ bộ dữ liệu vàng từ cuộc họp thật (chưa bắt đầu). Phase 15 (GraphRAG) mở khóa.
 
 ### Phạm vi mở rộng — Google Sign-In (NGOÀI spec 260917)
 
@@ -73,7 +73,7 @@ chạy song song được ngay.
 | 11 | [Hạ tầng tác vụ AI](phase-11-ai-job-infrastructure.md) | 04 | US-28→30 | ✅ **xong** |
 | 12 | [Chunking, embedding & tìm kiếm](phase-12-chunking-embedding-search.md) | 11 | US-22 | ✅ **implemented — live Gemini verified** |
 | 13 | [Trích xuất đồ thị & khớp thực thể](phase-13-graph-extraction-entity-resolution.md) | 12 | US-38→41 | ✅ **implemented — live Gemini verified; pending OQ-03 gold dataset** |
-| 14 | [Tóm tắt & việc cần làm](phase-14-summary-and-action-items.md) | 12, 13 | US-31→34 | ⬜ pending |
+| 14 | [Tóm tắt & việc cần làm](phase-14-summary-and-action-items.md) | 12, 13 | US-31→34 | ✅ **implemented — live Gemini verified; pending OQ-02 gold dataset** |
 | 15 | [Hỏi đáp GraphRAG](phase-15-graphrag-qa.md) | 13 | US-35→37 | ⬜ pending |
 | 16 | [Siết yêu cầu phi chức năng](phase-16-nfr-hardening.md) | 11 | NFR-01→13 | ⬜ pending |
 | 17 | [Kiểm thử & nghiệm thu](phase-17-testing-and-acceptance.md) | mọi phase | toàn bộ | ⬜ pending |

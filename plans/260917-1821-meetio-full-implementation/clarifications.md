@@ -43,3 +43,8 @@
 ## Session 2026-09-26 (live Gemini check)
 - Q: gemini-flash-latest trả 503 quá tải ở mọi lượt chạy thật; xử lý model sinh văn bản thế nào? → A: Đổi mặc định GEMINI_TEXT_MODEL sang gemini-2.5-flash, không thêm model dự phòng
 - Q: Bỏ từ chỉ loại khiến "Ngân hàng ABC" và "Công ty ABC" tự thành một thực thể — xử lý thế nào? → A: Giữ, ghi là đánh đổi đã biết (docs/system-architecture.md §5)
+
+## Session 2026-09-26 (Phase 14)
+- Q: Lối vào màn "Việc cần làm" tổng hợp xuyên cuộc họp? → A: Một dòng trên Home "Việc cần làm · N đang mở", không đổi thanh tab
+- Q: Pipeline chạy lại thì action item do AI tạo xử lý thế nào? → A: Giữ việc người dùng đã tick/sửa/thêm tay; thay việc AI tạo chưa ai đụng tới; bỏ bản mới trùng nội dung với việc được giữ
+- Q: Hạn chót nói kiểu tương đối? → A: Quy ra ngày theo ngày họp (YYYY-MM-DD); không quy được rõ ràng thì để trống
