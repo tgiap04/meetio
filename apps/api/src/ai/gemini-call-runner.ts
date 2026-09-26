@@ -62,7 +62,9 @@ export class GeminiCallRunner<T> {
           if (++serverFailures > this.options.retries) {
             throw new AiServiceUnavailableError(`Gemini lỗi sau ${serverFailures} lần gọi (HTTP ${statusOf(error) ?? 'mạng'})`);
           }
-          await new Promise((r) => setTimeout(r, this.options.retryBaseMs * 4 ** (serverFailures - 1)));
+          // 503 "high demand" spikes last seconds, not milliseconds: double each wait, with jitter so
+          // concurrent calls do not return to an overloaded model in lockstep.
+          await new Promise((r) => setTimeout(r, this.options.retryBaseMs * 2 ** (serverFailures - 1) * (0.75 + Math.random() * 0.5)));
         }
       }
     }

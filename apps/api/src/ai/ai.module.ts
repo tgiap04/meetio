@@ -39,10 +39,17 @@ const num = (raw: string | undefined, fallback: number) => (Number(raw) > 0 ? Nu
                   ),
                   { defaultCooldownMs: num(config.get<string>('GEMINI_KEY_COOLDOWN_MS'), 60_000) },
                 ),
-                { maxConcurrency: num(config.get<string>('GEMINI_MAX_CONCURRENCY'), 4), retries: 2, retryBaseMs: 1000, log: (m) => logger.warn(m) },
+                {
+                  maxConcurrency: num(config.get<string>('GEMINI_MAX_CONCURRENCY'), 4),
+                  // 5 retries ≈ 1+2+4+8+16 s: rides out a model-wide 503 spike before the pipeline's own step retry.
+                  retries: num(config.get<string>('GEMINI_MAX_RETRIES'), 5),
+                  retryBaseMs: 1000,
+                  log: (m) => logger.warn(m),
+                },
               );
         return new GeminiClient(runner, usage, {
-          textModel: config.get<string>('GEMINI_TEXT_MODEL') || 'gemini-flash-latest',
+          // gemini-flash-latest answered 503 "high demand" on every full live run (2026-09-26); 2.5-flash met the NFR.
+          textModel: config.get<string>('GEMINI_TEXT_MODEL') || 'gemini-2.5-flash',
           embeddingModel: config.get<string>('GEMINI_EMBEDDING_MODEL') || 'gemini-embedding-001',
           dimensions: 768,
         });

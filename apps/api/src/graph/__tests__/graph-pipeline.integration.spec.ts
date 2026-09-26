@@ -62,9 +62,9 @@ maybeDescribe('extract + resolve steps (integration, real Postgres)', () => {
   });
 
   it('skips only the group whose answers keep failing the schema, and the meeting carries on', async () => {
-    let call = 0;
     const good = scriptedModel([ABC]);
-    const k = kit((prompt) => (++call <= EXTRACT_ATTEMPTS ? 'xin lỗi, đây là danh sách:' : good(prompt)));
+    // The first group (chunks 0–3) always gets prose; groups run in parallel, so key on content, not call order.
+    const k = kit((prompt) => (prompt.includes('đoạn 0 ') ? 'xin lỗi, đây là danh sách:' : good(prompt)));
     const user = await k.user();
     const texts = Array.from({ length: 5 }, (_, i) => `đoạn ${i} về ABC`); // groups of 4 + 1
     const meeting = await k.meeting(user, texts);
