@@ -41,12 +41,18 @@ export class MeetingChunk {
   @Column({ name: 'segment_end_seq', type: 'int' })
   segment_end_seq!: number;
 
-  @Column({ name: 'token_count', type: 'int' })
-  token_count!: number;
+  /** Real count from Gemini countTokens, written with the embedding; NULL until then. */
+  @Column({ name: 'token_count', type: 'int', nullable: true })
+  token_count!: number | null;
 
-  /** Gemini text-embedding-004, 768 dimensions. */
-  @Column('vector', { length: 768 })
-  embedding!: number[];
+  /** gemini-embedding-001 at 768 dimensions, L2-normalised; NULL = chunked, not embedded yet. */
+  @Column('vector', { length: 768, nullable: true })
+  embedding!: number[] | null;
+
+  /** sha256 of "start:end:content" — lets a re-run keep unchanged chunks (and what cites them). */
+  @Index('uq_chunks_meeting_hash', ['meeting_id', 'content_hash'], { unique: true })
+  @Column({ name: 'content_hash', type: 'text' })
+  content_hash!: string;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   created_at!: Date;

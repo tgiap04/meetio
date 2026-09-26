@@ -12,6 +12,24 @@ export interface SimilarChunkResult {
   distance: number;
 }
 
+export interface ChunkSearchFilter {
+  from?: Date;
+  to?: Date;
+  limit: number;
+  offset: number;
+}
+
+export interface ChunkSearchRow {
+  chunkId: string;
+  meetingId: string;
+  meetingTitle: string;
+  meetingStartedAt: Date | null;
+  content: string;
+  segmentStartSeq: number;
+  segmentEndSeq: number;
+  distance: number;
+}
+
 export interface SimilarEntityResult {
   id: string;
   canonicalName: string;
@@ -88,5 +106,43 @@ export class VectorRepository {
       canonicalName: row.canonicalName,
       distance: Number(row.distance),
     }));
+  }
+
+  /**
+   * Semantic search for `GET /search` (US-22) — EXACT nearest neighbours
+   * within the caller's own chunks, not an approximate HNSW scan.
+   *
+   * Every search is restricted to one user, and a global HNSW index serves a
+   * selective filter badly: the index walk returns the nearest vectors of
+   * *everyone*, the WHERE clause throws most away, and even with pgvector 0.8's
+   * iterative scan a scan budget spent on other users' rows — or on dead index
+   * entries left by chunk reconciliation until VACUUM — comes back short or
+   * empty (measured in phase 12: an empty page for a user whose data was there).
+   * Ordering by `(embedding <=> q) + 0` keeps the planner off the HNSW index,
+   * so it reads the user's rows via `idx_chunks_user` and sorts exactly.
+   * Measured: well under the 2s budget at 7,500 and 50,000 chunks for one user.
+   *
+   * Owner, soft-delete and date filters all live in this one statement.
+   */
+  async searchChunks(userId: string, embedding: number[], filter: ChunkSearchFilter): Promise<ChunkSearchRow[]> {
+    if (!userId) {
+      throw new Error('searchChunks requires a userId to scope the search');
+    }
+    const params: unknown[] = [pgvector.toSql(embedding), userId, filter.limit, filter.offset];
+    const range: string[] = [];
+    if (filter.from) range.push(`AND m.started_at >= $${params.push(filter.from)}`);
+    if (filter.to) range.push(`AND m.started_at <= $${params.push(filter.to)}`);
+
+    const rows = (await this.dataSource.query(
+      `SELECT c.id AS "chunkId", c.meeting_id AS "meetingId", m.title AS "meetingTitle", m.started_at AS "meetingStartedAt",
+              c.content, c.segment_start_seq AS "segmentStartSeq", c.segment_end_seq AS "segmentEndSeq",
+              c.embedding <=> $1 AS distance
+       FROM meeting_chunks c JOIN meetings m ON m.id = c.meeting_id
+       WHERE c.user_id = $2 AND c.embedding IS NOT NULL AND m.deleted_at IS NULL ${range.join(' ')}
+       ORDER BY (c.embedding <=> $1) + 0, c.id
+       LIMIT $3 OFFSET $4`,
+      params,
+    )) as (Omit<ChunkSearchRow, 'distance'> & { distance: string })[];
+    return rows.map((r) => ({ ...r, distance: Number(r.distance) }));
   }
 }

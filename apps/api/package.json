@@ -9,7 +9,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "yarn test:unit && yarn test:e2e",
+    "test": "yarn test:unit && yarn test:e2e && yarn test:schema",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "openapi:generate": "nest build && node dist/generate-openapi.js",
     "migration:run": "node --env-file-if-exists=../../.env --import tsx src/database/migrate.ts up",
@@ -17,8 +17,11 @@
     "db:seed": "node --env-file-if-exists=../../.env --import tsx src/database/seed.ts",
     "start:local": "node dist/main.js",
     "load-test": "node --env-file-if-exists=../../.env --import tsx scripts/load-test-meeting-room.ts",
-    "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest --testPathIgnorePatterns='\\.e2e\\.spec\\.ts$'",
-    "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand --forceExit --testPathPatterns='\\.e2e\\.spec\\.ts$'"
+    "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest --testPathIgnorePatterns='\\.e2e\\.spec\\.ts$' 'schema\\.integration\\.spec\\.ts$'",
+    "perf:search": "node --env-file-if-exists=../../.env --import tsx scripts/search-perf.ts",
+    "gemini:check": "node --env-file-if-exists=../../.env --import tsx scripts/gemini-live-check.ts",
+    "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand --forceExit --testPathPatterns='\\.e2e\\.spec\\.ts$'",
+    "test:schema": "NODE_OPTIONS=--experimental-vm-modules jest --forceExit --testPathPatterns='schema\\.integration\\.spec\\.ts$'"
   },
   "dependencies": {
     "@google/genai": "^2.24.0",

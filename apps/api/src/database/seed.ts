@@ -5,6 +5,7 @@ import { User } from './entities/user.entity.js';
 import { Meeting } from './entities/meeting.entity.js';
 import { TranscriptSegment } from './entities/transcript-segment.entity.js';
 import { MeetingChunk } from './entities/meeting-chunk.entity.js';
+import { chunkContentHash } from '../chunking/chunker.js';
 import { EntityRecord } from './entities/entity-record.entity.js';
 import { EntityMention } from './entities/entity-mention.entity.js';
 import { Relation } from './entities/relation.entity.js';
@@ -96,6 +97,7 @@ async function seed(): Promise<void> {
         segment_end_seq: segments.length - 1,
         token_count: Math.ceil(chunkContent.length / 4),
         embedding: seedEmbedding(`chunk:${meeting.id}`),
+        content_hash: chunkContentHash(0, segments.length - 1, chunkContent),
       });
 
       for (const seedEntity of SEED_ENTITIES) {

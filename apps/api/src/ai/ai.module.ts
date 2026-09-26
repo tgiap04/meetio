@@ -2,7 +2,9 @@ import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { GoogleGenAI } from '@google/genai';
-import { GeminiClient } from './gemini.client.js';
+import { GeminiClient, type GenAiModels } from './gemini.client.js';
+import { GeminiCallRunner } from './gemini-call-runner.js';
+import { GeminiKeyPool, parseApiKeys } from './gemini-key-pool.js';
 import { UsageTracker } from './usage-tracker.js';
 
 const num = (raw: string | undefined, fallback: number) => (Number(raw) > 0 ? Number(raw) : fallback);
@@ -19,13 +21,30 @@ const num = (raw: string | undefined, fallback: number) => (Number(raw) > 0 ? Nu
       provide: GeminiClient,
       inject: [ConfigService, UsageTracker],
       useFactory: (config: ConfigService, usage: UsageTracker) => {
-        const apiKey = config.get<string>('GEMINI_API_KEY');
-        if (!apiKey) new Logger('GeminiClient').warn('GEMINI_API_KEY is empty — AI steps will fail until it is set');
-        return new GeminiClient(apiKey ? new GoogleGenAI({ apiKey }).models : null, usage, {
-          model: config.get<string>('GEMINI_TEXT_MODEL') || 'gemini-flash-latest',
-          maxConcurrency: num(config.get<string>('GEMINI_MAX_CONCURRENCY'), 4),
-          retries: 2,
-          retryBaseMs: 1000,
+        const logger = new Logger('GeminiClient');
+        // Several keys, comma-separated, used in turn (clarifications 2026-09-26). Only the count is logged.
+        const keys = parseApiKeys(config.get<string>('GEMINI_API_KEY'));
+        const baseUrl = config.get<string>('GEMINI_BASE_URL') || undefined;
+        if (keys.length === 0) logger.warn('GEMINI_API_KEY is empty — AI steps will fail until it is set');
+        else logger.log(`Gemini key pool: ${keys.length} key(s)`);
+        const runner =
+          keys.length === 0
+            ? null
+            : new GeminiCallRunner<GenAiModels>(
+                new GeminiKeyPool(
+                  keys.map(
+                    (apiKey) =>
+                      // GEMINI_BASE_URL: a proxy, or the e2e suite's local fake Gemini.
+                      new GoogleGenAI({ apiKey, httpOptions: baseUrl ? { baseUrl } : undefined }).models as unknown as GenAiModels,
+                  ),
+                  { defaultCooldownMs: num(config.get<string>('GEMINI_KEY_COOLDOWN_MS'), 60_000) },
+                ),
+                { maxConcurrency: num(config.get<string>('GEMINI_MAX_CONCURRENCY'), 4), retries: 2, retryBaseMs: 1000, log: (m) => logger.warn(m) },
+              );
+        return new GeminiClient(runner, usage, {
+          textModel: config.get<string>('GEMINI_TEXT_MODEL') || 'gemini-flash-latest',
+          embeddingModel: config.get<string>('GEMINI_EMBEDDING_MODEL') || 'gemini-embedding-001',
+          dimensions: 768,
         });
       },
     },
