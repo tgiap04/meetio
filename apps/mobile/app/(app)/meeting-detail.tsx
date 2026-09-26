@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { MeetingStatus, type ExportSection } from '@meetio/shared';
 import { AppIcon } from '../../src/components/icons/app-icon';
 import { ActionItemsTab } from '../../src/components/meeting-detail/action-items-tab';
+import { AskAiFab } from '../../src/components/meeting-detail/ask-ai-fab';
 import { MeetingDetailHero } from '../../src/components/meeting-detail/meeting-detail-hero';
 import { MeetingSummarySection } from '../../src/components/meeting-detail/meeting-summary-section';
 import { MeetingProcessingStatus } from '../../src/components/meeting-detail/meeting-processing-status';
@@ -18,7 +19,7 @@ import { useReindexMeetingMutation, useUpdateMeetingMutation } from '../../src/h
 import { useExportMeetingMutation } from '../../src/hooks/use-export-meeting-mutation';
 import { useMeetingRoomSocket } from '../../src/hooks/use-meeting-room-socket';
 import { getErrorMessage } from '../../src/api/error-messages';
-import { MEETING_GRAPH_ROUTE, MEETING_TRANSCRIPT_ROUTE } from '../../src/navigation/app-routes';
+import { MEETING_CHAT_ROUTE, MEETING_GRAPH_ROUTE, MEETING_TRANSCRIPT_ROUTE } from '../../src/navigation/app-routes';
 import { colors } from '../../src/theme/colors';
 
 /** The two tabs that swap content in place. Kept narrower than the full tab
@@ -162,6 +163,7 @@ export default function MeetingDetailScreen() {
         onExport={handleExport}
         visible={exportSheetVisible}
       />
+      <AskAiFab onPress={() => router.push({ pathname: MEETING_CHAT_ROUTE, params: { id: meeting.id } })} />
     </ScreenSurface>
   );
 }

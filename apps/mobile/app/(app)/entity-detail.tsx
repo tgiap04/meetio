@@ -6,6 +6,7 @@ import { ScreenSurface } from '../../src/components/ui/screen-surface';
 import { ScreenHeader } from '../../src/components/ui/screen-header';
 import { LoadingState } from '../../src/components/loading-state';
 import { ErrorState } from '../../src/components/error-state';
+import { SecondaryActionRow } from '../../src/components/home/secondary-action-row';
 import { EntityHeaderCard } from '../../src/components/entities/entity-header-card';
 import { EntityEditForm } from '../../src/components/entities/entity-edit-form';
 import { EntityRelationsList } from '../../src/components/entities/entity-relations-list';
@@ -19,13 +20,13 @@ import {
   useUpdateEntityMutation,
 } from '../../src/hooks/use-entity-mutations';
 import { getErrorMessage } from '../../src/api/error-messages';
-import { MEETING_DETAIL_ROUTE, MEETING_TRANSCRIPT_ROUTE } from '../../src/navigation/app-routes';
+import { ASK_ROUTE, MEETING_DETAIL_ROUTE, MEETING_TRANSCRIPT_ROUTE } from '../../src/navigation/app-routes';
 
 /**
  * Entity-detail screen (US-38/39/40/41). No design crop exists for it
  * (clarifications.md 2026-09-26) — built in the existing visual language.
- * Deliberately omits any "hỏi trong phạm vi thực thể" Q&A affordance —
- * deferred to Phase 15.
+ * Phase 15 adds "Hỏi về thực thể này": opens the global Q&A chat with this
+ * entity preselected as its question filter (US-39).
  */
 export default function EntityDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -124,6 +125,16 @@ export default function EntityDetailScreen() {
             onEditPress={() => setIsEditing(true)}
           />
         )}
+        <SecondaryActionRow
+          icon="sparkle"
+          label="Hỏi về thực thể này"
+          onPress={() =>
+            router.push({
+              pathname: ASK_ROUTE,
+              params: { entityId: entity.id, entityName: entity.canonical_name },
+            })
+          }
+        />
         <EntityRelationsList
           entityName={entity.canonical_name}
           entityType={entity.type}

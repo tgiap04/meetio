@@ -13,6 +13,7 @@ import { SecondaryActionRow } from '../../../src/components/home/secondary-actio
 import { RecentMeetingsSection } from '../../../src/components/home/recent-meetings-section';
 import {
   ACTIONS_ROUTE,
+  ASK_ROUTE,
   CONSENT_ROUTE,
   MEETING_DETAIL_ROUTE,
   RECORDING_SETUP_ROUTE,
@@ -38,6 +39,8 @@ import { colors } from '../../../src/theme/colors';
  *   (clarifications.md 2026-09-26); `N` is `open_total` from
  *   `GET /actions/filters`, the exact count of every open item, assigned or
  *   not.
+ * - REAL (Phase 15): the fourth secondary row, "Hỏi AI về các cuộc họp" —
+ *   opens the global Q&A chat (`ASK_ROUTE`, US-37).
  */
 export default function HomeScreen() {
   const meQuery = useMeQuery();
@@ -84,6 +87,11 @@ export default function HomeScreen() {
           icon="checkCircle"
           label={`Việc cần làm · ${openActionsCount} đang mở`}
           onPress={() => router.push(ACTIONS_ROUTE)}
+        />
+        <SecondaryActionRow
+          icon="sparkle"
+          label="Hỏi AI về các cuộc họp"
+          onPress={() => router.push(ASK_ROUTE)}
         />
 
         <RecentMeetingsSection

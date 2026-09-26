@@ -35,6 +35,10 @@ export const MERGE_SUGGESTIONS_ROUTE = '/(app)/merge-suggestions';
 // --- Cross-meeting action items (Phase 14) ----------------------------------
 export const ACTIONS_ROUTE = '/(app)/actions';
 
+// --- GraphRAG Q&A chat (Phase 15) --------------------------------------------
+export const MEETING_CHAT_ROUTE = '/(app)/meeting-chat';
+export const ASK_ROUTE = '/(app)/ask';
+
 // --- Existing stacked screens (unchanged, listed for discoverability) ------
 // `PERMISSION_ROUTE` was dropped here by P13's tap audit: the mic-permission
 // screen is reached exclusively through the boot resolver's own

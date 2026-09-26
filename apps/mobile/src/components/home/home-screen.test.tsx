@@ -39,6 +39,7 @@ jest.mock('../../hooks/use-action-filters-query', () => ({
 import HomeScreen from '../../../app/(app)/(tabs)/index';
 import {
   ACTIONS_ROUTE,
+  ASK_ROUTE,
   CONSENT_ROUTE,
   MEETING_DETAIL_ROUTE,
   RECORDING_SETUP_ROUTE,
@@ -151,7 +152,7 @@ describe('(tabs)/index (Home) screen', () => {
     });
     const renderer = render();
     act(() => {
-      findButton(renderer, 2).props.onPress();
+      findButton(renderer, 3).props.onPress();
     });
     expect(mockPush).toHaveBeenCalledWith(TAB_LIBRARY_ROUTE);
   });
@@ -164,9 +165,22 @@ describe('(tabs)/index (Home) screen', () => {
     });
     const renderer = render();
     act(() => {
-      findButton(renderer, 3).props.onPress();
+      findButton(renderer, 4).props.onPress();
     });
     expect(mockPush).toHaveBeenCalledWith({ pathname: MEETING_DETAIL_ROUTE, params: { id: 'sprint-review' } });
+  });
+
+  it('routes the "Hỏi AI về các cuộc họp" row (Phase 15) to the global Q&A chat', () => {
+    mockUseMeQuery.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { user: { display_name: 'Anh', recording_consent_at: null } },
+    });
+    const renderer = render();
+    act(() => {
+      findButton(renderer, 2).props.onPress();
+    });
+    expect(mockPush).toHaveBeenCalledWith(ASK_ROUTE);
   });
 
   it('shows the sum of open_count in the "Việc cần làm" row label', () => {
