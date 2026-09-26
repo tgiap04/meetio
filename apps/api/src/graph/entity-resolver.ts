@@ -12,7 +12,12 @@ export interface ResolverOptions {
   maxSuggestions: number;
 }
 
-export const DEFAULT_RESOLVER_OPTIONS: ResolverOptions = { suggestThreshold: 0.85, autoMergeThreshold: null, maxSuggestions: 3 };
+/**
+ * 0.95 from the live check on gemini-embedding-001 (2026-09-26): true duplicates scored ≥ 0.96,
+ * the closest wrong pair 0.948, and at 0.85 two different people ("Bình" / "Tuấn", 0.91) were
+ * proposed. Still a default until the OQ-03 gold set calibrates it (`graph:eval`).
+ */
+export const DEFAULT_RESOLVER_OPTIONS: ResolverOptions = { suggestThreshold: 0.95, autoMergeThreshold: null, maxSuggestions: 3 };
 
 export interface ExtractedEntity {
   name: string;

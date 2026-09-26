@@ -17,6 +17,16 @@ describe('normalizeEntityName', () => {
   });
 
   it('folds đ and punctuation', () => {
-    expect(normalizeEntityName('Dự án Đông-Á (v2)', 'project')).toBe('du an dong a v2');
+    expect(normalizeEntityName('Đông-Á (v2)', 'project')).toBe('dong a v2');
+  });
+
+  it('drops the leading category word the model sometimes keeps', () => {
+    expect(normalizeEntityName('công ty Sao Mai', 'organization')).toBe(normalizeEntityName('Sao Mai', 'organization'));
+    expect(normalizeEntityName('ngân hàng Vietcombank', 'organization')).toBe('vietcombank');
+    expect(normalizeEntityName('Khách hàng Sao Mai', 'organization')).toBe('sao mai');
+    expect(normalizeEntityName('ứng dụng Meetio', 'product')).toBe('meetio');
+    expect(normalizeEntityName('Dự án ABC', 'project')).toBe('abc');
+    expect(normalizeEntityName('Dự án', 'project')).toBe('du an'); // nothing left after it: keep
+    expect(normalizeEntityName('Công ty Sao Mai', 'person')).toBe('cong ty sao mai'); // only for its own type
   });
 });

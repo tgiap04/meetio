@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, type EntityManager } from 'typeorm';
-import type { EntityDetail, EntityListResponse, EntityMergeRecord, EntityTimelineResponse } from '@meetio/shared';
+import { EntityType, type EntityDetail, type EntityListResponse, type EntityMergeRecord, type EntityTimelineResponse } from '@meetio/shared';
 import type { EntityListQueryDto, TimelineQueryDto } from './dto/graph.dto.js';
 import { normalizeEntityName } from './name-normalizer.js';
 import { ENTITY_SUMMARY_SELECT, entityNotFound, likeEscape, toSummary, type EntitySummaryRow } from './graph-sql.js';
@@ -16,19 +16,22 @@ export class EntityQueryService {
   async list(userId: string, q: EntityListQueryDto): Promise<EntityListResponse> {
     const limit = q.limit ?? 20;
     const offset = q.offset ?? 0;
-    const needle = q.q ? likeEscape(normalizeEntityName(q.q, 'other')) : null;
+    // Names are stored normalized for their own type ("Dự án ABC" → "abc", "anh Bình" → "binh"), so the
+    // search text is normalized every way a type would, and any form may match.
+    const needles = q.q ? [...new Set(Object.values(EntityType).map((t) => likeEscape(normalizeEntityName(q.q!, t))))] : null;
     // Text with no letters or digits ("%", "…") normalizes to "" — which would match every name.
-    if (needle === '') return { items: [], next_offset: null };
+    if (needles?.includes('')) return { items: [], next_offset: null };
     const rows = (await this.dataSource.query(
       `${ENTITY_SUMMARY_SELECT}
        WHERE e.user_id = $1 AND e.merged_into_id IS NULL
          AND ($2::entity_type[] IS NULL OR e.type = ANY($2::entity_type[]))
-         AND ($3::text IS NULL OR e.normalized_name LIKE '%' || $3 || '%'
-              OR EXISTS (SELECT 1 FROM unnest(e.normalized_aliases) a WHERE a LIKE '%' || $3 || '%'))
+         AND ($3::text[] IS NULL OR EXISTS (
+               SELECT 1 FROM unnest($3::text[]) n
+               WHERE e.normalized_name LIKE '%' || n || '%' OR EXISTS (SELECT 1 FROM unnest(e.normalized_aliases) a WHERE a LIKE '%' || n || '%')))
        GROUP BY e.id
        ORDER BY mention_count DESC, e.canonical_name, e.id
        LIMIT $4 OFFSET $5`,
-      [userId, q.type ? q.type.split(',') : null, needle, limit + 1, offset],
+      [userId, q.type ? q.type.split(',') : null, needles, limit + 1, offset],
     )) as EntitySummaryRow[];
     return { items: rows.slice(0, limit).map(toSummary), next_offset: rows.length > limit ? offset + limit : null };
   }

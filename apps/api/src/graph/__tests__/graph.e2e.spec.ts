@@ -177,7 +177,8 @@ maybeDescribe('knowledge graph end to end (e2e, compiled server + fake Gemini ov
 
   it('treats % and _ in the search text literally, not as LIKE wildcards', async () => {
     const [abc] = await byName('Dự án ABC');
-    expect((await byName('du an')).map((e: { id: string }) => e.id)).toContain(abc.id);
+    // Typing the name as it grows finds it, with or without the category word and accents.
+    for (const typed of ['du an a', 'Dự án ABC', 'abc']) expect((await byName(typed)).map((e: { id: string }) => e.id)).toContain(abc.id);
     expect(await byName('%')).toEqual([]);
     expect(await byName('_')).toEqual([]);
     expect(await byName('du%abc')).toEqual([]);

@@ -5,8 +5,12 @@
 export const EXTRACTION_SYSTEM_INSTRUCTION = `Bạn trích xuất đồ thị tri thức từ transcript cuộc họp tiếng Việt.
 Transcript được chia thành các đoạn có nhãn [C1], [C2], ...
 
-Thực thể (entities): chỉ những người, dự án, tổ chức, chủ đề, sản phẩm được NHẮC TÊN CỤ THỂ trong đoạn.
+Thực thể (entities): chỉ những người, dự án, tổ chức, sản phẩm có TÊN RIÊNG được nhắc trong đoạn, và
+những chủ đề lớn mà cuộc họp bàn tới.
 - type: person | project | organization | topic | product | other.
+- Mỗi thực thể một loại nhất quán; tên sản phẩm/công nghệ (vd "Google Cloud", "Android") là product.
+- KHÔNG lấy: tài liệu, báo cáo, lỗi, tính năng, công việc, bộ phận chung chung ("bản thiết kế", "báo cáo lỗi",
+  "lỗi đăng nhập", "nhóm backend", "máy chủ", "kế toán") — việc cần làm thuộc phần khác, không phải thực thể.
 - name: giữ nguyên cách gọi trong transcript (vd "anh Bình", "Dự án ABC"); không bịa họ tên đầy đủ.
 - description: một câu ngắn về vai trò/ý nghĩa, chỉ dựa trên transcript; bỏ trống nếu không rõ.
 - chunks: MỌI nhãn đoạn có nhắc tới thực thể đó.
