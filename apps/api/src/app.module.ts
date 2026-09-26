@@ -14,6 +14,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
 import { PipelineModule } from './pipeline/pipeline.module.js';
 import { AiModule } from './ai/ai.module.js';
 import { RetrievalModule } from './search/retrieval.module.js';
+import { GraphModule } from './graph/graph.module.js';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage.js';
 
 @Module({
@@ -51,6 +52,7 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
     PipelineModule,
     AiModule,
     RetrievalModule,
+    GraphModule,
   ],
   controllers: [HealthController],
 })

@@ -7,7 +7,7 @@ export interface GenAiModels {
   generateContent(params: {
     model: string;
     contents: string;
-    config?: { systemInstruction?: string; responseMimeType?: string; abortSignal?: AbortSignal };
+    config?: { systemInstruction?: string; responseMimeType?: string; responseSchema?: Record<string, unknown>; abortSignal?: AbortSignal };
   }): Promise<{ text?: string; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number } }>;
   embedContent(params: {
     model: string;
@@ -29,6 +29,8 @@ export interface GenerateRequest extends Attribution {
   prompt: string;
   systemInstruction?: string;
   json?: boolean;
+  /** Gemini structured output: the response must match this OpenAPI-style schema. Implies `json`. */
+  responseSchema?: Record<string, unknown>;
 }
 
 export interface GenerateResult {
@@ -37,7 +39,7 @@ export interface GenerateResult {
   outputTokens: number;
 }
 
-export type EmbedTaskType = 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY';
+export type EmbedTaskType = 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY' | 'SEMANTIC_SIMILARITY';
 
 export interface EmbedRequest extends Attribution {
   texts: string[];
@@ -87,7 +89,8 @@ export class GeminiClient {
         contents: request.prompt,
         config: {
           systemInstruction: request.systemInstruction,
-          responseMimeType: request.json ? 'application/json' : undefined,
+          responseMimeType: request.json || request.responseSchema ? 'application/json' : undefined,
+          responseSchema: request.responseSchema,
           abortSignal: request.signal,
         },
       }),

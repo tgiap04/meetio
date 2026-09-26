@@ -54,6 +54,16 @@ export class MeetingChunk {
   @Column({ name: 'content_hash', type: 'text' })
   content_hash!: string;
 
+  /** Validated extract-step output for this chunk; NULL with `extracted_at` set = skipped (invalid model output). */
+  @Column({ type: 'jsonb', nullable: true })
+  extraction!: unknown;
+
+  @Column({ name: 'extracted_at', type: 'timestamptz', nullable: true })
+  extracted_at!: Date | null;
+
+  @Column({ name: 'resolved_at', type: 'timestamptz', nullable: true })
+  resolved_at!: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   created_at!: Date;
 }

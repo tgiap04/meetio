@@ -20,8 +20,9 @@
     "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest --testPathIgnorePatterns='\\.e2e\\.spec\\.ts$' 'schema\\.integration\\.spec\\.ts$'",
     "perf:search": "node --env-file-if-exists=../../.env --import tsx scripts/search-perf.ts",
     "gemini:check": "node --env-file-if-exists=../../.env --import tsx scripts/gemini-live-check.ts",
+    "graph:eval": "node --env-file-if-exists=../../.env --import tsx scripts/entity-resolution-eval.ts",
     "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand --forceExit --testPathPatterns='\\.e2e\\.spec\\.ts$'",
-    "test:schema": "NODE_OPTIONS=--experimental-vm-modules jest --forceExit --testPathPatterns='schema\\.integration\\.spec\\.ts$'"
+    "test:schema": "TEST_LOAD_MIGRATIONS=1 NODE_OPTIONS=--experimental-vm-modules jest --forceExit --testPathPatterns='schema\\.integration\\.spec\\.ts$'"
   },
   "dependencies": {
     "@google/genai": "^2.24.0",

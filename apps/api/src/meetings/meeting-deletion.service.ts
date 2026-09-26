@@ -1,3 +1,4 @@
+import { EntityResolver } from '../graph/entity-resolver.js';
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource } from 'typeorm';
@@ -28,6 +29,10 @@ export class MeetingDeletionService {
 
   async delete(id: string, userId: string): Promise<{ orphanedEntitiesDeleted: number }> {
     return this.dataSource.transaction(async (manager) => {
+      // Graph lock first, like every other graph writer (resolve, merge, undo, edit): otherwise a
+      // concurrent resolve could attach a new mention to an entity this delete then removes as
+      // orphaned. Resolve takes the same lock before touching the meeting row, so no deadlock.
+      await EntityResolver.lockUserGraph(manager, userId);
       await this.meetings.lockOwned(manager, id, userId);
 
       const mentioned = (await manager.query(
@@ -41,10 +46,14 @@ export class MeetingDeletionService {
         return { orphanedEntitiesDeleted: 0 };
       }
       const [, deleted] = (await manager.query(
-        `DELETE FROM entities e
-         WHERE e.user_id = $1
-           AND e.id = ANY($2::uuid[])
-           AND NOT EXISTS (SELECT 1 FROM entity_mentions m WHERE m.entity_id = e.id)`,
+        // What was merged into an orphan goes with it — otherwise `merged_into_id` would be
+        // nulled by the FK and those names would reappear as live, mention-less entities.
+        `WITH orphans AS (
+           SELECT e.id FROM entities e
+           WHERE e.user_id = $1 AND e.id = ANY($2::uuid[])
+             AND NOT EXISTS (SELECT 1 FROM entity_mentions m WHERE m.entity_id = e.id)
+         )
+         DELETE FROM entities e WHERE e.user_id = $1 AND (e.id IN (SELECT id FROM orphans) OR e.merged_into_id IN (SELECT id FROM orphans))`,
         [userId, mentioned.map((r) => r.entity_id)],
       )) as [unknown, number];
       return { orphanedEntitiesDeleted: deleted };

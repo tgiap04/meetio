@@ -41,6 +41,11 @@ export class EntityRecord {
   @Column({ type: 'text', array: true, default: () => "'{}'" })
   aliases!: string[];
 
+  /** `normalizeEntityName` of every alias — tier-1 matching finds merged/renamed names. */
+  @Index('idx_entities_normalized_aliases', { type: 'gin' })
+  @Column({ name: 'normalized_aliases', type: 'text', array: true, default: () => "'{}'" })
+  normalized_aliases!: string[];
+
   /** Embedding of name + description. */
   @Column('vector', { length: 768 })
   embedding!: number[];
