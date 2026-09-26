@@ -9,9 +9,11 @@ export interface SegmentReply {
 /** A socket.io client for `/meeting-room` that records every ack/error it receives, in order. */
 export class WsTestClient {
   readonly replies: SegmentReply[] = [];
+  /** When each seq's ack arrived (ms since epoch) — for latency budgets. */
+  readonly ackedAt = new Map<number, number>();
   private constructor(readonly socket: Socket) {
     socket.on('segment_ack', (p: { seq: number }) =>
-      this.replies.push({ event: 'segment_ack', seq: p.seq }),
+      (this.ackedAt.set(p.seq, Date.now()), this.replies.push({ event: 'segment_ack', seq: p.seq })),
     );
     socket.on('segment_error', (p: { seq: number; code: string }) =>
       this.replies.push({ event: 'segment_error', seq: p.seq, code: p.code }),

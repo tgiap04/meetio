@@ -1,5 +1,6 @@
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { CURRENT_CONSENT_VERSION } from '../users/consent.js';
 import { createServer } from 'node:net';
 import { statSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -41,7 +42,7 @@ export interface E2eApp {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   http(method: string, path: string, token: string, body?: unknown): Promise<{ status: number; body: any }>;
   /** Runs one meeting-maintenance sweep inside the server's own BullMQ worker and returns its result. */
-  runMaintenance(jobName: 'close-abandoned-meetings' | 'requeue-stranded-meetings' | 'resume-stalled-pipelines'): Promise<number>;
+  runMaintenance(jobName: 'close-abandoned-meetings' | 'requeue-stranded-meetings' | 'resume-stalled-pipelines' | 'apply-retention'): Promise<number>;
   /** Everything the server process printed — attach to failure messages when debugging. */
   logs(): string;
   close(): Promise<void>;
@@ -148,10 +149,14 @@ export async function startE2eApp(extraEnv: Record<string, string> = {}): Promis
     async createUser() {
       const id = randomUUID();
       // chk_users_has_credential needs a password hash or a google_sub; nobody logs in with this one.
-      await db.query(`INSERT INTO users (id, email, display_name, password_hash) VALUES ($1, $2, 'E2E', 'e2e-no-login')`, [
+      // …and has accepted the current consent text, so it can record (POST /meetings checks it — NFR-01).
+      await db.query(
+        `INSERT INTO users (id, email, display_name, password_hash, recording_consent_at, consent_version) VALUES ($1, $2, 'E2E', 'e2e-no-login', now(), ${CURRENT_CONSENT_VERSION})`,
+        [
         id,
-        `e2e-${id}@meetio.test`,
-      ]);
+          `e2e-${id}@meetio.test`,
+        ],
+      );
       userIds.push(id);
       return { id, token: tokenFor(id) };
     },

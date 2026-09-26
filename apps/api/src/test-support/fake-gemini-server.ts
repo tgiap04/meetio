@@ -19,6 +19,8 @@ const textsOf = (body: { contents?: { parts?: { text?: string }[] }[]; requests?
 export class FakeGeminiServer {
   readonly calls: GeminiCall[] = [];
   readonly rateLimited = new Set<string>();
+  /** When set, every generateContent call fails with HTTP 400 and this message (a provider error echoing data back). */
+  failGenerate: string | null = null;
   /** Answer to an extraction prompt; defaults to "nothing found". */
   generate: (prompt: string) => string = () => '{"entities":[],"relations":[]}';
   /** Answer to a summary prompt (told apart by its system instruction); defaults to one point citing the first part. */
@@ -71,6 +73,10 @@ export class FakeGeminiServer {
         } else if (method === 'countTokens') {
           send(200, { totalTokens: texts.join(' ').split(/\s+/).filter(Boolean).length });
         } else {
+          if (this.failGenerate) {
+            send(400, { error: { code: 400, message: this.failGenerate, status: 'INVALID_ARGUMENT' } });
+            return;
+          }
           const system = (body.systemInstruction?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join(' ');
           const prompt = texts.join('\n');
           const text = system.includes('executive summary')
