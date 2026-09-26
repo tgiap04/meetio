@@ -1,4 +1,4 @@
-import { clock, formatDueDate, gapNote, metaLine, NOT_READY_NOTE, type ExportDocument } from './export-document.js';
+import { clock, formatDueDate, gapNote, metaLine, NOT_READY_NOTE, summaryBlocks, type ExportDocument } from './export-document.js';
 
 const esc = (t: string) =>
   t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -12,7 +12,13 @@ export function renderHtml(doc: ExportDocument): string {
   const parts: string[] = [`<h1>${esc(doc.title)}</h1>`, `<p class="meta">${esc(metaLine(doc))}</p>`];
   if (doc.sections.has('summary')) {
     parts.push('<h2>Tóm tắt</h2>');
-    parts.push(doc.summaryReady && doc.summary ? `<p>${esc(doc.summary)}</p>` : `<p class="note">${NOT_READY_NOTE}</p>`);
+    parts.push(
+      doc.summaryReady && doc.summary
+        ? summaryBlocks(doc.summary)
+            .map((b) => (b.kind === 'list' ? `<ul>${b.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : `<p>${esc(b.text)}</p>`))
+            .join('')
+        : `<p class="note">${NOT_READY_NOTE}</p>`,
+    );
   }
   if (doc.sections.has('actions')) {
     parts.push('<h2>Việc cần làm</h2>');

@@ -1,3 +1,4 @@
+import type { SummaryCitation } from '../actions/actions.types';
 import type { AudioSource } from '../enums/audio-source';
 import type { RecordingQuality } from '../enums/recording-quality';
 import type { MeetingStatus } from '../enums/meeting-status';
@@ -82,11 +83,19 @@ export interface ListMeetingsResponse {
 
 export interface MeetingActionItem {
   id: string;
+  meeting_id: string;
   content: string;
   assignee_entity_id: string | null;
+  /** Canonical name of the assignee entity; null when nobody was clearly named (never guessed — US-32). */
+  assignee_name: string | null;
+  /** YYYY-MM-DD */
   due_date: string | null;
   status: ActionStatus;
   is_manual: boolean;
+  /** Transcript the item came from; null for manual items or a source since re-cut. */
+  source_chunk_id: string | null;
+  segment_seq: number | null;
+  created_at: string;
 }
 
 export interface MeetingProcessingStep {
@@ -101,7 +110,9 @@ export interface MeetingDetailResponse extends MeetingListItem {
   audio_source: AudioSource;
   recording_quality: RecordingQuality;
   summary: string | null;
-  summary_citations: unknown[] | null;
+  summary_citations: SummaryCitation[] | null;
+  /** Too short or empty to summarize — `summary` says so. */
+  summary_insufficient: boolean;
   failure_reason: string | null;
   segment_count: number;
   action_items: MeetingActionItem[];

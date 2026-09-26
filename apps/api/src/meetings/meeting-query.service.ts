@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import type { DataSource, Repository } from 'typeorm';
-import { ActionItem, ProcessingJob, TranscriptSegment } from '../database/entities/index.js';
+import { ProcessingJob, TranscriptSegment } from '../database/entities/index.js';
 import { MeetingsRepository } from './meetings.repository.js';
 import { hasUnprocessedEdits } from './meeting-edits.js';
 import { decodeMeetingCursor, encodeMeetingCursor } from './meeting-cursor.js';
-import { toMeetingActionItem, toMeetingListItem, toMeetingProcessingStep } from './meeting-mappers.js';
+import { toMeetingListItem, toMeetingProcessingStep } from './meeting-mappers.js';
+import { loadActionItems, withoutMeeting } from '../actions/action-item-rows.js';
 import type { ListMeetingsQueryDto } from './dto/list-meetings.query.dto.js';
 import type { ListMeetingsResponseDto, MeetingDetailResponseDto } from './dto/meeting-responses.dto.js';
 
@@ -18,7 +19,6 @@ export class MeetingQueryService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly meetings: MeetingsRepository,
-    @InjectRepository(ActionItem) private readonly actionItems: Repository<ActionItem>,
     @InjectRepository(ProcessingJob) private readonly jobs: Repository<ProcessingJob>,
     @InjectRepository(TranscriptSegment) private readonly segments: Repository<TranscriptSegment>,
   ) {}
@@ -43,7 +43,7 @@ export class MeetingQueryService {
     // Ownership first: the child queries below filter by meeting_id only.
     const meeting = await this.meetings.findOneOrFail(id, userId);
     const [actionItems, jobs, segmentCount, edited] = await Promise.all([
-      this.actionItems.find({ where: { meeting_id: id }, order: { created_at: 'ASC' } }),
+      loadActionItems(this.dataSource, 'a.meeting_id = $1 AND a.user_id = $2', [id, userId]),
       this.jobs.find({ where: { meeting_id: id } }),
       this.segments.count({ where: { meeting_id: id } }),
       hasUnprocessedEdits(this.dataSource, id),
@@ -55,10 +55,12 @@ export class MeetingQueryService {
       audio_source: meeting.audio_source,
       recording_quality: meeting.recording_quality,
       summary: meeting.summary,
-      summary_citations: meeting.summary_citations,
+      summary_citations: meeting.summary_citations as MeetingDetailResponseDto['summary_citations'],
+      summary_insufficient: meeting.summary_insufficient,
       failure_reason: meeting.failure_reason,
       segment_count: segmentCount,
-      action_items: actionItems.map(toMeetingActionItem),
+      // The DTO's status is the API-side enum of the same values.
+      action_items: actionItems.map(withoutMeeting) as MeetingDetailResponseDto['action_items'],
       processing_steps: jobs.map(toMeetingProcessingStep),
       has_unprocessed_edits: edited,
       updated_at: meeting.updated_at.toISOString(),

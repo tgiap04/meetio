@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import type {
+  SummaryCitation,
   CreateMeetingResponse,
   ListMeetingsResponse,
   MeetingActionItem,
@@ -47,11 +48,16 @@ export class ListMeetingsResponseDto implements ListMeetingsResponse {
 
 export class MeetingActionItemDto implements MeetingActionItem {
   @ApiProperty() id!: string;
+  @ApiProperty() meeting_id!: string;
   @ApiProperty() content!: string;
   @ApiProperty({ nullable: true, type: String }) assignee_entity_id!: string | null;
-  @ApiProperty({ nullable: true, type: String }) due_date!: string | null;
+  @ApiProperty({ nullable: true, type: String, description: 'Never guessed: null when nobody was clearly named' }) assignee_name!: string | null;
+  @ApiProperty({ nullable: true, type: String, description: 'YYYY-MM-DD' }) due_date!: string | null;
   @ApiProperty({ enum: ActionStatus }) status!: ActionStatus;
   @ApiProperty() is_manual!: boolean;
+  @ApiProperty({ nullable: true, type: String }) source_chunk_id!: string | null;
+  @ApiProperty({ nullable: true, type: Number, description: 'Open the transcript at this seq' }) segment_seq!: number | null;
+  @ApiProperty() created_at!: string;
 }
 
 export class MeetingProcessingStepDto implements MeetingProcessingStep {
@@ -65,7 +71,8 @@ export class MeetingDetailResponseDto extends MeetingListItemDto implements Meet
   @ApiProperty({ enum: AudioSource }) audio_source!: AudioSource;
   @ApiProperty({ enum: RecordingQuality }) recording_quality!: RecordingQuality;
   @ApiProperty({ nullable: true, type: String }) summary!: string | null;
-  @ApiProperty({ nullable: true, type: [String] }) summary_citations!: unknown[] | null;
+  @ApiProperty({ nullable: true, type: [Object] }) summary_citations!: SummaryCitation[] | null;
+  @ApiProperty() summary_insufficient!: boolean;
   @ApiProperty({ nullable: true, type: String }) failure_reason!: string | null;
   @ApiProperty() segment_count!: number;
   @ApiProperty({ type: [MeetingActionItemDto] }) action_items!: MeetingActionItemDto[];

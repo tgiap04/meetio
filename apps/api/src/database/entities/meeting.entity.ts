@@ -59,6 +59,10 @@ export class Meeting {
   @Column({ type: 'text', nullable: true })
   summary!: string | null;
 
+  /** Too short or empty to summarize; `summary` says so (US-31). */
+  @Column({ name: 'summary_insufficient', type: 'boolean', default: false })
+  summary_insufficient!: boolean;
+
   @Column({ name: 'summary_citations', type: 'jsonb', nullable: true })
   summary_citations!: unknown[] | null;
 

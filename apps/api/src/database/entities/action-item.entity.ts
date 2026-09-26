@@ -64,6 +64,10 @@ export class ActionItem {
   @Column({ name: 'is_manual', type: 'boolean', default: false })
   is_manual!: boolean;
 
+  /** Any user change sets it; pipeline re-runs keep such items (clarifications 2026-09-26). */
+  @Column({ name: 'is_user_edited', type: 'boolean', default: false })
+  is_user_edited!: boolean;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   created_at!: Date;
 

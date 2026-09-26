@@ -50,6 +50,28 @@ export function metaLine(doc: ExportDocument): string {
   return parts.join(' · ');
 }
 
+export type SummaryBlock = { kind: 'list'; items: string[] } | { kind: 'text'; text: string };
+
+/**
+ * The stored summary is bullet lines ("• …") with a blank line and a "Quyết định:" heading before
+ * the decisions (summarize step). Renderers need that structure back: runs of bullets become a
+ * list, other lines paragraphs — otherwise HTML and Markdown both collapse it into one line.
+ */
+export function summaryBlocks(summary: string): SummaryBlock[] {
+  const blocks: SummaryBlock[] = [];
+  for (const line of summary.split('\n').map((l) => l.trim())) {
+    if (!line) continue;
+    const last = blocks[blocks.length - 1];
+    if (line.startsWith('• ')) {
+      if (last?.kind === 'list') last.items.push(line.slice(2));
+      else blocks.push({ kind: 'list', items: [line.slice(2)] });
+    } else {
+      blocks.push({ kind: 'text', text: line });
+    }
+  }
+  return blocks;
+}
+
 export const NOT_READY_NOTE = 'Tóm tắt chưa sẵn sàng — cuộc họp chưa được AI xử lý xong.';
 export const gapNote = (ms: number) => `(gián đoạn ${Math.round(ms / 1000)} giây)`;
 
@@ -62,7 +84,14 @@ export function renderMarkdown(doc: ExportDocument): string {
       .replace(/^(\s*)([#>+-]|\d+\.)/gm, '$1\\$2');
   const out = [`# ${esc(doc.title)}`, '', metaLine(doc), ''];
   if (doc.sections.has('summary')) {
-    out.push('## Tóm tắt', '', doc.summaryReady && doc.summary ? esc(doc.summary) : `_${NOT_READY_NOTE}_`, '');
+    out.push('## Tóm tắt', '');
+    if (doc.summaryReady && doc.summary) {
+      for (const b of summaryBlocks(doc.summary)) {
+        out.push(...(b.kind === 'list' ? b.items.map((i) => `- ${esc(i)}`) : [esc(b.text)]), '');
+      }
+    } else {
+      out.push(`_${NOT_READY_NOTE}_`, '');
+    }
   }
   if (doc.sections.has('actions')) {
     out.push('## Việc cần làm', '');
