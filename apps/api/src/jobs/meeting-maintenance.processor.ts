@@ -3,11 +3,13 @@ import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { MeetingMaintenanceService } from './abandoned-meeting.job.js';
 import { PipelineEngine } from '../pipeline/pipeline-engine.js';
+import { RetentionService } from './retention.job.js';
 
 export const MEETING_MAINTENANCE_QUEUE = 'meeting-maintenance';
 export const CLOSE_ABANDONED_JOB_NAME = 'close-abandoned-meetings';
 export const REQUEUE_STRANDED_JOB_NAME = 'requeue-stranded-meetings';
 export const RESUME_STALLED_JOB_NAME = 'resume-stalled-pipelines';
+export const APPLY_RETENTION_JOB_NAME = 'apply-retention';
 
 // A run untouched this long is paused at a missing handler or lost its step job.
 const STALLED_AFTER_MS = 5 * 60 * 1000;
@@ -19,6 +21,7 @@ export class MeetingMaintenanceProcessor extends WorkerHost {
   constructor(
     private readonly maintenance: MeetingMaintenanceService,
     private readonly pipeline: PipelineEngine,
+    private readonly retention: RetentionService,
   ) {
     super();
   }
@@ -31,6 +34,8 @@ export class MeetingMaintenanceProcessor extends WorkerHost {
         return this.maintenance.requeueStrandedMeetings();
       case RESUME_STALLED_JOB_NAME:
         return this.pipeline.resumeStalled(new Date(Date.now() - STALLED_AFTER_MS));
+      case APPLY_RETENTION_JOB_NAME:
+        return (await this.retention.apply()).deleted;
       default:
         this.logger.warn(`Unknown meeting-maintenance job: ${job.name}`);
         return undefined;

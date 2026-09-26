@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import type { PublicUser } from '@meetio/shared';
 import type { User } from '../../database/entities/index.js';
+import { consentRequired } from '../consent.js';
 
 /**
  * Wire-safe user shape. `User` the entity carries `password_hash` — this
@@ -14,6 +15,7 @@ export class PublicUserDto implements PublicUser {
   @ApiProperty() display_name!: string;
   @ApiProperty({ nullable: true, type: Number }) retention_days!: number | null;
   @ApiProperty({ nullable: true, type: String }) recording_consent_at!: string | null;
+  @ApiProperty({ description: 'The current consent text is not accepted yet — ask before recording' }) consent_required!: boolean;
   @ApiProperty() monthly_token_budget!: number;
   @ApiProperty({ type: Object }) notification_settings!: Record<string, boolean>;
   @ApiProperty() created_at!: string;
@@ -27,6 +29,7 @@ export function toPublicUser(user: User): PublicUserDto {
   dto.display_name = user.display_name;
   dto.retention_days = user.retention_days;
   dto.recording_consent_at = user.recording_consent_at ? user.recording_consent_at.toISOString() : null;
+  dto.consent_required = consentRequired(user.consent_version);
   dto.monthly_token_budget = user.monthly_token_budget ? Number(user.monthly_token_budget) : 0;
   dto.notification_settings = user.notification_settings as Record<string, boolean>;
   dto.created_at = user.created_at.toISOString();

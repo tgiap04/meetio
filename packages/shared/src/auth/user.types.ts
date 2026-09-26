@@ -8,6 +8,8 @@ export interface PublicUser {
   display_name: string;
   retention_days: number | null;
   recording_consent_at: string | null;
+  /** The current consent text has not been accepted yet (first use, or the text changed) — ask before recording (NFR-01). */
+  consent_required: boolean;
   monthly_token_budget: number;
   /** Read-back for `UpdateMeRequest.notification_settings`. Defaults to `{}`. */
   notification_settings: Record<string, boolean>;

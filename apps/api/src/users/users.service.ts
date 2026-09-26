@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThanOrEqual, Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { ApiErrorCode, type GetMeResponse, type RecordConsentResponse } from '@meetio/shared';
+import { CURRENT_CONSENT_VERSION, USAGE_WARNING_RATIO } from './consent.js';
 import { User, UsageRecord } from '../database/entities/index.js';
 import { GoogleTokenVerifier } from '../auth/google-token-verifier.js';
 import { toPublicUser, type PublicUserDto } from './dto/public-user.dto.js';
@@ -32,8 +33,19 @@ export class UsersService {
 
   async getMe(userId: string): Promise<GetMeResponse> {
     const user = await this.findActiveUserOrFail(userId);
-    const currentMonthTokensUsed = await this.sumCurrentMonthTokens(userId);
-    return { user: toPublicUser(user), current_month_tokens_used: currentMonthTokensUsed };
+    const used = await this.sumCurrentMonthTokens(userId);
+    const budget = user.monthly_token_budget === null ? null : Number(user.monthly_token_budget);
+    const ratio = budget ? used / budget : null;
+    return {
+      user: toPublicUser(user),
+      current_month_tokens_used: used,
+      usage: {
+        used,
+        budget,
+        percent: ratio === null ? null : Math.min(100, Math.round(ratio * 100)),
+        warning: ratio !== null && ratio >= USAGE_WARNING_RATIO,
+      },
+    };
   }
 
   async updateMe(userId: string, dto: UpdateMeDto): Promise<PublicUserDto> {
@@ -61,8 +73,9 @@ export class UsersService {
   async recordConsent(userId: string): Promise<RecordConsentResponse> {
     const user = await this.findActiveUserOrFail(userId);
     user.recording_consent_at = new Date();
+    user.consent_version = CURRENT_CONSENT_VERSION;
     const saved = await this.users.save(user);
-    return { recording_consent_at: saved.recording_consent_at!.toISOString() };
+    return { recording_consent_at: saved.recording_consent_at!.toISOString(), consent_version: CURRENT_CONSENT_VERSION };
   }
 
   /** Soft-deletes the account after a step-up credential check — hard delete

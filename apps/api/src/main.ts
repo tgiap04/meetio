@@ -6,13 +6,15 @@ import './load-env.js';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module.js';
+import { JsonLogger, useJsonLogs } from './common/logging/json-logger.js';
 import { configureApp, GLOBAL_PREFIX } from './configure-app.js';
 import { SWAGGER_PATH, setupSwagger } from './swagger.js';
 import { buildStartupUrls } from './startup-urls.js';
 import { GoogleTokenVerifier } from './auth/google-token-verifier.js';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  // NFR-04/11: one JSON object per line in production (LOG_FORMAT=json), readable text in dev.
+  const app = await NestFactory.create(AppModule, useJsonLogs() ? { logger: new JsonLogger() } : {});
   const logger = new Logger('Bootstrap');
 
   configureApp(app);

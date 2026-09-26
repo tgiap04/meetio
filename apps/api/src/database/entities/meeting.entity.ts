@@ -59,6 +59,10 @@ export class Meeting {
   @Column({ type: 'text', nullable: true })
   summary!: string | null;
 
+  /** The single "about to be deleted by retention" push went out. */
+  @Column({ name: 'retention_notified_at', type: 'timestamptz', nullable: true })
+  retention_notified_at!: Date | null;
+
   /** Too short or empty to summarize; `summary` says so (US-31). */
   @Column({ name: 'summary_insufficient', type: 'boolean', default: false })
   summary_insufficient!: boolean;

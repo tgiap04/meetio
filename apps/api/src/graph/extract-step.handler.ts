@@ -82,7 +82,7 @@ export class ExtractStepHandler implements PipelineStepHandler {
       } catch (error) {
         if (!(error instanceof ExtractionSchemaError)) throw error;
         // Never the transcript or the model's text — only ids and the reason (NFR-04).
-        this.logger.warn(`meeting ${ctx.meetingId}: invalid extraction (attempt ${attempt}/${EXTRACT_ATTEMPTS}): ${error.message}`);
+        this.logger.warn(`meeting ${ctx.meetingId}: invalid extraction (attempt ${attempt}/${EXTRACT_ATTEMPTS})`);
       }
     }
     this.logger.warn(`meeting ${ctx.meetingId}: skipped chunks ${chunks.map((c) => c.id).join(',')} after ${EXTRACT_ATTEMPTS} invalid answers`);

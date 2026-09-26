@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { stackFrames } from '../common/logging/log-error.js';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource } from 'typeorm';
 import { NotificationSetting, type MeetingReadyPushData } from '@meetio/shared';
@@ -60,7 +61,7 @@ export class MeetingReadyNotifier {
         await this.dataSource.query('DELETE FROM push_tokens WHERE token = ANY($1::text[])', [gone.map((t) => t.token)]);
       }
     } catch (error) {
-      this.logger.error(`Meeting-ready push failed for ${meetingId}`, error instanceof Error ? error.stack : undefined);
+      this.logger.error(`Meeting-ready push failed for ${meetingId}`, stackFrames(error));
     }
   }
 }

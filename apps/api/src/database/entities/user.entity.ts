@@ -34,6 +34,10 @@ export class User {
   @Column({ name: 'recording_consent_at', type: 'timestamptz', nullable: true })
   recording_consent_at!: Date | null;
 
+  /** Consent text version accepted; below CURRENT_CONSENT_VERSION = ask again (NFR-01). */
+  @Column({ name: 'consent_version', type: 'int', nullable: true })
+  consent_version!: number | null;
+
   @Column({ name: 'monthly_token_budget', type: 'bigint', nullable: true })
   monthly_token_budget!: string | null;
 

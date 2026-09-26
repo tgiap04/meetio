@@ -9,6 +9,18 @@ import type { PublicUser } from '../auth/user.types';
 export interface GetMeResponse {
   user: PublicUser;
   current_month_tokens_used: number;
+  usage: TokenUsage;
+}
+
+/** This calendar month's AI usage against the user's budget (NFR-07). */
+export interface TokenUsage {
+  used: number;
+  /** Null = no cap (OQ-04: no default budget). */
+  budget: number | null;
+  /** 0–100, null without a budget. */
+  percent: number | null;
+  /** At or above 80% of the budget. */
+  warning: boolean;
 }
 
 /** `PATCH /users/me` — every field optional; only supplied fields are updated. */
@@ -25,6 +37,7 @@ export type RecordConsentRequest = Record<string, never>;
 
 export interface RecordConsentResponse {
   recording_consent_at: string;
+  consent_version: number;
 }
 
 /**

@@ -20,6 +20,6 @@ import { MEETING_PROCESSING_QUEUE, MeetingPipelineTrigger } from './meeting-pipe
   ],
   controllers: [MeetingsController, MeetingSegmentsController],
   providers: [MeetingsService, MeetingQueryService, MeetingDeletionService, MeetingsRepository, MeetingPipelineTrigger],
-  exports: [MeetingsRepository, MeetingPipelineTrigger],
+  exports: [MeetingsRepository, MeetingPipelineTrigger, MeetingDeletionService],
 })
 export class MeetingsModule {}

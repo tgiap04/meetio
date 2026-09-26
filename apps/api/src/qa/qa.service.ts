@@ -98,6 +98,7 @@ export class QaService {
   }
 
   private async answerAndStore(scope: QaScope, question: string, filters: QaFilters | null): Promise<AskResponse> {
+    const started = Date.now();
     const signal = new AbortController().signal;
     const recent = (await readThread(this.dataSource, scope.userId, scope.meetingId, { limit: HISTORY_TURNS * 2 })).items;
     const history: HistoryTurn[] = recent.map((m) => ({ role: m.role, content: m.content }));
@@ -129,12 +130,13 @@ export class QaService {
     const ids = await this.dataSource.transaction(async (m) => {
       const insert = (role: string, content: string, extra: unknown[]) =>
         m.query(
-          `INSERT INTO qa_messages (user_id, meeting_id, role, content, citations, confidence, not_found, filters, tokens_used, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, clock_timestamp()) RETURNING id`,
+          `INSERT INTO qa_messages (user_id, meeting_id, role, content, citations, confidence, not_found, filters, tokens_used, latency_ms, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, clock_timestamp()) RETURNING id`,
           [scope.userId, scope.meetingId, role, content, ...extra],
         ) as Promise<{ id: string }[]>;
-      const [q] = await insert('user', question, [null, null, false, filters ? JSON.stringify(filters) : null, null]);
-      const [a] = await insert('assistant', answer.text, [JSON.stringify(answer.citations), answer.confidence, answer.notFound, null, answer.tokens]);
+      const [q] = await insert('user', question, [null, null, false, filters ? JSON.stringify(filters) : null, null, null]);
+      // NFR-05: time to answer, kept per answer so production can be watched (ops:metrics).
+      const [a] = await insert('assistant', answer.text, [JSON.stringify(answer.citations), answer.confidence, answer.notFound, null, answer.tokens, Date.now() - started]);
       return [q.id, a.id];
     });
     const { items } = await readThread(this.dataSource, scope.userId, scope.meetingId, { ids, limit: 2 });

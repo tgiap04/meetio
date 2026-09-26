@@ -1,4 +1,5 @@
 import { UnrecoverableError } from 'bullmq';
+import { errorCode, stackFrames } from '../common/logging/log-error.js';
 import type { ProcessingStatusPayload, ProcessingStep } from '@meetio/shared';
 import { ExplainedStepError, NonRetryableStepError, type PipelineStepRegistry } from './pipeline-step-handler.js';
 import type { PipelineStore, RunState } from './pipeline-store.js';
@@ -15,8 +16,9 @@ export interface PipelineEvents {
 }
 
 export interface EngineLogger {
-  log(message: string): void;
-  warn(message: string): void;
+  log(message: string | Record<string, unknown>): void;
+  warn(message: string | Record<string, unknown>): void;
+  error?(message: string, stack?: string): void;
 }
 
 export interface EngineOptions {
@@ -100,6 +102,10 @@ export class PipelineEngine {
     if (!(await this.store.markRunning(state, data.step))) return;
     this.events.processingStatus({ meeting_id: state.meetingId, status: 'processing', step: data.step, progress: progressOf(data.step) });
 
+    const started = Date.now();
+    const stepLog = (outcome: string) => ({
+      event: 'pipeline_step', meeting_id: state.meetingId, step: data.step, run: state.run, attempt: attemptsMade + 1, duration_ms: Date.now() - started, outcome,
+    });
     try {
       await this.withTimeout(data.step, (signal) =>
         handler.run({ meetingId: state.meetingId, userId: state.userId, run: state.run, scope: state.scope, changedSince: state.changedSince, signal }),
@@ -107,10 +113,12 @@ export class PipelineEngine {
     } catch (error) {
       const message = investigationMessage(data.step, error);
       if (!isSafeToShow(error)) {
-        // Full detail stays in the server log (stack only, never step content — NFR-04).
-        this.options.logger.warn(`Step "${data.step}" of ${state.meetingId} threw: ${error instanceof Error ? error.stack : String(error)}`);
+        // The error's name and code locations only — its message can carry step content (NFR-04).
+        this.options.logger.warn({ event: 'pipeline_step_error', meeting_id: state.meetingId, step: data.step, error_code: errorCode(error) });
+        this.options.logger.error?.(`step ${data.step} of ${state.meetingId} threw ${errorCode(error)}`, stackFrames(error));
       }
       const final = error instanceof NonRetryableStepError || attemptsMade + 1 >= maxAttempts;
+      this.options.logger.warn(stepLog(final ? 'failed' : 'retrying'));
       if (final) {
         if (await this.store.failStep(state, data.step, message)) {
           this.events.processingStatus({ meeting_id: state.meetingId, status: 'failed', step: data.step });
@@ -122,6 +130,7 @@ export class PipelineEngine {
       throw error instanceof NonRetryableStepError ? new UnrecoverableError(message) : error;
     }
 
+    this.options.logger.log(stepLog('succeeded'));
     if (await this.store.markSucceeded(state, data.step)) {
       await this.advance(state);
     }

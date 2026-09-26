@@ -105,7 +105,7 @@ export class SummaryGenerator {
       } catch (error) {
         if (!(error instanceof SummarySchemaError)) throw error;
         // Ids and the reason only — never the transcript or the model's text (NFR-04).
-        this.logger.warn(`meeting ${input.meetingId}: invalid summary (attempt ${attempt}/${SUMMARY_ATTEMPTS}): ${error.message}`);
+        this.logger.warn(`meeting ${input.meetingId}: invalid summary (attempt ${attempt}/${SUMMARY_ATTEMPTS})`);
       }
     }
     throw new SummarySchemaError(`Gemini không trả tóm tắt đúng định dạng sau ${SUMMARY_ATTEMPTS} lần`);

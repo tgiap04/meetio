@@ -82,7 +82,8 @@ export function parseExtraction(text: string, labels: readonly string[]): Map<st
     if (!isObject(item)) throw new ExtractionSchemaError('entity không phải object');
     const name = str(item.name, 'entity.name');
     const type = str(item.type, 'entity.type');
-    if (!ENTITY_TYPES.includes(type)) throw new ExtractionSchemaError(`loại thực thể lạ: ${type}`);
+    // The value came from the model: keep it out of the message (it can reach logs — NFR-04).
+    if (!ENTITY_TYPES.includes(type)) throw new ExtractionSchemaError('loại thực thể lạ');
     if (!Array.isArray(item.chunks)) throw new ExtractionSchemaError('entity.chunks không phải mảng');
     const description = item.description === undefined || item.description === null ? '' : str(item.description, 'entity.description');
     const key = normalizeEntityName(name, type);

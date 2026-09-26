@@ -1,3 +1,4 @@
+import { errorCode, stackFrames } from '../logging/log-error.js';
 import {
   ArgumentsHost,
   Catch,
@@ -86,10 +87,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
       const request = ctx.getRequest<Request>();
       // Ownership failures are routine (never a bug) but worth a trail: they are
       // either a stale client link or someone probing another user's resources.
-      this.logger.warn(`Ownership violation: ${request.method} ${request.originalUrl} → ${code}`);
+      // The route pattern, not the URL: a query string can carry a search text (NFR-04).
+      this.logger.warn(`Ownership violation: ${request.method} ${request.route?.path ?? request.path} → ${code}`);
     } else if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
-      const detail = exception instanceof Error ? exception.message : String(exception);
-      this.logger.error(detail, exception instanceof Error ? exception.stack : undefined);
+      // Name and code locations only: an unexpected error's message (e.g. from Postgres) can carry data.
+      this.logger.error(`Unhandled ${errorCode(exception)}`, stackFrames(exception));
     }
 
     const envelope: ApiErrorEnvelope = {

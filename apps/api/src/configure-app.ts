@@ -1,5 +1,6 @@
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
+import { RequestLoggingInterceptor } from './common/logging/request-logging.interceptor.js';
 
 export const GLOBAL_PREFIX = 'api';
 
@@ -12,4 +13,5 @@ export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix(GLOBAL_PREFIX);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalFilters(new ApiExceptionFilter());
+  app.useGlobalInterceptors(new RequestLoggingInterceptor());
 }

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { errorCode } from '../common/logging/log-error.js';
 import type { ProcessingStatusPayload } from '@meetio/shared';
 import { MeetingRoomNotifier } from '../realtime/meeting-room.notifier.js';
 import { MeetingReadyNotifier } from '../notifications/meeting-ready.notifier.js';
@@ -22,7 +23,7 @@ export class PipelineEventsAdapter implements PipelineEvents {
     try {
       this.room.processingStatus(payload);
     } catch (error) {
-      this.logger.warn(`processing_status emit failed for ${payload.meeting_id}: ${String(error)}`);
+      this.logger.warn(`processing_status emit failed for ${payload.meeting_id}: ${errorCode(error)}`);
     }
   }
 
@@ -30,7 +31,7 @@ export class PipelineEventsAdapter implements PipelineEvents {
     try {
       this.room.meetingReady({ meeting_id: meetingId });
     } catch (error) {
-      this.logger.warn(`meeting_ready emit failed for ${meetingId}: ${String(error)}`);
+      this.logger.warn(`meeting_ready emit failed for ${meetingId}: ${errorCode(error)}`);
     }
     await this.push.notify(meetingId);
   }

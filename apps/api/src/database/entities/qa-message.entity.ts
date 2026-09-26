@@ -50,6 +50,10 @@ export class QaMessage {
   @Column({ type: 'jsonb', nullable: true })
   filters!: Record<string, string | null> | null;
 
+  /** Assistant only: time to answer, for NFR-05 in production. */
+  @Column({ name: 'latency_ms', type: 'int', nullable: true })
+  latency_ms!: number | null;
+
   @Column({ name: 'tokens_used', type: 'int', nullable: true })
   tokens_used!: number | null;
 

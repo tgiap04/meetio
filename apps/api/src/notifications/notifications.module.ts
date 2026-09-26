@@ -6,6 +6,6 @@ import { PushTokensController } from './push-tokens.controller.js';
 @Module({
   controllers: [PushTokensController],
   providers: [ExpoPushClient, MeetingReadyNotifier],
-  exports: [MeetingReadyNotifier],
+  exports: [MeetingReadyNotifier, ExpoPushClient],
 })
 export class NotificationsModule {}

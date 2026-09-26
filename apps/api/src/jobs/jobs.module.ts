@@ -12,6 +12,8 @@ import { PipelineModule } from '../pipeline/pipeline.module.js';
 import { MeetingMaintenanceService } from './abandoned-meeting.job.js';
 import { MeetingMaintenanceProcessor, MEETING_MAINTENANCE_QUEUE } from './meeting-maintenance.processor.js';
 import { MeetingMaintenanceScheduler } from './meeting-maintenance.scheduler.js';
+import { RetentionService } from './retention.job.js';
+import { NotificationsModule } from '../notifications/notifications.module.js';
 
 @Module({
   imports: [
@@ -33,6 +35,7 @@ import { MeetingMaintenanceScheduler } from './meeting-maintenance.scheduler.js'
     BullModule.registerQueue({ name: ACCOUNT_MAINTENANCE_QUEUE }, { name: MEETING_MAINTENANCE_QUEUE }),
     MeetingsModule,
     PipelineModule,
+    NotificationsModule,
   ],
   providers: [
     AccountMaintenanceService,
@@ -41,6 +44,7 @@ import { MeetingMaintenanceScheduler } from './meeting-maintenance.scheduler.js'
     MeetingMaintenanceService,
     MeetingMaintenanceProcessor,
     MeetingMaintenanceScheduler,
+    RetentionService,
   ],
   exports: [AccountMaintenanceService],
 })

@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ApiErrorCode } from '@meetio/shared';
+import { consentRequired, CURRENT_CONSENT_VERSION } from '../users/consent.js';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource } from 'typeorm';
 import { MeetingStatus } from '../database/enums/meeting-status.enum.js';
@@ -35,6 +37,16 @@ export class MeetingsService {
 
   /** US-07: the row exists — and its id is returned — before the client opens the mic. */
   async create(userId: string, dto: CreateMeetingDto): Promise<CreateMeetingResponseDto> {
+    // NFR-01: nothing is recorded — and so nothing reaches the AI provider — before the user accepted
+    // the current consent text. Enforced here, not only by the app's gate.
+    const [owner] = (await this.dataSource.query('SELECT consent_version FROM users WHERE id = $1', [userId])) as { consent_version: number | null }[];
+    if (!owner || consentRequired(owner.consent_version)) {
+      throw new ForbiddenException({
+        code: ApiErrorCode.CONSENT_REQUIRED,
+        message: 'Cần đồng ý với nội dung xử lý dữ liệu hiện hành trước khi ghi cuộc họp',
+        details: { consent_version: CURRENT_CONSENT_VERSION },
+      });
+    }
     const now = new Date();
     const meeting = await this.meetings.createForUser(userId, {
       title: dto.title?.trim() || defaultMeetingTitle(now),

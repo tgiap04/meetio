@@ -32,3 +32,9 @@ export interface MeetingReadyPushData {
   type: 'meeting_ready';
   meeting_id: string;
 }
+
+/** "Some meetings will be deleted in 7 days" — generic by design, the count only (retention, Phase 16). */
+export interface RetentionNoticePushData {
+  type: 'retention_notice';
+  meeting_count: number;
+}
