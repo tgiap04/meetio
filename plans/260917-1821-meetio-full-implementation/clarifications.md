@@ -39,3 +39,7 @@
 - Q: Chip lọc ở màn Knowledge Graph? → A: Tất cả / Người / Dự án / Chủ đề / Khác (tổ chức, sản phẩm, other gộp vào Khác); bỏ Task
 - Q: Tầng khớp vector khi chưa hiệu chỉnh ngưỡng (OQ-03)? → A: Chỉ đề xuất gộp, không tự gộp; tự gắn chỉ khi tên chuẩn hóa trùng; ngưỡng là biến môi trường, bật tự gộp sau khi có bộ dữ liệu vàng
 - Q: Cách gọi Gemini để trích xuất? → A: Gom 4 chunk mỗi lượt gọi; mọi thực thể/quan hệ phải trích dẫn chunk nguồn, trích dẫn sai thì loại
+
+## Session 2026-09-26 (live Gemini check)
+- Q: gemini-flash-latest trả 503 quá tải ở mọi lượt chạy thật; xử lý model sinh văn bản thế nào? → A: Đổi mặc định GEMINI_TEXT_MODEL sang gemini-2.5-flash, không thêm model dự phòng
+- Q: Bỏ từ chỉ loại khiến "Ngân hàng ABC" và "Công ty ABC" tự thành một thực thể — xử lý thế nào? → A: Giữ, ghi là đánh đổi đã biết (docs/system-architecture.md §5)

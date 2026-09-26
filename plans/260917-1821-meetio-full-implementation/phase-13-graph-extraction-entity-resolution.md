@@ -4,7 +4,7 @@
 [Khớp thực thể](../../docs/system-architecture.md#5-khớp-và-gộp-thực-thể)
 
 ## Tổng quan
-**Ưu tiên:** Cao · **Trạng thái:** ✅ implemented — pending live Gemini verification + OQ-03 gold dataset · **Phụ thuộc:** Phase 12
+**Ưu tiên:** Cao · **Trạng thái:** ✅ implemented — live Gemini verified 2026-09-26 (84s/60 phút, schema 21/21); pending OQ-03 gold dataset · **Phụ thuộc:** Phase 12
 
 Rút thực thể và quan hệ từ transcript, khớp vào đồ thị dùng chung toàn tài khoản, và cho người dùng
 sửa chữa những gì máy hiểu sai.

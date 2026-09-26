@@ -4,7 +4,7 @@
 [Luồng 2](../../docs/system-architecture.md#3-luồng-2--pipeline-phân-tích)
 
 ## Tổng quan
-**Ưu tiên:** Cao · **Trạng thái:** ✅ **implemented — pending live Gemini verification** · **Phụ thuộc:** Phase 11
+**Ưu tiên:** Cao · **Trạng thái:** ✅ **implemented — live Gemini verified 2026-09-26 (countTokens OK, 5/5 golden queries); chưa quan sát 429 thật** · **Phụ thuộc:** Phase 11
 
 Cắt transcript thành chunk, nhúng vector, và mở tìm kiếm ngữ nghĩa xuyên mọi cuộc họp.
 

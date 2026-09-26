@@ -55,3 +55,18 @@ liệu vàng). Commit theo yêu cầu người dùng.
   summarize sẽ tốn tiền thật.
 - 6 test hook mobile cũ cùng kiểu harness dùng chung chưa unmount — chưa từng đỏ, để Phase 16.
 - Thực thể đã gộp quá 30 ngày vẫn nằm trong bảng (không tách lại được nữa) — chưa có dọn dẹp.
+
+## Bổ sung — kiểm với Gemini thật (cùng ngày, sau khi người dùng thêm khóa)
+
+- **Chạy tuần tự trượt NFR xa:** 60 phút → 420s extract (6 lượt gọi × ~70s). Test với model giả không thể lộ ra
+  điều này. Chạy 4 nhóm song song → 84s.
+- **`gemini-flash-latest` trả 503 "high demand" ở mọi lượt chạy đầy đủ**, dù một lời gọi lẻ vẫn thành công —
+  thử lại 1s/4s là quá ngắn. Backoff đổi sang 1–2–4–8–16s có jitter; người dùng chọn mặc định `gemini-2.5-flash`.
+- **Model thật ồn hơn model giả nhiều:** 52 thực thể cho 9 thực thể thật — "công ty Sao Mai"/"Sao Mai",
+  "ứng dụng Meetio"/"Meetio", cùng hàng loạt "báo cáo lỗi", "bản thiết kế". Chuẩn hóa bỏ từ chỉ loại + prompt chặt
+  → 25 thực thể, đủ 9/9. Đánh đổi (người dùng chấp nhận): "Ngân hàng ABC" và "Công ty ABC" thành một.
+- **Ngưỡng 0.85 đề xuất gộp hai người khác nhau** ("Bình ↔ Tuấn", 0.914); cặp trùng thật ≥ 0.96 → mặc định 0.95.
+  Vẫn chưa phải OQ-03: cần bộ dữ liệu vàng.
+- Đổi chuẩn hóa làm hỏng tìm kiếm "Dự án ABC" (tên lưu là "abc") — e2e bắt được; giờ câu tìm được chuẩn hóa theo
+  mọi loại.
+- Khóa #10 trong `.env` bị Google từ chối (400 API_KEY_INVALID) — pool tự loại đúng như thiết kế ở Phase 12.

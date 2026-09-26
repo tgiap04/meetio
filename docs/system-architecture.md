@@ -167,6 +167,8 @@ processing ─┬─ 1. Cắt đoạn (chunk) ── gộp transcript_segments t
             │                             đó ghi `extracted_at` với `extraction = NULL`, các chunk
             │                             khác không bị ảnh hưởng. Một lỗi Gemini/mạng không bị nuốt:
             │                             nó nổi lên để cả bước `extract` được BullMQ thử lại.
+            │                             Tối đa 4 nhóm chạy cùng lúc, mỗi nhóm commit riêng (cuộc
+            │                             họp 60 phút: 84s trên gemini-2.5-flash; chạy tuần tự 420s).
             │
             ├─ 4. Khớp thực thể (resolve) ── xem mục 5. Từng chunk một (không theo nhóm), giữ khóa
             │                                advisory theo người dùng suốt transaction ghi
@@ -229,7 +231,8 @@ khác, không chờ. Chỉ lỗi HTTP 400 `API_KEY_INVALID` mới loại hẳn m
 được nguyên nhân đó, và trên cấu hình một khóa duy nhất sẽ gây mất dịch vụ âm thầm. Số khóa chỉ tăng
 thêm hạn mức khi chúng thuộc các Google Cloud project khác nhau. `GEMINI_MAX_CONCURRENCY` (mặc định
 4) giới hạn số lệnh gọi Gemini chạy đồng thời trên toàn bộ pool. Lỗi 5xx/mạng thử lại tối đa
-`retries` lần với chờ tăng dần theo cấp số nhân; hết khóa dùng được hoặc hết lượt thử thì ném
+`GEMINI_MAX_RETRIES` lần (mặc định 5) với chờ gấp đôi mỗi lần, có jitter (~1, 2, 4, 8, 16s — 503 "high
+demand" của Gemini thường kéo dài vài giây); model sinh văn bản mặc định `gemini-2.5-flash`; hết khóa dùng được hoặc hết lượt thử thì ném
 `AiServiceUnavailableError` → `AI_SERVICE_UNAVAILABLE` (503). Chỉ số thứ tự khóa (1-based) được log,
 không bao giờ log giá trị khóa. Thiếu `GEMINI_API_KEY` không chặn server khởi động — `GeminiClient`
 tự báo "chưa cấu hình" và mọi lệnh gọi AI thất bại với `AI_SERVICE_UNAVAILABLE`, pipeline coi đó là
@@ -319,7 +322,10 @@ này tuần tự hóa hộ.
 
 1. **Tier 1 — khớp chính xác.** Chuẩn hóa tên (bỏ dấu, thường hóa, bỏ kính ngữ dẫn đầu
    "anh/chị/ông/bà/em/cô/chú/bác/cậu/dì/thầy/sếp" — chỉ bỏ khi có tên theo sau, "Anh" một mình vẫn
-   là một tên) thành `normalized_name`. Cùng `user_id` + `type`, trùng `normalized_name` **hoặc**
+   là một tên; với tổ chức/dự án/sản phẩm bỏ từ chỉ loại dẫn đầu như "công ty", "ngân hàng", "khách
+   hàng", "dự án", "ứng dụng" — lượt kiểm thật cho thấy model lúc giữ lúc bỏ các từ này) thành
+   `normalized_name`. Đánh đổi đã biết: hai tổ chức khác nhau chỉ khác từ chỉ loại ("Ngân hàng ABC" /
+   "Công ty ABC") sẽ bị tier 1 gộp làm một. Cùng `user_id` + `type`, trùng `normalized_name` **hoặc**
    khớp một phần tử của `normalized_aliases` thì gắn luôn vào thực thể đó — không cần gọi Gemini.
    Mô tả từ lần nhắc mới chỉ được ghi khi thực thể chưa có mô tả và chưa bị người dùng sửa
    (`is_user_edited = false`); người dùng đổi tên (`PATCH`) giữ tên cũ lại làm alias nên tier 1 vẫn
@@ -329,7 +335,8 @@ này tuần tự hóa hộ.
    thực thể cùng `type` gần nhất (quét chính xác, không qua HNSW — cùng lý do "lọc theo user trước
    khi tìm gần đúng bị lạc" ở [§4](#4-luồng-3--truy-hồi-và-hỏi-đáp-graphrag)). Hai ngưỡng, cấu hình
    qua biến môi trường và đọc một lần lúc khởi động module:
-   - `ENTITY_SUGGEST_THRESHOLD` (mặc định **0.85**) — từ ngưỡng này trở lên, tạo một dòng
+   - `ENTITY_SUGGEST_THRESHOLD` (mặc định **0.95**, từ lượt kiểm thật 2026-09-26: cặp trùng thật
+     ≥ 0.96, cặp sai cao nhất 0.948; ở 0.85 hai người khác nhau bị đề xuất gộp) — từ ngưỡng này trở lên, tạo một dòng
      `entity_merge_suggestions` cho người dùng duyệt ở `GET /entities/merge-suggestions`
      ([US-40](../user_stories.md#us-40--gộp-các-thực-thể-bị-trùng)). Một cặp đã có trong bảng chặn
      `entity_merge_rejections` thì không được đề xuất lại.
