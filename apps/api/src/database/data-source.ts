@@ -60,6 +60,15 @@ export function assertDatabaseUrl(env: NodeJS.ProcessEnv = process.env): string 
  * docs/data-model.md. TypeORM's schema sync does not know the HNSW indexes
  * or the expression-based trigram index exist, and would drop them.
  */
+/**
+ * Jest suites that only read and write data never need the migration classes, and loading the
+ * glob makes TypeORM `import()` every migration file at once from CommonJS — which Jest's ESM
+ * runtime intermittently resolves to nothing ("Cannot read properties of undefined (reading
+ * 'identifier')" in jest-runtime's dynamicImportFromCjs). Outside Jest, and in the schema suite
+ * that reverts migrations (`TEST_LOAD_MIGRATIONS=1`), they load as usual.
+ */
+const loadMigrations = !process.env.JEST_WORKER_ID || process.env.TEST_LOAD_MIGRATIONS === '1';
+
 export const AppDataSource = new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
@@ -82,7 +91,7 @@ export const AppDataSource = new DataSource({
     UsageRecord,
     PushToken,
   ],
-  migrations: [join(__dirname, 'migrations', `*.${migrationExtension}`)],
+  migrations: loadMigrations ? [join(__dirname, 'migrations', `*.${migrationExtension}`)] : [],
 });
 
 /**

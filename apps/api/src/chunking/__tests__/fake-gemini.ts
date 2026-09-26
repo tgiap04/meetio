@@ -6,9 +6,16 @@ import { UsageTracker } from '../../ai/usage-tracker.js';
 import type { DataSource } from 'typeorm';
 
 /** A deterministic stand-in for Gemini's SDK models: real GeminiClient + runner + usage accounting, no network. */
-export function fakeGemini(db: DataSource, calls = { embed: 0, count: 0 }) {
+export function fakeGemini(
+  db: DataSource,
+  calls = { embed: 0, count: 0, generate: 0 },
+  generate: (prompt: string) => string = () => '',
+) {
   const models: GenAiModels = {
-    generateContent: async () => ({ text: '' }),
+    generateContent: async ({ contents }) => {
+      calls.generate++;
+      return { text: generate(contents), usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 } };
+    },
     countTokens: async ({ contents }) => {
       calls.count++;
       return { totalTokens: contents.split(/\s+/).filter(Boolean).length };

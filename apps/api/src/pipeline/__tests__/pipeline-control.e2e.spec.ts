@@ -44,16 +44,16 @@ maybeDescribe('pipeline control, status and push (e2e)', () => {
     return waitFor(() => meeting(id), (m) => m.status === 'ready');
   };
 
-  it('end starts run 1: chunk and embed run, then it waits at the first unimplemented step (extract)', async () => {
+  it('end starts run 1: chunk, embed, extract and resolve run, then it waits at the first unimplemented step (summarize)', async () => {
     const id = await create();
     expect((await e2e.http('POST', `/meetings/${id}/end`, owner.token, {})).body.status).toBe('queued');
     const status = await waitFor(
       async () => (await e2e.http('GET', `/meetings/${id}/status`, owner.token)).body,
-      (s) => s.current_step === 'extract',
+      (s) => s.current_step === 'summarize',
     );
-    expect(status).toMatchObject({ meeting_id: id, status: 'processing', current_step: 'extract', failure_reason: null });
+    expect(status).toMatchObject({ meeting_id: id, status: 'processing', current_step: 'summarize', failure_reason: null });
     expect(status.steps.map((s: { step: string; status: string }) => `${s.step}:${s.status}`)).toEqual([
-      'chunk:succeeded', 'embed:succeeded', 'extract:pending', 'resolve:pending', 'summarize:pending',
+      'chunk:succeeded', 'embed:succeeded', 'extract:succeeded', 'resolve:succeeded', 'summarize:pending',
     ]);
     expect((await meeting(id)).pipeline_run).toBe(1);
   });
@@ -130,21 +130,21 @@ maybeDescribe('pipeline control, status and push (e2e)', () => {
     const id = await create();
     await e2e.http('POST', `/meetings/${id}/end`, owner.token, {});
     await waitFor(() => meeting(id), (m) => m.status === 'processing');
-    await e2e.db.query(`UPDATE processing_jobs SET status = 'succeeded' WHERE meeting_id = $1 AND step IN ('chunk', 'embed')`, [id]);
-    await e2e.db.query(`UPDATE processing_jobs SET status = 'failed', attempts = 4, error_message = 'x' WHERE meeting_id = $1 AND step = 'extract'`, [id]);
-    await e2e.db.query(`UPDATE meetings SET status = 'failed', failure_reason = 'extract' WHERE id = $1`, [id]);
+    await e2e.db.query(`UPDATE processing_jobs SET status = 'succeeded' WHERE meeting_id = $1 AND step IN ('chunk', 'embed', 'extract', 'resolve')`, [id]);
+    await e2e.db.query(`UPDATE processing_jobs SET status = 'failed', attempts = 4, error_message = 'x' WHERE meeting_id = $1 AND step = 'summarize'`, [id]);
+    await e2e.db.query(`UPDATE meetings SET status = 'failed', failure_reason = 'summarize' WHERE id = $1`, [id]);
 
     const failed = await e2e.http('GET', `/meetings/${id}/status`, owner.token);
-    expect(failed.body).toMatchObject({ status: 'failed', current_step: 'extract', failure_reason: 'extract' });
+    expect(failed.body).toMatchObject({ status: 'failed', current_step: 'summarize', failure_reason: 'summarize' });
 
     expect((await e2e.http('POST', `/meetings/${id}/reindex`, owner.token, { scope: 'changed' })).status).toBe(200);
     await waitFor(() => meeting(id), (m) => m.status === 'processing' && m.pipeline_run === 2);
     const steps = Object.fromEntries(
       (await e2e.http('GET', `/meetings/${id}/status`, owner.token)).body.steps.map((s: { step: string; status: string; attempts: number }) => [s.step, s]),
     );
-    expect(steps.chunk.status).toBe('succeeded');
-    expect(steps.embed.status).toBe('succeeded');
-    expect(steps.extract).toMatchObject({ status: 'pending', attempts: 0 });
+    expect(['chunk', 'embed', 'extract', 'resolve'].map((k) => steps[k].status)).toEqual(['succeeded', 'succeeded', 'succeeded', 'succeeded']);
+    // summarize has no handler yet (Phase 14): it is queued again from zero attempts, not skipped.
+    expect(steps.summarize).toMatchObject({ status: 'pending', attempts: 0 });
   });
 
   it('moves a device token to whoever registered it last, and only its owner can remove it', async () => {

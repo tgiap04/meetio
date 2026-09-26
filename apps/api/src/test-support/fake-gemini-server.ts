@@ -19,6 +19,8 @@ const textsOf = (body: { contents?: { parts?: { text?: string }[] }[]; requests?
 export class FakeGeminiServer {
   readonly calls: GeminiCall[] = [];
   readonly rateLimited = new Set<string>();
+  /** Answer to a generateContent prompt; defaults to "nothing found" in the extraction schema. */
+  generate: (prompt: string) => string = () => '{"entities":[],"relations":[]}';
   private server!: Server;
   baseUrl = '';
 
@@ -55,7 +57,7 @@ export class FakeGeminiServer {
         } else if (method === 'countTokens') {
           send(200, { totalTokens: texts.join(' ').split(/\s+/).filter(Boolean).length });
         } else {
-          send(200, { candidates: [{ content: { parts: [{ text: '' }] } }], usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 0 } });
+          send(200, { candidates: [{ content: { parts: [{ text: this.generate(texts.join('\n')) }] } }], usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } });
         }
       });
     });
