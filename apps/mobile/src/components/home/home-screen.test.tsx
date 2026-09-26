@@ -98,7 +98,7 @@ describe('(tabs)/index (Home) screen', () => {
     mockUseMeQuery.mockReturnValue({
       isPending: false,
       isError: false,
-      data: { user: { display_name: 'Nguyễn Văn Anh', recording_consent_at: null } },
+      data: { user: { display_name: 'Nguyễn Văn Anh', consent_required: true } },
     });
     const renderer = render();
     const texts = renderer.root.findAllByType(Text).map((node) => node.props.children).flat();
@@ -113,7 +113,7 @@ describe('(tabs)/index (Home) screen', () => {
     mockUseMeQuery.mockReturnValue({
       isPending: false,
       isError: false,
-      data: { user: { display_name: 'Anh', recording_consent_at: null } },
+      data: { user: { display_name: 'Anh', consent_required: true } },
     });
     expect(() => render()).not.toThrow();
   });
@@ -122,7 +122,7 @@ describe('(tabs)/index (Home) screen', () => {
     mockUseMeQuery.mockReturnValue({
       isPending: false,
       isError: false,
-      data: { user: { display_name: 'Anh', recording_consent_at: null } },
+      data: { user: { display_name: 'Anh', consent_required: true } },
     });
     const renderer = render();
     act(() => {
@@ -135,7 +135,7 @@ describe('(tabs)/index (Home) screen', () => {
     mockUseMeQuery.mockReturnValue({
       isPending: false,
       isError: false,
-      data: { user: { display_name: 'Anh', recording_consent_at: '2026-01-01T00:00:00Z' } },
+      data: { user: { display_name: 'Anh', consent_required: false } },
     });
     const renderer = render();
     act(() => {
@@ -148,7 +148,7 @@ describe('(tabs)/index (Home) screen', () => {
     mockUseMeQuery.mockReturnValue({
       isPending: false,
       isError: false,
-      data: { user: { display_name: 'Anh', recording_consent_at: null } },
+      data: { user: { display_name: 'Anh', consent_required: true } },
     });
     const renderer = render();
     act(() => {
@@ -161,7 +161,7 @@ describe('(tabs)/index (Home) screen', () => {
     mockUseMeQuery.mockReturnValue({
       isPending: false,
       isError: false,
-      data: { user: { display_name: 'Anh', recording_consent_at: null } },
+      data: { user: { display_name: 'Anh', consent_required: true } },
     });
     const renderer = render();
     act(() => {
@@ -174,7 +174,7 @@ describe('(tabs)/index (Home) screen', () => {
     mockUseMeQuery.mockReturnValue({
       isPending: false,
       isError: false,
-      data: { user: { display_name: 'Anh', recording_consent_at: null } },
+      data: { user: { display_name: 'Anh', consent_required: true } },
     });
     const renderer = render();
     act(() => {
@@ -187,7 +187,7 @@ describe('(tabs)/index (Home) screen', () => {
     mockUseMeQuery.mockReturnValue({
       isPending: false,
       isError: false,
-      data: { user: { display_name: 'Anh', recording_consent_at: null } },
+      data: { user: { display_name: 'Anh', consent_required: true } },
     });
     const renderer = render();
     const texts = renderer.root.findAllByType(Text).map((node) => node.props.children).flat().join('');
@@ -198,7 +198,7 @@ describe('(tabs)/index (Home) screen', () => {
     mockUseMeQuery.mockReturnValue({
       isPending: false,
       isError: false,
-      data: { user: { display_name: 'Anh', recording_consent_at: null } },
+      data: { user: { display_name: 'Anh', consent_required: true } },
     });
     const renderer = render();
     act(() => {

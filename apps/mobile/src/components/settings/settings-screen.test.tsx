@@ -42,7 +42,7 @@ jest.mock('../../hooks/use-auth-mutations', () => ({
 }));
 
 import SettingsScreen from '../../../app/(app)/(tabs)/settings';
-import { RECORDING_SETUP_ROUTE } from '../../navigation/app-routes';
+import { PRIVACY_POLICY_ROUTE, RECORDING_SETUP_ROUTE } from '../../navigation/app-routes';
 
 function render() {
   let renderer!: TestRenderer.ReactTestRenderer;
@@ -107,17 +107,16 @@ describe('(tabs)/settings screen — restyled, nothing working lost', () => {
     expect(mockPush).toHaveBeenCalledWith(RECORDING_SETUP_ROUTE);
   });
 
-  it('preserved control 1/5: retention field blur fires useUpdateMeMutation with retention_days', () => {
+  it('preserved control 1/5: picking a retention option fires useUpdateMeMutation with retention_days', () => {
     mockUseMeQuery.mockReturnValue({ isPending: false, isError: false, data: { user: AUTHENTICATED_USER } });
     const renderer = render();
-    const retentionInput = renderer.root.findAllByType(TextInput)[0];
+    const chip = renderer.root
+      .findAll((node) => node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function')
+      .find((node) => node.findAllByType(Text).some((t) => t.props.children === '90 ngày'));
     act(() => {
-      retentionInput.props.onChangeText('45');
+      chip?.props.onPress();
     });
-    act(() => {
-      retentionInput.props.onBlur();
-    });
-    expect(mockUpdateMeMutate).toHaveBeenCalledWith({ retention_days: 45 });
+    expect(mockUpdateMeMutate).toHaveBeenCalledWith({ retention_days: 90 });
   });
 
   it('preserved control 2/5: notifications switch fires useUpdateMeMutation with notification_settings', () => {
@@ -242,5 +241,36 @@ describe('(tabs)/settings screen — restyled, nothing working lost', () => {
     mockUseMeQuery.mockReturnValue({ isPending: false, isError: false, data: { user: AUTHENTICATED_USER } });
     const renderer = render();
     expect(renderer.root.findByProps({ testID: 'dev-reset-button' })).toBeTruthy();
+  });
+
+  it('routes "Chính sách bảo mật" to the privacy-policy screen (Phase 16)', () => {
+    mockUseMeQuery.mockReturnValue({ isPending: false, isError: false, data: { user: AUTHENTICATED_USER } });
+    const renderer = render();
+    const privacyRow = renderer.root
+      .findAll((node) => node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function')
+      .find((node) => node.findAllByType(Text).some((t) => t.props.children === 'Chính sách bảo mật'));
+    act(() => {
+      privacyRow?.props.onPress();
+    });
+    expect(mockPush).toHaveBeenCalledWith(PRIVACY_POLICY_ROUTE);
+  });
+
+  it('renders this month\'s AI usage from /me (NFR-07)', () => {
+    mockUseMeQuery.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: {
+        user: AUTHENTICATED_USER,
+        usage: { used: 1200, budget: 5000, percent: 24, warning: false },
+      },
+    });
+    const renderer = render();
+    const texts = renderer.root.findAllByType(Text).map((node) => node.props.children);
+    expect(texts).toContain('Đã dùng 1200 / 5000 token (24%)');
+  });
+
+  it('survives a /me payload with no usage field at all', () => {
+    mockUseMeQuery.mockReturnValue({ isPending: false, isError: false, data: { user: AUTHENTICATED_USER } });
+    expect(() => render()).not.toThrow();
   });
 });

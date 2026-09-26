@@ -126,6 +126,7 @@ describe('screens 09 and 10 agree with screen 08 on the ?id= param name', () => 
 describe('every stacked screen (non-tab) has a real back edge', () => {
   const stackedScreens = [
     '(app)/consent.tsx',
+    '(app)/privacy-policy.tsx',
     '(app)/meeting-detail.tsx',
     '(app)/meeting-transcript.tsx',
     '(app)/meeting-graph.tsx',

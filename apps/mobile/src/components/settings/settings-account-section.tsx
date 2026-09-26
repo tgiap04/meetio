@@ -4,13 +4,13 @@ import { SurfaceCard } from '../ui/surface-card';
 import { DevResetButton } from '../dev/dev-reset-button';
 import { PrimaryButton } from '../primary-button';
 import { TextField } from '../text-field';
+import { SettingsRetentionPicker } from './settings-retention-picker';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 export interface SettingsAccountSectionProps {
-  retentionDaysValue: string;
-  onRetentionDaysChange: (value: string) => void;
-  onRetentionDaysBlur: () => void;
+  retentionDays: number | null;
+  onRetentionDaysChange: (days: number | null) => void;
   notificationsEnabled: boolean;
   onToggleNotifications: (enabled: boolean) => void;
   /** US-30 — bound to `NotificationSetting.MEETING_READY_PUSH`, distinct from
@@ -32,9 +32,8 @@ export interface SettingsAccountSectionProps {
  * moved rather than rewritten.
  */
 export function SettingsAccountSection({
-  retentionDaysValue,
+  retentionDays,
   onRetentionDaysChange,
-  onRetentionDaysBlur,
   notificationsEnabled,
   onToggleNotifications,
   meetingReadyPushEnabled,
@@ -51,13 +50,8 @@ export function SettingsAccountSection({
       <SectionHeading title="Tài khoản" />
 
       <SurfaceCard style={styles.card}>
-        <TextField
-          keyboardType="numeric"
-          label="Lưu trữ (số ngày, để trống nếu không giới hạn)"
-          onBlur={onRetentionDaysBlur}
-          onChangeText={onRetentionDaysChange}
-          value={retentionDaysValue}
-        />
+        <Text style={styles.rowLabel}>Lưu trữ</Text>
+        <SettingsRetentionPicker onChange={onRetentionDaysChange} value={retentionDays} />
       </SurfaceCard>
 
       <SurfaceCard style={[styles.card, styles.row]}>

@@ -24,6 +24,7 @@ const FALLBACK_MESSAGES: Record<ApiErrorCode, string> = {
   [ApiErrorCode.QUOTA_EXCEEDED]: 'Đã vượt hạn mức sử dụng trong tháng.',
   [ApiErrorCode.RATE_LIMITED]: 'Bạn thao tác quá nhanh, vui lòng thử lại sau.',
   [ApiErrorCode.AI_SERVICE_UNAVAILABLE]: 'Dịch vụ AI tạm thời không khả dụng.',
+  [ApiErrorCode.CONSENT_REQUIRED]: 'Bạn cần đồng ý với chính sách ghi âm trước khi tiếp tục.',
   [ApiErrorCode.INTERNAL_ERROR]: 'Đã có lỗi xảy ra, vui lòng thử lại.',
 };
 

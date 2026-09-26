@@ -46,3 +46,8 @@ export const ASK_ROUTE = '/(app)/ask';
 // something, so a second, unused constant for the same path was dead code —
 // caught by navigation-graph.test.tsx's dead-route check.
 export const CONSENT_ROUTE = '/(app)/consent';
+
+// --- Privacy policy (Phase 16, NFR-01) --------------------------------------
+// Opened from the Settings "Chính sách bảo mật" row and from the consent
+// screen's "Đọc chính sách đầy đủ" link.
+export const PRIVACY_POLICY_ROUTE = '/(app)/privacy-policy';

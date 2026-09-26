@@ -7,20 +7,24 @@ import { colors } from '../../theme/colors';
 
 export interface SettingsAboutSectionProps {
   entries: readonly SettingsEntry[];
+  /** Routes "Chính sách bảo mật" to the full policy screen (Phase 16, NFR-01).
+   *  "Điều khoản sử dụng" still has no destination anywhere in the design and
+   *  stays inert, per phase-12's key insight #6. */
+  onPrivacyPolicyPress: () => void;
 }
 
-/**
- * "Về Meetio": privacy policy and terms-of-use rows. Neither has a
- * destination anywhere in the design (no sub-screen sheet exists for
- * either) — both render, both are deliberately inert, per phase-12's
- * key insight #6.
- */
-export function SettingsAboutSection({ entries }: SettingsAboutSectionProps) {
+/** "Về Meetio": privacy policy (real) and terms-of-use (inert) rows. */
+export function SettingsAboutSection({ entries, onPrivacyPolicyPress }: SettingsAboutSectionProps) {
   return (
     <SurfaceCard style={styles.card}>
       <SectionHeading title="Về Meetio" />
       {entries.map((entry) => (
-        <SettingsRow icon="shield" key={entry.id} label={entry.label} />
+        <SettingsRow
+          icon="shield"
+          key={entry.id}
+          label={entry.label}
+          onPress={entry.id === 'privacy-policy' ? onPrivacyPolicyPress : undefined}
+        />
       ))}
     </SurfaceCard>
   );

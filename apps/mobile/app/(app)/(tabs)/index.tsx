@@ -27,8 +27,11 @@ import { colors } from '../../../src/theme/colors';
  *
  * - REAL: `useMeQuery`, the pending/error branches, the greeting name
  *   (`meQuery.data.user.display_name`), the consent gate
- *   (`recording_consent_at` → `/(app)/consent`) — this is the same US-04 legal
- *   gate the pre-design screen had, only its presentation changed — and the
+ *   (`consent_required` → `/(app)/consent`) — this is the same US-04 legal
+ *   gate the pre-design screen had, only its presentation changed. Note it
+ *   gates on `consent_required`, not `recording_consent_at`: a user who
+ *   accepted an older consent version has a non-null `recording_consent_at`
+ *   but must still see the consent screen again (NFR-01, consent v2) — and
  *   "Cuộc họp gần đây" list, now the real first page of `/meetings` (US-20)
  *   via `useRecentMeetingsQuery`.
  * - MOCK: the crown badge and the two original secondary action rows.
@@ -58,11 +61,11 @@ export default function HomeScreen() {
     );
   }
 
-  const hasConsent = Boolean(meQuery.data.user.recording_consent_at);
+  const needsConsent = meQuery.data.user.consent_required;
   const recentMeetings = recentMeetingsQuery.data?.items ?? [];
 
   function handleStartRecordingPress() {
-    router.push(hasConsent ? RECORDING_SETUP_ROUTE : CONSENT_ROUTE);
+    router.push(needsConsent ? CONSENT_ROUTE : RECORDING_SETUP_ROUTE);
   }
 
   function handleViewAllPress() {

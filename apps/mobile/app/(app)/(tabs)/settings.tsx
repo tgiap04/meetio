@@ -16,8 +16,9 @@ import { SettingsProfileHeader } from '../../../src/components/settings/settings
 import { SettingsMockRows } from '../../../src/components/settings/settings-mock-rows';
 import { SettingsAboutSection } from '../../../src/components/settings/settings-about-section';
 import { SettingsAccountSection } from '../../../src/components/settings/settings-account-section';
+import { SettingsUsageSection } from '../../../src/components/settings/settings-usage-section';
 import { SETTINGS_ENTRIES, ABOUT_MEETIO_ENTRIES } from '../../../src/mocks';
-import { RECORDING_SETUP_ROUTE } from '../../../src/navigation/app-routes';
+import { PRIVACY_POLICY_ROUTE, RECORDING_SETUP_ROUTE } from '../../../src/navigation/app-routes';
 import { colors } from '../../../src/theme/colors';
 import { typography } from '../../../src/theme/typography';
 
@@ -43,7 +44,12 @@ export default function SettingsScreen() {
   const deleteAccountMutation = useDeleteAccountMutation();
   const logoutMutation = useLogoutMutation();
 
-  const [retentionDaysInput, setRetentionDaysInput] = useState<string | null>(null);
+  // `undefined` means "not touched this session" — the picker then reflects
+  // what the server actually has. Distinct from `null`, which is itself a
+  // valid retention value ("Không tự xóa").
+  const [retentionDaysOverride, setRetentionDaysOverride] = useState<number | null | undefined>(
+    undefined,
+  );
   const [deletePassword, setDeletePassword] = useState('');
   // `null` means "not touched this session" — the switch then reflects what the
   // server actually has. An older comment here claimed the saved preference had
@@ -70,7 +76,7 @@ export default function SettingsScreen() {
   }
 
   const { user } = meQuery.data;
-  const retentionDaysValue = retentionDaysInput ?? user.retention_days?.toString() ?? '';
+  const retentionDays = retentionDaysOverride !== undefined ? retentionDaysOverride : user.retention_days;
   // Same read-then-override shape as `retentionDaysValue` above. `?? true`
   // covers a user who has never saved a preference — `notification_settings`
   // defaults to `{}` server-side, so `enabled` is simply absent.
@@ -86,13 +92,9 @@ export default function SettingsScreen() {
     user.notification_settings?.[NotificationSetting.MEETING_READY_PUSH] ??
     true;
 
-  function commitRetentionDays() {
-    const parsed = retentionDaysInput === '' ? null : Number(retentionDaysInput);
-    if (retentionDaysInput !== null && (parsed === null || Number.isNaN(parsed))) {
-      Alert.alert('Giá trị không hợp lệ', 'Số ngày lưu trữ phải là một số.');
-      return;
-    }
-    updateMeMutation.mutate({ retention_days: parsed });
+  function handleRetentionDaysChange(days: number | null) {
+    setRetentionDaysOverride(days);
+    updateMeMutation.mutate({ retention_days: days });
   }
 
   function toggleNotifications(enabled: boolean) {
@@ -122,6 +124,10 @@ export default function SettingsScreen() {
     router.push(RECORDING_SETUP_ROUTE);
   }
 
+  function handlePrivacyPolicyPress() {
+    router.push(PRIVACY_POLICY_ROUTE);
+  }
+
   return (
     <ScreenSurface>
       <ScrollView contentContainerStyle={styles.container}>
@@ -134,7 +140,12 @@ export default function SettingsScreen() {
           onRecordingSettingsPress={handleRecordingSettingsPress}
         />
 
-        <SettingsAboutSection entries={ABOUT_MEETIO_ENTRIES} />
+        {/* Guarded like `notification_settings` above: `usage` is typed
+            required on `GetMeResponse`, but a partial/older server payload
+            must not take the whole screen down on a property read. */}
+        {meQuery.data.usage ? <SettingsUsageSection usage={meQuery.data.usage} /> : null}
+
+        <SettingsAboutSection entries={ABOUT_MEETIO_ENTRIES} onPrivacyPolicyPress={handlePrivacyPolicyPress} />
 
         <SettingsAccountSection
           deleteAccountLoading={deleteAccountMutation.isPending}
@@ -145,11 +156,10 @@ export default function SettingsScreen() {
           onDeleteAccountPress={handleDeleteAccount}
           onDeletePasswordChange={setDeletePassword}
           onLogoutPress={() => logoutMutation.mutate()}
-          onRetentionDaysBlur={commitRetentionDays}
-          onRetentionDaysChange={setRetentionDaysInput}
+          onRetentionDaysChange={handleRetentionDaysChange}
           onToggleMeetingReadyPush={toggleMeetingReadyPush}
           onToggleNotifications={toggleNotifications}
-          retentionDaysValue={retentionDaysValue}
+          retentionDays={retentionDays}
         />
       </ScrollView>
     </ScreenSurface>

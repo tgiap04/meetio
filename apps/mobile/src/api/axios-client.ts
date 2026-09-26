@@ -4,6 +4,7 @@ import { ApiErrorCode } from '@meetio/shared';
 import { createSingleFlight } from './refresh-single-flight';
 import { clearTokens, writeTokens } from '../storage/secure-store';
 import { useSessionStore } from '../store/session.store';
+import { CONSENT_ROUTE } from '../navigation/app-routes';
 
 /** Marks a request config that has already been retried once after a refresh. */
 interface RetriableConfig extends InternalAxiosRequestConfig {
@@ -65,6 +66,27 @@ apiClient.interceptors.response.use(
     const config = error.config as RetriableConfig | undefined;
     const code = error.response?.data?.error?.code;
     const isExpiredToken = error.response?.status === 401 && code === ApiErrorCode.TOKEN_EXPIRED;
+    const isConsentRequired =
+      error.response?.status === 403 && code === ApiErrorCode.CONSENT_REQUIRED;
+
+    if (isConsentRequired) {
+      // The server is the source of truth for consent (NFR-01) — a request
+      // can be rejected here even when the client's own `/me` cache still
+      // shows an accepted consent (stale cache, or the consent text changed
+      // server-side after the cache was read). Route straight to the consent
+      // screen instead of surfacing a generic error the user cannot act on.
+      //
+      // `expo-router` is required lazily, here, rather than imported at the
+      // top of the file: a top-level import pulls it into every test that
+      // transitively imports this module (most `src/api/*` and `src/hooks/*`
+      // tests), and almost none of them mock it — see `axios-client.test.ts`,
+      // the one test file that actually exercises this branch and does mock
+      // it. Deferring the require to this call site keeps every other
+      // consumer's import graph unchanged.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- see above
+      const { router } = require('expo-router') as typeof import('expo-router');
+      router.replace(CONSENT_ROUTE);
+    }
 
     if (!isExpiredToken || !config || config._retriedAfterRefresh) {
       return Promise.reject(error);

@@ -1,6 +1,17 @@
 import axios from 'axios';
 import { apiClient } from './axios-client';
 import { useSessionStore } from '../store/session.store';
+import { CONSENT_ROUTE } from '../navigation/app-routes';
+
+// axios-client.ts now redirects to the consent screen on a 403
+// CONSENT_REQUIRED response — real `expo-router` is ESM and breaks Jest's
+// CJS transform on import, so every test that pulls in axios-client.ts
+// (directly or transitively) must mock it, same convention as every other
+// module in this app that imports `router`.
+const mockRouterReplace = jest.fn();
+jest.mock('expo-router', () => ({
+  router: { replace: (...args: unknown[]) => mockRouterReplace(...args), push: jest.fn(), back: jest.fn() },
+}));
 
 /**
  * Integration test for the axios-client's 401 refresh flow, run against a
@@ -178,5 +189,34 @@ describe('apiClient 401 refresh flow', () => {
 
     await expect(apiClient.get('/protected')).rejects.toBeTruthy();
     expect(refreshTransport).not.toHaveBeenCalled();
+  });
+});
+
+describe('apiClient CONSENT_REQUIRED redirect (NFR-01)', () => {
+  beforeEach(() => {
+    mockRouterReplace.mockClear();
+    useSessionStore.setState({ accessToken: null, refreshToken: null, authStatus: 'hydrating' });
+  });
+
+  it('redirects to the consent screen on a 403 CONSENT_REQUIRED response', async () => {
+    apiInstance.__setTransport(async () => ({
+      status: 403,
+      data: { error: { code: 'CONSENT_REQUIRED', message: 'Cần đồng ý trước', details: {} } },
+    }));
+
+    await expect(apiClient.post('/meetings')).rejects.toBeTruthy();
+
+    expect(mockRouterReplace).toHaveBeenCalledWith(CONSENT_ROUTE);
+  });
+
+  it('does not redirect for a 403 that carries a different error code', async () => {
+    apiInstance.__setTransport(async () => ({
+      status: 403,
+      data: { error: { code: 'VALIDATION_ERROR', message: 'invalid', details: {} } },
+    }));
+
+    await expect(apiClient.post('/meetings')).rejects.toBeTruthy();
+
+    expect(mockRouterReplace).not.toHaveBeenCalled();
   });
 });

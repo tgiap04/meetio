@@ -41,6 +41,17 @@ describe('getErrorMessage', () => {
     );
   });
 
+  it('falls back to a consent-required prompt for CONSENT_REQUIRED', () => {
+    const error = makeAxiosError({
+      status: 403,
+      data: { error: { code: 'CONSENT_REQUIRED', message: '', details: {} } },
+    });
+
+    expect(getErrorMessage(error)).toBe(
+      'Bạn cần đồng ý với chính sách ghi âm trước khi tiếp tục.',
+    );
+  });
+
   it('falls back to a retry prompt for GOOGLE_TOKEN_INVALID', () => {
     const error = makeAxiosError({
       data: { error: { code: 'GOOGLE_TOKEN_INVALID', message: '', details: {} } },

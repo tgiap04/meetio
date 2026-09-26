@@ -1,5 +1,5 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { Switch, TextInput } from 'react-native';
+import { Switch, Text, TextInput } from 'react-native';
 
 // `DevResetButton` (rendered inside `SettingsAccountSection`) imports
 // `expo-router` for its own reset-navigation call. That call is never
@@ -14,9 +14,8 @@ import { SettingsAccountSection } from './settings-account-section';
 
 function baseProps() {
   return {
-    retentionDaysValue: '30',
+    retentionDays: 30,
     onRetentionDaysChange: jest.fn(),
-    onRetentionDaysBlur: jest.fn(),
     notificationsEnabled: true,
     onToggleNotifications: jest.fn(),
     meetingReadyPushEnabled: true,
@@ -41,22 +40,37 @@ function render(props: ReturnType<typeof baseProps>) {
 // react-native's Pressable renders three layers that all carry
 // `accessibilityRole`; only the outermost also carries `onPress` as a
 // function, so filtering on both gives exactly one match per pressable.
-// Order: 0 = "Đăng xuất", 1 = "Xóa tài khoản", 2 = DevResetButton.
+// Order: 0-4 = the five SettingsRetentionPicker chips, 5 = "Đăng xuất",
+// 6 = "Xóa tài khoản", 7 = DevResetButton.
 function findButton(renderer: TestRenderer.ReactTestRenderer, index: number) {
   return renderer.root.findAll(
     (node) => node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function',
   )[index];
 }
 
+function findChipByLabel(renderer: TestRenderer.ReactTestRenderer, label: string) {
+  return renderer.root
+    .findAll((node) => node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function')
+    .find((node) => node.findAllByType(Text).some((t) => t.props.children === label));
+}
+
 describe('SettingsAccountSection — one test per preserved account control', () => {
-  it('retention field: blurring fires onRetentionDaysBlur (useUpdateMeMutation)', () => {
+  it('retention picker: selecting an option fires onRetentionDaysChange with the new value (useUpdateMeMutation)', () => {
     const props = baseProps();
     const renderer = render(props);
-    const input = renderer.root.findAllByType(TextInput)[0];
     act(() => {
-      input.props.onBlur();
+      findChipByLabel(renderer, '90 ngày')?.props.onPress();
     });
-    expect(props.onRetentionDaysBlur).toHaveBeenCalledTimes(1);
+    expect(props.onRetentionDaysChange).toHaveBeenCalledWith(90);
+  });
+
+  it('retention picker: selecting "Không tự xóa" fires onRetentionDaysChange with null', () => {
+    const props = baseProps();
+    const renderer = render(props);
+    act(() => {
+      findChipByLabel(renderer, 'Không tự xóa')?.props.onPress();
+    });
+    expect(props.onRetentionDaysChange).toHaveBeenCalledWith(null);
   });
 
   it('notifications switch: toggling fires onToggleNotifications (useUpdateMeMutation)', () => {
@@ -83,7 +97,7 @@ describe('SettingsAccountSection — one test per preserved account control', ()
     const props = baseProps();
     const renderer = render(props);
     act(() => {
-      findButton(renderer, 0).props.onPress();
+      findButton(renderer, 5).props.onPress();
     });
     expect(props.onLogoutPress).toHaveBeenCalledTimes(1);
   });
@@ -92,7 +106,7 @@ describe('SettingsAccountSection — one test per preserved account control', ()
     const props = baseProps();
     const renderer = render(props);
     act(() => {
-      findButton(renderer, 1).props.onPress();
+      findButton(renderer, 6).props.onPress();
     });
     expect(props.onDeleteAccountPress).toHaveBeenCalledTimes(1);
   });
