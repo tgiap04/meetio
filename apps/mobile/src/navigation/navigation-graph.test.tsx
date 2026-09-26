@@ -107,8 +107,11 @@ describe('screens 09 and 10 agree with screen 08 on the ?id= param name', () => 
   });
 
   it('screen 09 (transcript) reads the same `id` param name via useLocalSearchParams', () => {
+    // Also carries an optional `seq` (US-22, Search tab → transcript jump),
+    // so this only asserts `id` is present in the type literal, not that it
+    // is the sole field.
     const source = readAppFile('(app)/meeting-transcript.tsx');
-    expect(source).toMatch(/useLocalSearchParams<\{\s*id\?:\s*string\s*\}>/);
+    expect(source).toMatch(/useLocalSearchParams<\{[^}]*\bid\?:\s*string\b[^}]*\}>/);
   });
 
   it('screen 10 (graph) reads the same `id` param name via useLocalSearchParams', () => {

@@ -92,60 +92,6 @@ export interface GraphRelation {
   readonly objectId: string;
 }
 
-// --- Search (screen 13) -----------------------------------------------------
-
-export interface SearchMeetingItem {
-  readonly kind: 'meeting';
-  readonly id: string;
-  readonly title: string;
-  readonly durationMinutes: number;
-  readonly date: string;
-  readonly status: MeetingStatus;
-  readonly snippet: string;
-}
-
-export interface SearchDocumentItem {
-  readonly kind: 'document';
-  readonly id: string;
-  readonly title: string;
-  readonly status: MeetingStatus;
-  readonly relatedTo: string;
-}
-
-export interface SearchPersonItem {
-  readonly kind: 'person';
-  readonly id: string;
-  readonly name: string;
-  readonly initials: string;
-  readonly meetingCount: number;
-}
-
-export type SearchResultItem = SearchMeetingItem | SearchDocumentItem | SearchPersonItem;
-
-export interface MeetingSearchGroup {
-  readonly id: string;
-  /** Base label with no count baked in — the screen derives `(N)` from `items.length`. */
-  readonly label: string;
-  readonly kind: 'meeting';
-  readonly items: readonly SearchMeetingItem[];
-}
-
-export interface DocumentSearchGroup {
-  readonly id: string;
-  readonly label: string;
-  readonly kind: 'document';
-  readonly items: readonly SearchDocumentItem[];
-}
-
-export interface PersonSearchGroup {
-  readonly id: string;
-  readonly label: string;
-  readonly kind: 'person';
-  readonly items: readonly SearchPersonItem[];
-}
-
-export type SearchGroup = MeetingSearchGroup | DocumentSearchGroup | PersonSearchGroup;
-
 // --- Recording setup (screen 05) --------------------------------------------
 
 export interface RecordingOption {

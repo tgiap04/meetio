@@ -1,0 +1,64 @@
+import React from 'react';
+import TestRenderer, { act } from 'react-test-renderer';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { searchTranscripts } from '../api/search';
+import { useInfiniteSearchQuery } from './use-search-query';
+
+jest.mock('../api/search', () => ({
+  searchTranscripts: jest.fn(),
+}));
+
+const mockedSearchTranscripts = searchTranscripts as jest.Mock;
+
+let hookResult: ReturnType<typeof useInfiniteSearchQuery>;
+
+function Harness({ q, enabled }: { q: string; enabled: boolean }) {
+  hookResult = useInfiniteSearchQuery(q, enabled);
+  return null;
+}
+
+function renderHarness(q: string, enabled: boolean) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  let renderer!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    renderer = TestRenderer.create(
+      <QueryClientProvider client={queryClient}>
+        <Harness enabled={enabled} q={q} />
+      </QueryClientProvider>,
+    );
+  });
+  return renderer;
+}
+
+describe('useInfiniteSearchQuery', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('does not call the API when disabled', () => {
+    renderHarness('ngân sách', false);
+    expect(mockedSearchTranscripts).not.toHaveBeenCalled();
+    expect(hookResult.isPending).toBe(true);
+  });
+
+  it('fetches the first page with offset 0 when enabled', async () => {
+    mockedSearchTranscripts.mockResolvedValue({ items: [{ chunk_id: 'c1' }], next_offset: 20 });
+    await act(async () => {
+      renderHarness('ngân sách', true);
+    });
+    expect(mockedSearchTranscripts).toHaveBeenCalledWith({ q: 'ngân sách', limit: 20, offset: 0 });
+  });
+
+  it('exposes hasNextPage false once the query settles with next_offset null', async () => {
+    mockedSearchTranscripts.mockResolvedValue({ items: [], next_offset: null });
+    renderHarness('x', true);
+    // react-query's notifyManager batches the commit via a macrotask
+    // (`setTimeout`), not just a microtask — a plain `await Promise.resolve()`
+    // doesn't flush it, so this waits on a real timer tick instead.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(hookResult.isSuccess).toBe(true);
+    expect(hookResult.hasNextPage).toBe(false);
+  });
+});

@@ -25,6 +25,20 @@ export function formatMeetingMeta(meeting: MeetingListItem): string {
   return `${formatDateTime(timestamp)} · ${formatDurationMinutes(meeting.duration_sec)}`;
 }
 
+/** `dd/MM/yyyy` from an ISO date, or an em dash when the meeting never
+ *  recorded a start (Search tab's Transcript section, `meeting_date` can be
+ *  `null` — api-spec §6). */
+export function formatOptionalDate(iso: string | null): string {
+  if (iso === null) {
+    return '—';
+  }
+  const date = new Date(iso);
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mo = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = date.getFullYear();
+  return `${dd}/${mo}/${yyyy}`;
+}
+
 /** First two letters of the title, uppercased — this fixture never had photos,
  *  only initials, per the design's `InitialsAvatar`. */
 export function initialsFromTitle(title: string): string {

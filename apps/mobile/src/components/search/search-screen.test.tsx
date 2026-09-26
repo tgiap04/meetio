@@ -2,142 +2,331 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { Text, TextInput } from 'react-native';
 
 /**
- * Exercises `app/(app)/(tabs)/search.tsx` without touching expo-router.
- * Mock variables must be prefixed with `mock` (case-insensitive) for Jest's
- * out-of-scope check on `jest.mock()` factories.
+ * Exercises `app/(app)/(tabs)/search.tsx` against mocked data hooks, without
+ * touching react-query's real network path or expo-router's real navigator.
+ * Lives under `src/`, not `app/` — see `route-shape.test.ts`'s "no test files
+ * live under app/" guard and `library-screen.test.tsx`'s precedent.
  *
- * This file lives under `src/`, not `app/` — Expo Router turns every file
- * under `app/` into a route, so a `*.test.tsx` living beside `search.tsx`
- * both collides with route discovery and drags Jest globals into the app
- * bundle (crashes the running app; see `app-group-layout.test.tsx` for the
- * precedent) AND trips `route-shape.test.ts`'s exact-file-list assertion for
- * `(tabs)/`. Importing the screen component back from `app/` (below) keeps
- * the test exercising the real file while staying out of the route tree.
+ * The screen debounces the query text for 400ms before it drives either data
+ * hook (`use-debounced-value` is real here, not mocked) — fake timers +
+ * `jest.advanceTimersByTime(400)` settle it, matching
+ * `use-debounced-value.test.tsx`'s own idiom.
  */
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
   router: { push: (...args: unknown[]) => mockPush(...args) },
 }));
 
+const mockUseInfiniteSearchQuery = jest.fn();
+jest.mock('../../hooks/use-search-query', () => ({
+  useInfiniteSearchQuery: (...args: unknown[]) => mockUseInfiniteSearchQuery(...args),
+}));
+
+const mockUseInfiniteMeetingsQuery = jest.fn();
+jest.mock('../../hooks/use-meetings-query', () => ({
+  useInfiniteMeetingsQuery: (...args: unknown[]) => mockUseInfiniteMeetingsQuery(...args),
+}));
+
 import SearchScreen from '../../../app/(app)/(tabs)/search';
-import { MEETING_DETAIL_ROUTE } from '../../navigation/app-routes';
+import { MEETING_DETAIL_ROUTE, MEETING_TRANSCRIPT_ROUTE } from '../../navigation/app-routes';
+
+function semanticItem(overrides: Record<string, unknown> = {}) {
+  return {
+    chunk_id: 'c1',
+    meeting_id: 'm1',
+    meeting_title: 'Sprint Review',
+    meeting_date: '2026-01-15T09:00:00.000Z',
+    excerpt: '...bàn về ngân sách...',
+    segment_seq: 12,
+    segment_end_seq: 14,
+    score: 0.82,
+    ...overrides,
+  };
+}
+
+function meetingItem(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'm2',
+    title: 'Client Discussion',
+    status: 'ready',
+    source_language: 'vi',
+    translate_to: null,
+    started_at: '2026-01-15T09:00:00.000Z',
+    ended_at: '2026-01-15T09:30:00.000Z',
+    duration_sec: 1800,
+    created_at: '2026-01-15T09:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function mockSemanticIdle() {
+  mockUseInfiniteSearchQuery.mockReturnValue({
+    isPending: true,
+    isError: false,
+    data: undefined,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: jest.fn(),
+    refetch: jest.fn(),
+  });
+}
+
+function mockSemanticSuccess(items: ReturnType<typeof semanticItem>[], overrides: Record<string, unknown> = {}) {
+  const fetchNextPage = jest.fn();
+  mockUseInfiniteSearchQuery.mockReturnValue({
+    isPending: false,
+    isError: false,
+    data: { pages: [{ items, next_offset: null }] },
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage,
+    refetch: jest.fn(),
+    ...overrides,
+  });
+  return fetchNextPage;
+}
+
+function mockMeetingIdle() {
+  mockUseInfiniteMeetingsQuery.mockReturnValue({
+    isPending: true,
+    isError: false,
+    data: undefined,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: jest.fn(),
+    refetch: jest.fn(),
+  });
+}
+
+function mockMeetingSuccess(items: ReturnType<typeof meetingItem>[], overrides: Record<string, unknown> = {}) {
+  const fetchNextPage = jest.fn();
+  mockUseInfiniteMeetingsQuery.mockReturnValue({
+    isPending: false,
+    isError: false,
+    data: { pages: [{ items, next_cursor: null }] },
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage,
+    refetch: jest.fn(),
+    ...overrides,
+  });
+  return fetchNextPage;
+}
+
+const renderers: TestRenderer.ReactTestRenderer[] = [];
 
 function render() {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(<SearchScreen />);
   });
+  renderers.push(renderer);
   return renderer;
 }
 
-function headingTexts(renderer: TestRenderer.ReactTestRenderer) {
+function allTexts(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root.findAllByType(Text).map((node) => node.props.children).flat();
+}
+
+function typeQuery(renderer: TestRenderer.ReactTestRenderer, text: string) {
+  act(() => {
+    renderer.root.findByType(TextInput).props.onChangeText(text);
+  });
+  act(() => {
+    jest.advanceTimersByTime(400);
+  });
+}
+
+function findChip(renderer: TestRenderer.ReactTestRenderer, label: string) {
   return renderer.root
-    .findAllByType(Text)
-    .map((node) => node.props.children)
-    .filter((child): child is string => typeof child === 'string');
-}
-
-/** Finds the nearest Pressable-button ancestor (any, including one with no `onPress`) of the Text node carrying `label`. */
-function findPressableAncestor(renderer: TestRenderer.ReactTestRenderer, label: string) {
-  let current = renderer.root.findByProps({ children: label });
-  while (current.props.accessibilityRole !== 'button') {
-    current = current.parent!;
-  }
-  return current;
-}
-
-/** Finds the Pressable-button ancestor that actually carries a real `onPress` handler. */
-function findRowButtonByText(renderer: TestRenderer.ReactTestRenderer, label: string) {
-  let current = renderer.root.findByProps({ children: label });
-  while (current.props.accessibilityRole !== 'button' || typeof current.props.onPress !== 'function') {
-    current = current.parent!;
-  }
-  return current;
+    .findAll((node) => node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function')
+    .find((node) => node.findAllByType(Text).some((t) => t.props.children === label));
 }
 
 describe('(tabs)/search screen', () => {
   beforeEach(() => {
+    jest.useFakeTimers();
     jest.clearAllMocks();
+    mockSemanticIdle();
+    mockMeetingIdle();
   });
 
-  it('renders "Tìm kiếm" with no back button and all three groups under "Tất cả"', () => {
-    const renderer = render();
-    expect(headingTexts(renderer)).toContain('Tìm kiếm');
-    expect(headingTexts(renderer)).toContain('Cuộc họp (3)');
-    expect(headingTexts(renderer)).toContain('Tài liệu (2)');
-    expect(headingTexts(renderer)).toContain('Người (1)');
-    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Quay lại' })).toHaveLength(0);
-  });
-
-  it('renders every group row title exactly once, matching the heading counts', () => {
-    const renderer = render();
-    const texts = headingTexts(renderer);
-    const titles = ['Sprint Review', 'Client Discussion', 'Project Planning', 'API Documentation', 'Meeting Summary', 'Nguyễn Văn Anh'];
-    for (const title of titles) {
-      expect(texts.filter((text) => text === title)).toHaveLength(1);
+  afterEach(() => {
+    while (renderers.length > 0) {
+      act(() => renderers.pop()?.unmount());
     }
+    act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    jest.useRealTimers();
   });
 
-  it('the "Meeting" chip leaves only the Cuộc họp section, with a matching heading count', () => {
+  it('renders "Tìm kiếm" and an empty-query hint, without querying either endpoint', () => {
     const renderer = render();
-    const meetingChip = findRowButtonByText(renderer, 'Meeting');
-    act(() => {
-      meetingChip.props.onPress();
-    });
-    const headings = headingTexts(renderer);
-    expect(headings).toContain('Cuộc họp (3)');
-    expect(headings).not.toContain('Tài liệu (2)');
-    expect(headings).not.toContain('Người (1)');
+    expect(allTexts(renderer)).toContain('Tìm kiếm');
+    expect(renderer.root.findByProps({ testID: 'empty-state' })).toBeTruthy();
+    expect(mockUseInfiniteSearchQuery).toHaveBeenCalledWith('', false);
+    expect(mockUseInfiniteMeetingsQuery).toHaveBeenCalledWith({ q: '', limit: 20 }, { enabled: false });
   });
 
-  it('the "Transcript" chip shows only Tài liệu, and "Node" shows only Người', () => {
+  it('never renders the removed "Node" chip', () => {
     const renderer = render();
-    act(() => {
-      findRowButtonByText(renderer, 'Transcript').props.onPress();
-    });
-    expect(headingTexts(renderer)).toContain('Tài liệu (2)');
-    expect(headingTexts(renderer)).not.toContain('Cuộc họp (3)');
-
-    act(() => {
-      findRowButtonByText(renderer, 'Node').props.onPress();
-    });
-    expect(headingTexts(renderer)).toContain('Người (1)');
-    expect(headingTexts(renderer)).not.toContain('Tài liệu (2)');
+    expect(allTexts(renderer)).not.toContain('Node');
   });
 
-  it('a query narrows the rows and keeps the heading count correct', () => {
+  it('enables both queries once a 2+ char query settles, and renders both sections', () => {
     const renderer = render();
-    const input = renderer.root.findByType(TextInput);
-    act(() => {
-      input.props.onChangeText('Sprint');
-    });
-    const headings = headingTexts(renderer);
-    expect(headings).toContain('Cuộc họp (1)');
-    expect(headings).not.toContain('Tài liệu (2)');
-    expect(headings).not.toContain('Người (1)');
+    typeQuery(renderer, 'ngân sách');
+    mockSemanticSuccess([semanticItem()]);
+    mockMeetingSuccess([meetingItem()]);
+    // Re-render is driven by react-query's own state change in real usage;
+    // here we assert the hooks were invoked with an enabled query.
+    expect(mockUseInfiniteSearchQuery).toHaveBeenCalledWith('ngân sách', true);
+    expect(mockUseInfiniteMeetingsQuery).toHaveBeenCalledWith({ q: 'ngân sách', limit: 20 }, { enabled: true });
   });
 
-  it('pushes a meeting row to meeting detail with its id', () => {
+  it('does not enable semantic search for a 1-char query, but does enable title search', () => {
     const renderer = render();
-    act(() => {
-      findRowButtonByText(renderer, 'Sprint Review').props.onPress();
-    });
-    expect(mockPush).toHaveBeenCalledWith({ pathname: MEETING_DETAIL_ROUTE, params: { id: 'sprint-review' } });
+    typeQuery(renderer, 'a');
+    expect(mockUseInfiniteSearchQuery).toHaveBeenCalledWith('a', false);
+    expect(mockUseInfiniteMeetingsQuery).toHaveBeenCalledWith({ q: 'a', limit: 20 }, { enabled: true });
   });
 
-  it('pushes a document row to meeting detail with its id', () => {
+  it('renders the Transcript section from semantic results with the correct heading count', () => {
     const renderer = render();
+    typeQuery(renderer, 'ngân sách');
+    mockSemanticSuccess([semanticItem({ chunk_id: 'c1' }), semanticItem({ chunk_id: 'c2', meeting_title: 'Client Discussion' })]);
     act(() => {
-      findRowButtonByText(renderer, 'API Documentation').props.onPress();
+      renderer.update(<SearchScreen />);
     });
-    expect(mockPush).toHaveBeenCalledWith({ pathname: MEETING_DETAIL_ROUTE, params: { id: 'api-documentation' } });
+    expect(allTexts(renderer)).toContain('Transcript (2)');
+    expect(allTexts(renderer)).toContain('Sprint Review');
+    expect(allTexts(renderer)).toContain('Client Discussion');
   });
 
-  it('does not push when a person row is pressed', () => {
+  it('renders the Cuộc họp section from title-search results', () => {
     const renderer = render();
+    typeQuery(renderer, 'sprint');
+    mockMeetingSuccess([meetingItem({ id: 'm2', title: 'Sprint Review' })]);
     act(() => {
-      findPressableAncestor(renderer, 'Nguyễn Văn Anh').props.onPress?.();
+      renderer.update(<SearchScreen />);
     });
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(allTexts(renderer)).toContain('Cuộc họp (1)');
+    expect(allTexts(renderer)).toContain('Sprint Review');
+  });
+
+  it('the "Transcript" chip hides the meeting section', () => {
+    const renderer = render();
+    typeQuery(renderer, 'ngân sách');
+    mockSemanticSuccess([semanticItem()]);
+    mockMeetingSuccess([meetingItem()]);
+    act(() => {
+      renderer.update(<SearchScreen />);
+    });
+    act(() => {
+      findChip(renderer, 'Transcript')?.props.onPress();
+    });
+    expect(allTexts(renderer)).toContain('Transcript (1)');
+    expect(allTexts(renderer)).not.toContain('Cuộc họp (1)');
+    expect(mockUseInfiniteMeetingsQuery).toHaveBeenLastCalledWith(
+      { q: 'ngân sách', limit: 20 },
+      { enabled: false },
+    );
+  });
+
+  it('the "Meeting" chip hides the transcript section', () => {
+    const renderer = render();
+    typeQuery(renderer, 'ngân sách');
+    mockSemanticSuccess([semanticItem()]);
+    mockMeetingSuccess([meetingItem()]);
+    act(() => {
+      renderer.update(<SearchScreen />);
+    });
+    act(() => {
+      findChip(renderer, 'Meeting')?.props.onPress();
+    });
+    expect(allTexts(renderer)).toContain('Cuộc họp (1)');
+    expect(allTexts(renderer)).not.toContain('Transcript (1)');
+    expect(mockUseInfiniteSearchQuery).toHaveBeenLastCalledWith('ngân sách', false);
+  });
+
+  it('shows "không tìm thấy" when both enabled sections settle with zero items', () => {
+    const renderer = render();
+    typeQuery(renderer, 'zzz');
+    mockSemanticSuccess([]);
+    mockMeetingSuccess([]);
+    act(() => {
+      renderer.update(<SearchScreen />);
+    });
+    expect(allTexts(renderer)).toContain('Không tìm thấy kết quả phù hợp');
+  });
+
+  it('shows LoadingState for the transcript section while it is pending', () => {
+    const renderer = render();
+    typeQuery(renderer, 'ngân sách');
+    mockMeetingSuccess([meetingItem()]);
+    act(() => {
+      renderer.update(<SearchScreen />);
+    });
+    expect(renderer.root.findByProps({ testID: 'loading-state' })).toBeTruthy();
+  });
+
+  it('shows a friendly, retryable message when semantic search is unavailable (503)', () => {
+    const refetch = jest.fn();
+    const unavailable = Object.assign(new Error('unavailable'), {
+      isAxiosError: true,
+      response: { data: { error: { code: 'AI_SERVICE_UNAVAILABLE' } } },
+    });
+    const renderer = render();
+    typeQuery(renderer, 'ngân sách');
+    mockSemanticSuccess([], { isPending: false, isError: true, error: unavailable, refetch });
+    mockMeetingSuccess([meetingItem()]);
+    act(() => {
+      renderer.update(<SearchScreen />);
+    });
+    expect(allTexts(renderer).join(' ')).toContain('Tìm kiếm ngữ nghĩa tạm thời không khả dụng.');
+    act(() => renderer.root.findByProps({ testID: 'error-state-retry' }).props.onPress());
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('tapping a transcript result pushes the transcript route with id and seq', () => {
+    const renderer = render();
+    typeQuery(renderer, 'ngân sách');
+    mockSemanticSuccess([semanticItem({ meeting_id: 'm1', segment_seq: 12 })]);
+    act(() => {
+      renderer.update(<SearchScreen />);
+    });
+    act(() => {
+      renderer.root.findByProps({ leading: 'waveform', snippet: '...bàn về ngân sách...' }).props.onPress();
+    });
+    expect(mockPush).toHaveBeenCalledWith({ pathname: MEETING_TRANSCRIPT_ROUTE, params: { id: 'm1', seq: '12' } });
+  });
+
+  it('tapping a meeting result pushes meeting detail with that id', () => {
+    const renderer = render();
+    typeQuery(renderer, 'sprint');
+    mockMeetingSuccess([meetingItem({ id: 'm2' })]);
+    act(() => {
+      renderer.update(<SearchScreen />);
+    });
+    act(() => {
+      renderer.root.findByProps({ title: 'Client Discussion' }).props.onPress();
+    });
+    expect(mockPush).toHaveBeenCalledWith({ pathname: MEETING_DETAIL_ROUTE, params: { id: 'm2' } });
+  });
+
+  it('shows a "Tải thêm" control for the transcript section when a next page exists', () => {
+    const fetchNextPage = jest.fn();
+    const renderer = render();
+    typeQuery(renderer, 'ngân sách');
+    mockSemanticSuccess([semanticItem()], { hasNextPage: true, fetchNextPage });
+    mockMeetingSuccess([]);
+    act(() => {
+      renderer.update(<SearchScreen />);
+    });
+    act(() => {
+      renderer.root.findByProps({ testID: 'search-load-more' }).props.onPress();
+    });
+    expect(fetchNextPage).toHaveBeenCalledTimes(1);
   });
 });

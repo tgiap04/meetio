@@ -1,29 +1,26 @@
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { SearchResultRow } from './search-result-row';
 import { SectionHeading } from '../ui/section-heading';
-import type { SearchGroup } from '../../mocks/types';
 
 export interface SearchResultSectionProps {
-  group: SearchGroup;
-  onMeetingPress: (id: string) => void;
+  title: string;
+  children: ReactNode;
+  /** e.g. a "Tải thêm" button when the section's query has more pages. */
+  footer?: ReactNode;
 }
 
 /**
- * One result group ("Cuộc họp (N)", "Tài liệu (N)", "Người (N)"). The count
- * in the heading is always `group.items.length` — never a literal — so the
- * heading can never disagree with the rows drawn beneath it. That is the
- * direct fix for the design's own "Cuộc họp (3)" heading over 2 rows (see
- * phase-11 Key Insight 2).
+ * One result section on the Search tab ("Transcript (N)" / "Cuộc họp (N)").
+ * Generic over its rows: the Transcript section renders `SemanticResultRow`s,
+ * the Meeting section renders plain `MeetingListRow`s — this component only
+ * owns the heading and the vertical layout, not what kind of row it holds.
  */
-export function SearchResultSection({ group, onMeetingPress }: SearchResultSectionProps) {
+export function SearchResultSection({ title, children, footer }: SearchResultSectionProps) {
   return (
     <View style={styles.container}>
-      <SectionHeading title={`${group.label} (${group.items.length})`} />
-      <View style={styles.list}>
-        {group.items.map((item) => (
-          <SearchResultRow item={item} key={item.id} onPress={onMeetingPress} />
-        ))}
-      </View>
+      <SectionHeading title={title} />
+      <View style={styles.list}>{children}</View>
+      {footer}
     </View>
   );
 }

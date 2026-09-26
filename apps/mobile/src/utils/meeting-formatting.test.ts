@@ -1,5 +1,5 @@
 import type { MeetingListItem } from '@meetio/shared';
-import { formatMeetingMeta, initialsFromTitle } from './meeting-formatting';
+import { formatMeetingMeta, formatOptionalDate, initialsFromTitle } from './meeting-formatting';
 
 function meeting(overrides: Partial<MeetingListItem> = {}): MeetingListItem {
   return {
@@ -35,6 +35,16 @@ describe('formatMeetingMeta', () => {
   it('rounds sub-minute durations up to 1 phút rather than 0', () => {
     const result = formatMeetingMeta(meeting({ duration_sec: 10 }));
     expect(result).toContain('1 phút');
+  });
+});
+
+describe('formatOptionalDate', () => {
+  it('formats an ISO date as dd/MM/yyyy', () => {
+    expect(formatOptionalDate('2026-01-15T09:05:00.000Z')).toMatch(/\d{2}\/\d{2}\/2026/);
+  });
+
+  it('shows an em dash for a meeting that never recorded a start', () => {
+    expect(formatOptionalDate(null)).toBe('—');
   });
 });
 

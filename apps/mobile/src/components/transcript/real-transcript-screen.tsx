@@ -15,13 +15,18 @@ import { useInfiniteSegmentsQuery } from '../../hooks/use-segments-query';
 import { useUpdateSegmentMutation } from '../../hooks/use-segment-mutations';
 import { useReindexMeetingMutation } from '../../hooks/use-meeting-mutations';
 import { useFetchAllPagesForSearch } from '../../hooks/use-fetch-all-pages-for-search';
+import { useScrollToInitialSeq } from '../../hooks/use-scroll-to-initial-seq';
 import { getErrorMessage } from '../../api/error-messages';
 import { readLastReadSeq, writeLastReadSeq } from '../../storage/transcript-read-position';
+import { createScrollToIndexFallback } from '../../utils/scroll-to-index-fallback';
 import { colors } from '../../theme/colors';
 
 export interface RealTranscriptScreenProps {
   meetingId: string;
   onBack: () => void;
+  /** Scrolls straight to this segment once its page loads — set when this
+   *  screen is reached by tapping a Search-tab Transcript result (US-22). */
+  initialSeq?: number;
 }
 
 function matchesQuery(segment: TranscriptSegmentItem, query: string): boolean {
@@ -39,12 +44,12 @@ function matchesQuery(segment: TranscriptSegmentItem, query: string): boolean {
  * (US-24) — the cost/time warning is stated plainly rather than assumed
  * understood, since re-analysis is not free or instant.
  */
-export function RealTranscriptScreen({ meetingId, onBack }: RealTranscriptScreenProps) {
+export function RealTranscriptScreen({ meetingId, onBack, initialSeq }: RealTranscriptScreenProps) {
   const [query, setQuery] = useState('');
   const [lastReadSeq, setLastReadSeq] = useState<number | null>(null);
   const listRef = useRef<FlatListType<TranscriptSegmentItem>>(null);
 
-  const segmentsQuery = useInfiniteSegmentsQuery(meetingId);
+  const segmentsQuery = useInfiniteSegmentsQuery(meetingId, initialSeq ?? null);
   const updateSegmentMutation = useUpdateSegmentMutation(meetingId);
   const reindexMutation = useReindexMeetingMutation(meetingId);
 
@@ -56,6 +61,9 @@ export function RealTranscriptScreen({ meetingId, onBack }: RealTranscriptScreen
     () => segmentsQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [segmentsQuery.data],
   );
+
+  useScrollToInitialSeq(segments, initialSeq, listRef);
+
   const trimmedQuery = query.trim();
   const filteredSegments = useMemo(
     () => segments.filter((segment) => matchesQuery(segment, query)),
@@ -125,6 +133,8 @@ export function RealTranscriptScreen({ meetingId, onBack }: RealTranscriptScreen
     }
   }
 
+  const handleScrollToIndexFailed = createScrollToIndexFallback(listRef);
+
   if (segmentsQuery.isPending) {
     return <LoadingState />;
   }
@@ -163,6 +173,7 @@ export function RealTranscriptScreen({ meetingId, onBack }: RealTranscriptScreen
           maxToRenderPerBatch={30}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
+          onScrollToIndexFailed={handleScrollToIndexFailed}
           onViewableItemsChanged={handleViewableItemsChanged}
           ref={listRef}
           removeClippedSubviews

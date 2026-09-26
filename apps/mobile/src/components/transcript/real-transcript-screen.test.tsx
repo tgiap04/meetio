@@ -58,10 +58,12 @@ function mockSuccess(
 
 const renderers: TestRenderer.ReactTestRenderer[] = [];
 
-function render(meetingId = 'm1') {
+function render(meetingId = 'm1', initialSeq?: number) {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<RealTranscriptScreen meetingId={meetingId} onBack={jest.fn()} />);
+    renderer = TestRenderer.create(
+      <RealTranscriptScreen initialSeq={initialSeq} meetingId={meetingId} onBack={jest.fn()} />,
+    );
   });
   renderers.push(renderer);
   return renderer;
@@ -182,6 +184,25 @@ describe('RealTranscriptScreen', () => {
     mockSuccess([segment({ seq: 1 })]);
     const renderer = render();
     expect(() => act(() => renderer.root.findByProps({ testID: 'transcript-jump-top' }).props.onPress())).not.toThrow();
+  });
+
+  describe('jumping in from a Search-tab result (US-22)', () => {
+    it('threads initialSeq through to the segments hook as the initial from_seq', () => {
+      mockSuccess([segment({ seq: 42, text: 'Đoạn khớp' })]);
+      render('m1', 42);
+      expect(mockUseInfiniteSegmentsQuery).toHaveBeenCalledWith('m1', 42);
+    });
+
+    it('does not throw scrolling to the matching segment once its page loads', () => {
+      mockSuccess([segment({ seq: 1 }), segment({ seq: 42, text: 'Đoạn khớp' })]);
+      expect(() => render('m1', 42)).not.toThrow();
+    });
+
+    it('passes null as the initial from_seq for the ordinary open-from-meeting-detail path', () => {
+      mockSuccess([segment({ seq: 1 })]);
+      render('m1');
+      expect(mockUseInfiniteSegmentsQuery).toHaveBeenCalledWith('m1', null);
+    });
   });
 
   describe('search across not-yet-loaded pages', () => {

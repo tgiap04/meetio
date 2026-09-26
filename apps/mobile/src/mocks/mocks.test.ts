@@ -9,8 +9,6 @@ import {
   MEETING_SUMMARY,
   MEETINGS,
   RECORDING_SETTINGS_DEFAULTS,
-  SEARCH_FIELD_PLACEHOLDER,
-  SEARCH_GROUPS,
   SETTINGS_ENTRIES,
   TRANSCRIPT_LINES,
   type MeetingStatus,
@@ -44,16 +42,6 @@ function collectAllStrings(): string[] {
     strings.push(entry.label);
     if (entry.value) strings.push(entry.value);
   }
-  strings.push(SEARCH_FIELD_PLACEHOLDER);
-  for (const group of SEARCH_GROUPS) {
-    strings.push(group.label);
-    for (const item of group.items) {
-      if (item.kind === 'meeting') strings.push(item.title, item.snippet);
-      if (item.kind === 'document') strings.push(item.title, item.relatedTo);
-      if (item.kind === 'person') strings.push(item.name);
-    }
-  }
-
   return strings;
 }
 
@@ -143,26 +131,6 @@ describe('knowledge-graph.mock', () => {
     const taskKeys = GRAPH_NODES.filter((n) => n.type === 'task').map((n) => n.paletteKey);
     expect(new Set(personKeys).size).toBe(personKeys.length);
     expect(new Set(taskKeys).size).toBe(taskKeys.length);
-  });
-});
-
-describe('search-results.mock', () => {
-  it('holds exactly three groups, and the meeting group really holds 3 items', () => {
-    expect(SEARCH_GROUPS.map((g) => g.kind)).toEqual(['meeting', 'document', 'person']);
-    const meetingGroup = SEARCH_GROUPS.find((g) => g.kind === 'meeting');
-    expect(meetingGroup?.items).toHaveLength(3);
-  });
-
-  it('every meeting item status is a member of MeetingStatus', () => {
-    const meetingGroup = SEARCH_GROUPS.find((g) => g.kind === 'meeting');
-    for (const item of meetingGroup?.items ?? []) {
-      expect(VALID_MEETING_STATUSES).toContain(item.status);
-    }
-  });
-
-  it('every group id is unique', () => {
-    const ids = SEARCH_GROUPS.map((g) => g.id);
-    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 
