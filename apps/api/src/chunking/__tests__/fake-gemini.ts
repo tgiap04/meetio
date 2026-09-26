@@ -22,6 +22,7 @@ export function fakeGemini(
     },
     embedContent: async ({ contents }) => {
       calls.embed++;
+      (calls as { embedTexts?: string[] }).embedTexts?.push(...contents);
       return { embeddings: contents.map((c) => ({ values: fakeEmbedding(c) })) };
     },
   };

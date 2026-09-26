@@ -21,6 +21,7 @@
     "perf:search": "node --env-file-if-exists=../../.env --import tsx scripts/search-perf.ts",
     "gemini:check": "node --env-file-if-exists=../../.env --import tsx scripts/gemini-live-check.ts",
     "graph:check": "node --env-file-if-exists=../../.env scripts/graph-live-check.mjs",
+    "qa:check": "node --env-file-if-exists=../../.env scripts/qa-live-check.mjs",
     "graph:eval": "node --env-file-if-exists=../../.env --import tsx scripts/entity-resolution-eval.ts",
     "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand --forceExit --testPathPatterns='\\.e2e\\.spec\\.ts$'",
     "test:schema": "TEST_LOAD_MIGRATIONS=1 NODE_OPTIONS=--experimental-vm-modules jest --forceExit --testPathPatterns='schema\\.integration\\.spec\\.ts$'"

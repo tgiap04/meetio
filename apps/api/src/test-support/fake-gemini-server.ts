@@ -26,6 +26,15 @@ export class FakeGeminiServer {
     const label = /\[([CP]\d+)\]/.exec(prompt)?.[1] ?? 'C1';
     return JSON.stringify({ insufficient: false, summary_points: [{ text: 'Tóm tắt thử', sources: [label] }], decisions: [], action_items: [] });
   };
+  /** Answer to a question-answering prompt; defaults to citing the first passage. */
+  answer: (prompt: string) => string = (prompt) => {
+    const label = /\[(S\d+)\]/.exec(prompt)?.[1];
+    return JSON.stringify(
+      label
+        ? { not_found: false, answer: 'Câu trả lời thử', sources: [label], confidence: 'high' }
+        : { not_found: true, answer: '', sources: [], confidence: 'low' },
+    );
+  };
   private server!: Server;
   baseUrl = '';
 
@@ -64,7 +73,11 @@ export class FakeGeminiServer {
         } else {
           const system = (body.systemInstruction?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join(' ');
           const prompt = texts.join('\n');
-          const text = system.includes('executive summary') ? this.summarize(prompt) : this.generate(prompt);
+          const text = system.includes('executive summary')
+            ? this.summarize(prompt)
+            : system.includes("answer questions about the user's own meetings")
+              ? this.answer(prompt)
+              : this.generate(prompt);
           send(200, { candidates: [{ content: { parts: [{ text }] } }], usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } });
         }
       });
