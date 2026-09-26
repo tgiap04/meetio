@@ -116,6 +116,7 @@ maybeDescribe('database schema (integration, real Postgres)', () => {
       segment_end_seq: 0,
       token_count: 5,
       embedding: randomEmbedding(),
+      content_hash: 'cascade-test',
     });
     const entity = await AppDataSource.getRepository(EntityRecord).save({
       user_id: userId,
@@ -153,8 +154,8 @@ maybeDescribe('database schema (integration, real Postgres)', () => {
     });
 
     await AppDataSource.query(
-      `INSERT INTO meeting_chunks (meeting_id, user_id, content, segment_start_seq, segment_end_seq, token_count, embedding)
-       SELECT $1, $2, 'synthetic chunk ' || gs, 0, 0, 10,
+      `INSERT INTO meeting_chunks (meeting_id, user_id, content, segment_start_seq, segment_end_seq, token_count, content_hash, embedding)
+       SELECT $1, $2, 'synthetic chunk ' || gs, 0, 0, 10, 'synthetic-' || gs,
               (SELECT ('[' || string_agg(round((random() * 2 - 1)::numeric, 4)::text, ',') || ']')::vector
                FROM generate_series(1, 768))
        FROM generate_series(1, 10000) AS gs`,
@@ -202,7 +203,10 @@ maybeDescribe('database schema (integration, real Postgres)', () => {
         await AppDataSource.runMigrations();
       }
     }
-  });
+    // Walking down to 010 now peels off five later migrations (011–015) and puts them
+    // back; that no longer fits Jest's 5s default, and a timeout mid-walk would leave
+    // the shared schema half-reverted for every suite that runs after this one.
+  }, 60000);
 
   it('reverts the last migration and reapplies it without losing existing data', async () => {
     // Migration 010 is deliberately not revertible while a Google-only account

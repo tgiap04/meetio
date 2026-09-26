@@ -44,14 +44,16 @@ maybeDescribe('pipeline control, status and push (e2e)', () => {
     return waitFor(() => meeting(id), (m) => m.status === 'ready');
   };
 
-  it('end starts run 1: the worker takes it to processing and it waits at the first unimplemented step', async () => {
+  it('end starts run 1: chunk and embed run, then it waits at the first unimplemented step (extract)', async () => {
     const id = await create();
     expect((await e2e.http('POST', `/meetings/${id}/end`, owner.token, {})).body.status).toBe('queued');
-    await waitFor(() => meeting(id), (m) => m.status === 'processing');
-    const status = await e2e.http('GET', `/meetings/${id}/status`, owner.token);
-    expect(status.body).toMatchObject({ meeting_id: id, status: 'processing', current_step: 'chunk', failure_reason: null });
-    expect(status.body.steps.map((s: { step: string; status: string }) => `${s.step}:${s.status}`)).toEqual([
-      'chunk:pending', 'embed:pending', 'extract:pending', 'resolve:pending', 'summarize:pending',
+    const status = await waitFor(
+      async () => (await e2e.http('GET', `/meetings/${id}/status`, owner.token)).body,
+      (s) => s.current_step === 'extract',
+    );
+    expect(status).toMatchObject({ meeting_id: id, status: 'processing', current_step: 'extract', failure_reason: null });
+    expect(status.steps.map((s: { step: string; status: string }) => `${s.step}:${s.status}`)).toEqual([
+      'chunk:succeeded', 'embed:succeeded', 'extract:pending', 'resolve:pending', 'summarize:pending',
     ]);
     expect((await meeting(id)).pipeline_run).toBe(1);
   });

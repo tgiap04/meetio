@@ -8,6 +8,7 @@ import pg from 'pg';
 import { Queue, QueueEvents } from 'bullmq';
 import { Redis } from 'ioredis';
 import jwt from 'jsonwebtoken';
+import { FakeGeminiServer } from './fake-gemini-server.js';
 
 /**
  * End-to-end harness: runs the **compiled** API (`node dist/main.js`) against
@@ -29,6 +30,8 @@ const apiRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 export interface E2eApp {
   baseUrl: string;
+  /** Local stand-in for Gemini the server is pointed at (keys `e2e-key-a`, `e2e-key-b`). */
+  gemini: FakeGeminiServer;
   db: pg.Pool;
   processingQueue: Queue;
   createUser(): Promise<{ id: string; token: string }>;
@@ -103,9 +106,21 @@ export async function startE2eApp(extraEnv: Record<string, string> = {}): Promis
   // Own BullMQ namespace: a developer's `make dev` server on the same Redis
   // would otherwise consume this server's jobs (it happened — see the journal).
   const bullPrefix = `e2e-${randomUUID()}`;
+  const gemini = new FakeGeminiServer();
+  await gemini.start();
   const child = spawn(process.execPath, ['dist/main.js'], {
     cwd: apiRoot,
-    env: { ...process.env, PORT: String(port), SWAGGER_ENABLED: 'false', BULLMQ_PREFIX: bullPrefix, ...extraEnv },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      SWAGGER_ENABLED: 'false',
+      BULLMQ_PREFIX: bullPrefix,
+      GEMINI_API_KEY: 'e2e-key-a,e2e-key-b',
+      GEMINI_BASE_URL: gemini.baseUrl,
+      // Fail fast when a test makes a step fail (production: 2s/8s/32s).
+      PIPELINE_RETRY_BASE_MS: '20',
+      ...extraEnv,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.stdout?.on('data', (d) => (log += d));
@@ -125,6 +140,7 @@ export async function startE2eApp(extraEnv: Record<string, string> = {}): Promis
 
   return {
     baseUrl,
+    gemini,
     db,
     processingQueue,
     tokenFor,
@@ -167,6 +183,7 @@ export async function startE2eApp(extraEnv: Record<string, string> = {}): Promis
         if (keys.length > 0) await redis.del(...keys);
       } while (cursor !== '0');
       await redis.quit();
+      await gemini.stop();
     },
   };
 }

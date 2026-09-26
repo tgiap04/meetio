@@ -30,8 +30,8 @@ maybeDescribe('meeting delete and maintenance sweeps (e2e)', () => {
       [meetingId],
     );
     const [chunk] = await q(
-      `INSERT INTO meeting_chunks (meeting_id, user_id, content, segment_start_seq, segment_end_seq, token_count, embedding)
-       VALUES ($1, $2, 'a', 1, 1, 1, ${ZERO_VECTOR}) RETURNING id`,
+      `INSERT INTO meeting_chunks (meeting_id, user_id, content, segment_start_seq, segment_end_seq, token_count, content_hash, embedding)
+       VALUES ($1, $2, 'a', 1, 1, 1, gen_random_uuid()::text, ${ZERO_VECTOR}) RETURNING id`,
       [meetingId, owner.id],
     );
     const entity = async (name: string) =>

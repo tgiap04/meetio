@@ -1,111 +1,73 @@
 import { jest } from '@jest/globals';
 import { GeminiClient, type GenAiModels } from './gemini.client.js';
+import { GeminiCallRunner } from './gemini-call-runner.js';
+import { GeminiKeyPool } from './gemini-key-pool.js';
 import { AiServiceUnavailableError, QuotaExceededError } from './ai-errors.js';
 import type { UsageEntry, UsageTracker } from './usage-tracker.js';
 
-const OPTIONS = { model: 'gemini-test', maxConcurrency: 2, retries: 2, retryBaseMs: 1 };
-const request = { userId: 'u1', meetingId: 'm1', operation: 'summarize', prompt: 'p' };
-const ok = { text: 'kết quả', usageMetadata: { promptTokenCount: 120, candidatesTokenCount: 30 } };
+const OPTIONS = { textModel: 'gemini-text', embeddingModel: 'gemini-embed', dimensions: 3 };
+const who = { userId: 'u1', meetingId: 'm1' };
 
-function setup(generate: GenAiModels['generateContent']) {
+function setup(models: Partial<GenAiModels>) {
   const recorded: UsageEntry[] = [];
   const usage = {
     assertWithinBudget: jest.fn(async () => undefined),
     record: jest.fn(async (e: UsageEntry) => void recorded.push(e)),
   };
-  const client = new GeminiClient({ generateContent: generate }, usage as unknown as UsageTracker, OPTIONS);
-  return { client, usage, recorded };
+  const runner = new GeminiCallRunner(new GeminiKeyPool([models as GenAiModels], { defaultCooldownMs: 1000 }), {
+    maxConcurrency: 4,
+    retries: 1,
+    retryBaseMs: 1,
+    log: () => undefined,
+  });
+  return { client: new GeminiClient(runner, usage as unknown as UsageTracker, OPTIONS), usage, recorded };
 }
 
 describe('GeminiClient', () => {
-  it('records one usage row with the reported tokens for every successful call', async () => {
-    const t = setup(async () => ok);
-    await expect(t.client.generateText(request)).resolves.toEqual({ text: 'kết quả', inputTokens: 120, outputTokens: 30 });
-    expect(t.recorded).toEqual([{ userId: 'u1', meetingId: 'm1', operation: 'summarize', model: 'gemini-test', inputTokens: 120, outputTokens: 30 }]);
+  it('generateText records one usage row with the reported tokens', async () => {
+    const t = setup({ generateContent: async () => ({ text: 'kết quả', usageMetadata: { promptTokenCount: 120, candidatesTokenCount: 30 } }) });
+    await expect(t.client.generateText({ ...who, operation: 'summarize', prompt: 'p' })).resolves.toEqual({ text: 'kết quả', inputTokens: 120, outputTokens: 30 });
+    expect(t.recorded).toEqual([{ ...who, operation: 'summarize', model: 'gemini-text', inputTokens: 120, outputTokens: 30 }]);
   });
 
-  it('checks the budget before calling and never calls when it is spent', async () => {
-    const generate = jest.fn(async () => ok);
-    const t = setup(generate);
-    t.usage.assertWithinBudget.mockRejectedValue(new QuotaExceededError(100, 100));
-    await expect(t.client.generateText(request)).rejects.toBeInstanceOf(QuotaExceededError);
-    expect(generate).not.toHaveBeenCalled();
-  });
-
-  it('retries rate limits and server errors, then succeeds', async () => {
-    let calls = 0;
-    const t = setup(async () => {
-      calls++;
-      if (calls < 3) throw Object.assign(new Error('busy'), { status: calls === 1 ? 429 : 503 });
-      return ok;
+  it('embed counts each text with countTokens, records the real total, and returns unit vectors', async () => {
+    const t = setup({
+      countTokens: async ({ contents }) => ({ totalTokens: contents.length }),
+      embedContent: async ({ contents, config }) => {
+        expect(config).toMatchObject({ outputDimensionality: 3, taskType: 'RETRIEVAL_DOCUMENT' });
+        return { embeddings: contents.map(() => ({ values: [3, 0, 4] })) };
+      },
     });
-    await expect(t.client.generateText(request)).resolves.toMatchObject({ text: 'kết quả' });
-    expect(calls).toBe(3);
-    expect(t.recorded).toHaveLength(1);
+    const out = await t.client.embed({ ...who, operation: 'embed', texts: ['abcd', 'ab'], taskType: 'RETRIEVAL_DOCUMENT' });
+    expect(out.tokenCounts).toEqual([4, 2]);
+    expect(out.vectors).toEqual([[0.6, 0, 0.8], [0.6, 0, 0.8]]);
+    expect(t.recorded).toEqual([{ ...who, operation: 'embed', model: 'gemini-embed', inputTokens: 6, outputTokens: 0 }]);
   });
 
-  it('gives up after its retries with AiServiceUnavailableError and records nothing', async () => {
-    const t = setup(async () => {
-      throw Object.assign(new Error('down'), { status: 500 });
-    });
-    await expect(t.client.generateText(request)).rejects.toBeInstanceOf(AiServiceUnavailableError);
+  it('refuses a wrong-sized embedding response instead of storing garbage, but still accounts the call', async () => {
+    const t = setup({ countTokens: async () => ({ totalTokens: 1 }), embedContent: async () => ({ embeddings: [{ values: [1, 2] }] }) });
+    await expect(t.client.embed({ ...who, operation: 'embed', texts: ['a'], taskType: 'RETRIEVAL_QUERY' })).rejects.toBeInstanceOf(AiServiceUnavailableError);
+    // the call was made (and billed), so its real token count is still accounted
+    expect(t.recorded).toEqual([{ ...who, operation: 'embed', model: 'gemini-embed', inputTokens: 1, outputTokens: 0 }]);
+  });
+
+  it('never records a made-up count when countTokens gives none', async () => {
+    const t = setup({ countTokens: async () => ({}), embedContent: async () => ({ embeddings: [{ values: [1, 0, 0] }] }) });
+    await expect(t.client.embed({ ...who, operation: 'embed', texts: ['a'], taskType: 'RETRIEVAL_QUERY' })).rejects.toThrow(/countTokens/);
     expect(t.recorded).toEqual([]);
   });
 
-  it('does not retry a client error such as a bad request', async () => {
-    const generate = jest.fn(async () => {
-      throw Object.assign(new Error('bad'), { status: 400 });
-    });
-    const t = setup(generate);
-    await expect(t.client.generateText(request)).rejects.toThrow('bad');
-    expect(generate).toHaveBeenCalledTimes(1);
+  it('checks the budget before any call', async () => {
+    const generateContent = jest.fn(async () => ({ text: 'x' }));
+    const t = setup({ generateContent });
+    t.usage.assertWithinBudget.mockRejectedValue(new QuotaExceededError(10, 10));
+    await expect(t.client.generateText({ ...who, operation: 'x', prompt: 'p' })).rejects.toBeInstanceOf(QuotaExceededError);
+    expect(generateContent).not.toHaveBeenCalled();
   });
 
-  it('never runs more calls at once than maxConcurrency', async () => {
-    let inFlight = 0;
-    let peak = 0;
-    const t = setup(async () => {
-      peak = Math.max(peak, ++inFlight);
-      await new Promise((r) => setTimeout(r, 10));
-      inFlight--;
-      return ok;
-    });
-    await Promise.all(Array.from({ length: 6 }, () => t.client.generateText(request)));
-    expect(peak).toBe(2);
-  });
-
-  it('a caller whose step timed out leaves the queue instead of calling Gemini later', async () => {
-    const releases: (() => void)[] = [];
-    const calls: string[] = [];
-    const t = setup(async (params) => {
-      calls.push(params.contents);
-      if (calls.length <= 2) await new Promise<void>((r) => releases.push(r));
-      return ok;
-    });
-    const busy = [t.client.generateText({ ...request, prompt: 'a' }), t.client.generateText({ ...request, prompt: 'b' })];
-    await new Promise((r) => setTimeout(r, 0)); // both slots taken
-    const controller = new AbortController();
-    const queued = t.client.generateText({ ...request, prompt: 'late', signal: controller.signal });
-    await new Promise((r) => setTimeout(r, 0)); // 'late' is waiting for a slot
-    controller.abort();
-    await expect(queued).rejects.toBeInstanceOf(AiServiceUnavailableError);
-    releases.forEach((r) => r());
-    await Promise.all(busy);
-    expect(calls).toEqual(['a', 'b']);
-  });
-
-  it('refuses at once when the signal was already aborted', async () => {
-    const generate = jest.fn(async () => ok);
-    const t = setup(generate);
-    const controller = new AbortController();
-    controller.abort();
-    await expect(t.client.generateText({ ...request, signal: controller.signal })).rejects.toBeInstanceOf(AiServiceUnavailableError);
-    expect(generate).not.toHaveBeenCalled();
-  });
-
-  it('fails clearly when no API key is configured', async () => {
+  it('fails clearly without any configured key', async () => {
     const client = new GeminiClient(null, {} as UsageTracker, OPTIONS);
     expect(client.isConfigured()).toBe(false);
-    await expect(client.generateText(request)).rejects.toBeInstanceOf(AiServiceUnavailableError);
+    await expect(client.embed({ ...who, operation: 'e', texts: ['a'], taskType: 'RETRIEVAL_QUERY' })).rejects.toBeInstanceOf(AiServiceUnavailableError);
   });
 });

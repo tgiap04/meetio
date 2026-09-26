@@ -43,7 +43,10 @@ maybeDescribe('pipeline engine (integration, real Postgres + Redis + BullMQ)', (
     expect(h.ready).toEqual([]);
 
     ['extract', 'resolve', 'summarize'].forEach((s) => h.handle(s as 'extract'));
-    await h.engine.resumeStalled(new Date(Date.now() + 60_000));
+    // The sweep scans the whole (shared) database, so aim it at this meeting alone: a cutoff in
+    // the future would also hand meetings of suites running in parallel to this harness's handlers.
+    await AppDataSource.query(`UPDATE meetings SET updated_at = '2000-01-01' WHERE id = $1`, [meetingId]);
+    await h.engine.resumeStalled(new Date('2000-01-02'));
     await h.waitFor(() => h.meeting(meetingId), (m) => m.status === 'ready');
   });
 
