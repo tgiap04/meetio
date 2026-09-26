@@ -141,18 +141,29 @@ lần cũng chỉ sinh một bản ghi ([US-14](../user_stories.md#us-14--không
 | `user_id` | UUID | Nhân bản có chủ đích, để lọc quyền mà không phải join |
 | `content` | TEXT | Văn bản gộp từ các segment |
 | `segment_start_seq` / `segment_end_seq` | INT | Truy vết ngược về transcript cho trích dẫn |
-| `token_count` | INT | |
-| `embedding` | vector(768) | Gemini text-embedding-004 |
+| `token_count` | INT, NULL | Số token thật từ Gemini `countTokens`, ghi cùng lúc với `embedding`. NULL = đã cắt đoạn, chưa nhúng |
+| `embedding` | vector(768), NULL | `gemini-embedding-001`, đã chuẩn hoá L2. NULL = đã cắt đoạn, chưa nhúng |
+| `content_hash` | TEXT | sha256 của `"start:end:content"` — giữ nguyên id/embedding/trích dẫn của chunk không đổi khi chạy lại |
 | `created_at` | TIMESTAMPTZ | |
 
 ```sql
 CREATE INDEX idx_chunks_embedding ON meeting_chunks
   USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX idx_chunks_user ON meeting_chunks (user_id);
+CREATE UNIQUE INDEX uq_chunks_meeting_hash ON meeting_chunks (meeting_id, content_hash);
 ```
 
 Cột `user_id` được nhân bản ở đây là cố ý: truy vấn tương đồng vector cần lọc quyền **ngay trong**
 câu lệnh tìm kiếm. Bắt nó join ngược về `meetings` để lọc sẽ phá hỏng hiệu quả của index HNSW.
+
+`embedding` và `token_count` cùng nullable từ Phase 12, vì cắt đoạn (`chunk`) và nhúng vector
+(`embed`) nay là hai bước pipeline tách biệt, mỗi bước một job, thử lại riêng — bước `chunk` phải
+ghi được một hàng mà bước `embed` chưa kịp điền. Chỉ mục HNSW bỏ qua hàng `embedding IS NULL`, và
+`GET /search` chỉ đọc hàng đã có embedding (`c.embedding IS NOT NULL`, xem
+[system-architecture.md §3](system-architecture.md#3-luồng-2--pipeline-phân-tích) và
+[§4](system-architecture.md#4-luồng-3--truy-hồi-và-hỏi-đáp-graphrag)). Ràng buộc unique
+`(meeting_id, content_hash)` là điều kiện để chạy lại sau khi sửa transcript giữ nguyên chunk chưa
+đổi — id, embedding và các mention/relation trích dẫn nó — thay vì cắt lại từ đầu.
 
 ---
 

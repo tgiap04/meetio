@@ -27,3 +27,9 @@
 - Q: Tiêu đề rỗng khi PATCH? → A: Quay về tiêu đề mặc định theo `started_at` (US-25), không lưu chuỗi trắng
 - Q: Khóa cài đặt tắt push? → A: `notification_settings.meeting_ready_push` (thiếu khóa = bật)
 - Q: Repo chưa có EAS projectId để lấy Expo push token? → A: Mobile đọc projectId từ cấu hình; thiếu thì bỏ qua đăng ký kèm cảnh báo; người dùng tự chạy `eas init` để bật
+
+## Session 2026-09-26 (Phase 12)
+- Q: Nhiều khóa Gemini? → A: `GEMINI_API_KEY` nhận nhiều khóa cách nhau bằng dấu phẩy; xoay vòng lần lượt từng lời gọi (round-robin), bỏ qua khóa đang nghỉ; khóa không bao giờ vào log/DB (chỉ số thứ tự)
+- Q: Khóa bị 429 nghỉ bao lâu? → A: Theo `retryDelay` Gemini trả về, mặc định 60 giây; lỗi hết hạn mức theo ngày thì nghỉ tới đầu ngày mới theo giờ Pacific; các mốc cấu hình được; mọi khóa đang nghỉ thì bước pipeline lỗi để retry theo backoff Phase 11
+- Q: Ghi token cho embedding thế nào? → A: Gọi `countTokens` (miễn phí) để lấy số token thật, ghi `usage_records` và `meeting_chunks.token_count`; nếu model embedding từ chối `countTokens` thì dừng lại hỏi, không đoán số
+- Q: Màn Tìm kiếm khi chưa có thực thể (Phase 13)? → A: Chip Transcript = kết quả ngữ nghĩa (chạm nhảy tới đoạn), chip Meeting = tìm theo tiêu đề; ẩn chip Node và nhóm Người tới Phase 13

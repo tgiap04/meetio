@@ -1,41 +1,80 @@
 {
-  "score": 9,
+  "score": 8,
   "criticalCount": 0,
-  "decision": "SEALED",
+  "decision": "REWORK",
   "acceptanceCovered": [
-    "transcript pages by seq and segments can be corrected only when the meeting is not live or processing — proven by transcript.service.ts's EDITABLE list (queued/ready/failed only) enforced under the same row lock as every other meeting writer, and transcript.e2e.spec.ts's live/paused/processing 409 cases; mobile's real-transcript-screen.tsx consumes the same paged /segments contract",
-    "editing never re-runs the pipeline by itself and the meeting reports unprocessed edits — proven by transcript.service.ts.update() only setting text/is_edited/edited_at (no pipeline call), hasUnprocessedEdits() comparing edited_at to pipeline_started_at, and meeting-detail-hero.tsx/real-transcript-screen.tsx surfacing has_unprocessed_edits and prompting reindex only after explicit user confirmation; use-segment-mutations.ts now also explicitly invalidates meetingQueryKey on save so the flag refreshes without relying on remount timing",
-    "reindex changed after edits is scoped to the edit window and reindex after failure skips succeeded steps — proven by reading pipeline-control.service.ts's reindex() SQL character-by-character: resume (failed+changed) resets only status='failed' rows and leaves pipeline_changed_since untouched; ready+changed resets all rows to pending scoped by pipeline_started_at as the changed window; both paths covered by pipeline-control.e2e.spec.ts",
-    "export produces Markdown and HTML with chosen sections and a note when the summary is not ready — proven by export-document.ts/render-html.ts's per-section assembly and NOT_READY_NOTE fallback, verified against injection (both escapers traced against #, *, <script>, leading -) and covered by export.e2e.spec.ts including the not-ready-summary case",
-    "ending a meeting starts a pipeline run that executes steps in order and never reports ready without all steps succeeding — proven by PipelineEngine.advance()'s nextStep()-then-completeRun() sequencing, the explicit no-fake-ready pause at an unregistered handler, and pipeline-engine.integration.spec.ts running against real Postgres+Redis+BullMQ including the new mid-run-delete case (a step still running when its meeting is hard-deleted finishes as a no-op: markSucceeded returns false, advance() never runs, embed never enqueues, processing_jobs cascades to zero rows)",
-    "a failing step is retried 3 times with growing waits and then fails the meeting naming the step — proven by STEP_ATTEMPTS=4/retryDelayMs (2s/8s/32s, unit-tested), the attemptsMade+1>=maxAttempts final-attempt check verified against BullMQ 6.3.6's own job.js source, and failStep() writing the step name into meetings.failure_reason",
-    "the meeting ready push is sent exactly once per meeting with generic text and honours the user setting — proven by MeetingReadyNotifier's single conditional UPDATE ... WHERE ready_notified_at IS NULL claim, the hardcoded generic title/body (no meeting content), the notification_settings.meeting_ready_push check, ExpoPushClient's bounded 429/5xx retry so throttling doesn't silently burn the one-shot claim, and pipeline-control.e2e.spec.ts's exactly-once/dead-token/setting-respected cases",
-    "every Gemini call records a usage row with token counts and a spent budget blocks calls — proven by GeminiClient.generateText() calling assertWithinBudget() before and usage.record() after every call unconditionally, the AbortSignal now honored end-to-end through withSlot's queue wait (a timed-out step's queued call is rejected rather than billing after the fact, unit-tested in gemini.client.spec.ts), QuotaExceededError extending NonRetryableStepError so a spent budget fails fast, and usage-tracker.integration.spec.ts",
-    "mobile library, detail and transcript screens use the real API including delete undo and export — proven by src/api/meetings.ts calling the real endpoints with zero redeclared wire shapes; useDeleteMeetingWithUndo's setTimeout-gated single DELETE call (traced for the leave-screen and double-delete races, both handled correctly); useMeetingRoomSocket's function-form auth token plus connect_error/disconnect-driven refresh-and-reconnect recovery (use-meeting-room-socket.test.tsx's token-expiry-recovery suite exercises TOKEN_EXPIRED, server-initiated disconnect, a dead refresh token, and an ordinary disconnect that must NOT trigger recovery); push-token unregister now called from useLogoutMutation/useDeleteAccountMutation's mutationFn before the token is cleared, timeout-bounded; export files deleted in finally after the share sheet settles; and transcript search auto-fetching remaining pages (capped at 50) with a visible \"searching\" state when a query has zero local matches — 763 mobile unit tests plus the backend's 80 e2e tests exercising the endpoints these screens call"
+    "chunks keep segment_start_seq and segment_end_seq and overlap consecutive chunks",
+    "a transcript edit re-processes only the chunks containing it",
+    "embedding runs in batches of 20 and records real token counts from countTokens",
+    "search never returns another user's data and the owner filter is inside the SQL statement",
+    "search answers under 2 seconds on a 500-meeting library",
+    "several comma-separated Gemini keys rotate round-robin and a rate-limited key rests while others serve",
+    "keys never appear in logs or the database",
+    "mobile search shows transcript matches that open the transcript at the matching segment"
   ],
   "regressionChecked": [
-    "meeting-processing job id format changed to meeting-run — runJobId/stepJobId now embed pipeline_run; verified startRun/current/stepWrite all guard on pipeline_run matching, so a job from a stale run is a safe no-op rather than corrupting a newer run",
-    "end and abandoned sweep now increment pipeline_run — verified in meetings.service.ts (end()) and abandoned-meeting.job.ts (closeIfStillAbandoned()), both also set pipeline_scope='full' and pass the new run number through enqueueAfterCommit",
-    "PATCH /meetings blank title now reverts to default instead of 400 — verified update-meeting.dto.ts's Length(0,200) change, meetings.service.ts's defaultMeetingTitle() fallback, and the dedicated e2e case",
-    "BullMQ root config reads BULLMQ_PREFIX — verified jobs.module.ts's forRootAsync passing prefix through, and that PipelineModule/MeetingsModule's registerQueue calls share the same global connection (no second forRootAsync introduced)",
-    "e2e harness isolation from a running dev server — verified test-support/e2e-app.ts threads BULLMQ_PREFIX into the spawned test server's env, isolating its queues from a developer's `make dev` instance on the same Redis",
-    "meeting deleted mid-run — new integration test (pipeline-engine.integration.spec.ts) proves a step already running when its meeting is hard-deleted finishes as a no-op: no embed job enqueued, processing_jobs cascaded to zero rows, matching the store-guard behavior traced by code-reading in the prior pass",
-    "removing the reactive push-unregister from usePushNotificationsLifecycle does not leave a gap — verified registerForPushNotifications (the other half of that hook) is untouched, and the only removed code path was the one already proven to always fail (unauthenticated DELETE); use-push-notifications-lifecycle.test.tsx no longer asserts the old reactive-unregister behavior, confirming it was deliberately removed rather than silently broken"
+    "gemini-call-runner.ts isInvalidKey re-verified against @google/genai's real error shape (HTTP 400 + API_KEY_INVALID/API key not valid only); new test proves a 403 (billing/API-disabled) keeps the key usable and the next call still reaches it",
+    "gemini.client.ts embed() usage-record ordering re-verified: record() now runs before the dimension check, with a test asserting the real token count lands even when the vector-size check fails",
+    "chunker.ts rechunkWithinRanges late-upload branch re-verified at unit level (chunker.spec.ts) and against the Phase 04 state-machine rule that blocks segment ingestion once a meeting leaves recording/paused/ended/queued",
+    "pipeline-engine.integration.spec.ts flakiness (resumeStalled sweeping other suites' meetings in the shared DB) traced to a real cross-test data race and fixed by scoping the backdate/cutoff to the test's own meeting; 3 back-to-back full runs green",
+    "temper-results.json re-read: 8/8 commands real exit 0 (shared build, api test:unit 310, test:e2e 87, test:schema 5, mobile 797, both typechecks, eslint --max-warnings=0) — up from 294 unit tests at the prior review, consistent with the new/edited test files"
   ],
   "contractStatus": "OK",
   "refuted": [],
-  "unproven": [],
+  "unproven": [
+    "countTokens support and real error/quota body shape on gemini-embedding-001 against the live Gemini API (GEMINI_API_KEY is still empty; scripts/gemini-live-check.ts has not been run)",
+    "Real-world semantic search relevance/quality of the 768-dim truncated gemini-embedding-001 vectors"
+  ],
   "reachableRegressions": [],
   "findings": [
-    { "severity": "High", "category": "Concurrency", "location": "apps/mobile/src/hooks/use-meeting-room-socket.ts:60-119", "summary": "socket auth was a static object and no disconnect/connect_error handler existed, so an expired-token disconnect could never recover — FIXED: auth is now a function re-read on every (re)connect, connect_error/disconnect run a single-flight refresh then reconnect, rejoin happens on every connect, and a dead refresh token stops recovery via a `stopped` flag; verified against BullMQ-analogous edge cases (dead refresh token, ordinary disconnect, non-auth connect_error) in use-meeting-room-socket.test.tsx", "disposition": "Accept" },
-    { "severity": "High", "category": "Security", "location": "apps/mobile/src/notifications/push-registration.ts:96-113", "summary": "push-token unregister-on-logout fired reactively after clearTokens() had already wiped the access token, so the DELETE always went out unauthenticated and failed silently — FIXED: unregisterCurrentPushToken() now runs inside useLogoutMutation/useDeleteAccountMutation's mutationFn, before clearTokens(), timeout-bounded at 3s so a hung call can't block logout; verified the reactive call site was removed (not duplicated) in use-push-notifications-lifecycle.ts", "disposition": "Accept" },
-    { "severity": "Medium", "category": "Performance", "location": "apps/mobile/src/utils/export-meeting.ts:59-79", "summary": "exported Markdown/PDF files were never deleted after sharing, accumulating personal content in the app cache — FIXED: both paths delete the temp file in a finally block after Sharing.shareAsync settles (success or failure); the iOS early-resolve trade-off (share sheet dismissal vs. target app finishing the read) is stated in a comment rather than silently accepted", "disposition": "Accept" },
-    { "severity": "Medium", "category": "Logic", "location": "apps/mobile/src/hooks/use-fetch-all-pages-for-search.ts:30-54", "summary": "transcript search only searched already-loaded pages and FlatList.onEndReached never fires on an empty filtered list, so a match beyond the loaded pages reported as 'no results' — FIXED: a dedicated hook auto-fetches remaining pages (capped at 50) whenever a search has zero local matches and more pages remain, with a visible searching-state banner instead of a bare empty state", "disposition": "Accept" },
-    { "severity": "Low", "category": "Structure", "location": "apps/mobile/src/hooks/use-segment-mutations.ts:12-19", "summary": "segment edit invalidated only the segments query, relying on default refetch-on-mount for has_unprocessed_edits to refresh — FIXED: now explicitly invalidates meetingQueryKey alongside segmentsQueryKey", "disposition": "Accept" },
-    { "severity": "High", "category": "Performance", "location": "apps/api/src/ai/gemini.client.ts:105-140", "summary": "GeminiClient's concurrency semaphore ignored AbortSignal, letting a timed-out step's queued Gemini call run and bill after the step already failed — fixed and verified in the prior follow-up pass", "disposition": "Accept" },
-    { "severity": "High", "category": "Performance", "location": "apps/api/src/pipeline/pipeline-options.ts:17-22", "summary": "BullMQ step/run workers had no explicit concurrency, defaulting to 1 per queue system-wide and making GeminiClient's own maxConcurrency unreachable — fixed and verified in the prior follow-up pass", "disposition": "Accept" },
-    { "severity": "Medium", "category": "Security", "location": "apps/api/src/pipeline/pipeline-engine.ts:36-46", "summary": "raw exception messages flowed unfiltered into processing_jobs.error_message and back out through GET /meetings/:id/status — fixed and verified in the prior follow-up pass (ExplainedStepError whitelist)", "disposition": "Accept" },
-    { "severity": "Medium", "category": "Logic", "location": "apps/api/src/jobs/meeting-maintenance.processor.ts:13", "summary": "stall threshold equalled the step timeout and the sweep ran only every 15 minutes, allowing up to ~25 minutes of a stuck meeting before recovery — fixed and verified in the prior follow-up pass (5-minute threshold and sweep)", "disposition": "Accept" },
-    { "severity": "Medium", "category": "Logic", "location": "apps/api/src/notifications/expo-push.client.ts:57-77", "summary": "Expo 429/5xx responses were treated as a hard failure with no retry, silently losing the one-time meeting-ready push under transient throttling — fixed and verified in the prior follow-up pass", "disposition": "Accept" }
+    {
+      "severity": "High",
+      "category": "Error boundaries",
+      "location": "apps/api/src/ai/gemini-call-runner.ts:13-18",
+      "summary": "Previously: isInvalidKey matched any HTTP 403 containing PERMISSION_DENIED, which Google sets for nearly every 403 cause, so an unrelated 403 (billing off, API not enabled, IAM/referrer restriction) would permanently disable a valid key. FIXED: isInvalidKey now requires HTTP 400 + /API_KEY_INVALID|API key not valid/ (Google's actual invalid-key signal). A 403 now logs 'key kept' and throws AiServiceUnavailableError without touching the pool. New test gemini-call-runner.spec.ts:59-66 sends a realistic 403 PERMISSION_DENIED \"Billing is disabled\" body on a single-key pool and asserts the key still serves the next call.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "API contracts",
+      "location": "apps/api/src/ai/gemini.client.ts:130-135",
+      "summary": "Previously: a vector-size/count mismatch threw before this.record(), losing the usage_records row for countTokens calls already billed. FIXED: record() now runs immediately after the Gemini calls settle, before the dimension check; gemini.client.spec.ts asserts the real token count is recorded even when the size check subsequently fails.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Completeness",
+      "location": "apps/api/src/chunking/chunker.ts:105-126",
+      "summary": "Not changed, by design, and accepted: segment ingestion is rejected (409 INVALID_STATE_TRANSITION) once a meeting leaves recording/paused/ended/queued (Phase 04 decision), so a changed-scope run never actually finds segments past the last chunked range in production; the tail branch is defensive. Now covered at the unit level by chunker.spec.ts:93-99 (\"chunks segments that arrived after the last range\"), which proves the branch's own logic even though the integration path that would reach it is architecturally closed off. Acceptable given the cited state-machine rule; the earlier note that nothing tested the branch no longer holds.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Query efficiency",
+      "location": "apps/api/src/pipeline/pipeline-control.service.ts:47-51",
+      "summary": "Not changed, and accepted: a changed-scope reindex still resets every processing_jobs row to pending, but chunk reconciles by content_hash and embed only touches embedding IS NULL rows, so re-running unaffected chunks makes zero Gemini calls regardless of step status. The original concern (future non-idempotent Phase 13-15 steps re-running wastefully) is a forward design note for whoever builds those phases, not a defect in this phase's own idempotency, which holds.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Documentation",
+      "location": "docs/api-spec.md:165",
+      "summary": "GET /search §6 still documents only ?q=&from=&to=&limit=, missing offset and the response shape. Assigned to doc-writer in the Delivery step per the coordinator; not yet changed. Tracked, not blocking this inspection since packages/shared/src/search/search.types.ts and the DTOs remain the accurate, internally-consistent contract.",
+      "disposition": "Defer"
+    },
+    {
+      "severity": "Low",
+      "category": "Concurrency",
+      "location": "apps/api/src/pipeline/__tests__/pipeline-engine.integration.spec.ts:48-49",
+      "summary": "Fixed since prior review: resumeStalled(now+60s) previously swept every processing meeting in the shared test DB, occasionally marking another suite's meeting as extract-succeeded (observed ~1 in 6 full runs) when run in parallel with chunk-embed tests. Now backdates only its own meeting to 2000-01-01 with cutoff 2000-01-02, scoping the sweep. 3 back-to-back full runs green.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Low",
+      "category": "Test quality",
+      "location": "apps/api/src/chunking/__tests__/chunker-edge-cases.spec.ts:32-46",
+      "summary": "Tester-added tests trimmed: a spec using a non-UUID meetingId against an uninitialized DataSource (failing for the wrong reason) was deleted; three vacuous cases removed from the key-pool edge-case spec; the chunker overlap test now asserts unique content and strictly increasing chunk starts instead of an unused variable. Improves signal without reducing real coverage.",
+      "disposition": "Accept"
+    }
   ]
 }

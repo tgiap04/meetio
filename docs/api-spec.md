@@ -162,11 +162,49 @@ tóm tắt ([US-24](../user_stories.md#us-24--sửa-nội-dung-nhận-diện-sai
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| GET | `/search` | Tìm ngữ nghĩa xuyên cuộc họp. `?q=&from=&to=&limit=` → các đoạn khớp kèm ngữ cảnh ([US-22](../user_stories.md#us-22--tìm-kiếm-ngữ-nghĩa-xuyên-các-cuộc-họp)) |
+| GET | `/search` | Tìm ngữ nghĩa xuyên cuộc họp của chính người gọi ([US-22](../user_stories.md#us-22--tìm-kiếm-ngữ-nghĩa-xuyên-các-cuộc-họp)) |
 | POST | `/meetings/:id/qa` | Hỏi trong một cuộc họp. Body `{question}` |
 | POST | `/qa` | Hỏi xuyên cuộc họp. Body `{question, from?, to?, entity_id?}` |
 | GET | `/meetings/:id/qa` | Lịch sử hỏi đáp của cuộc họp |
 | DELETE | `/meetings/:id/qa` | Xóa lịch sử hỏi đáp |
+
+**`GET /search` — tham số:**
+
+| Tham số | Kiểu | Ràng buộc |
+|---------|------|-----------|
+| `q` | string | Bắt buộc, 2–500 ký tự |
+| `from` | ISO 8601 | Tùy chọn — cuộc họp bắt đầu từ lúc này |
+| `to` | ISO 8601 | Tùy chọn — cuộc họp bắt đầu tới lúc này |
+| `limit` | int | Tùy chọn, 1–50, mặc định 10 |
+| `offset` | int | Tùy chọn, 0–200, mặc định 0 |
+
+**Khuôn phản hồi:**
+
+```json
+{
+  "items": [
+    {
+      "chunk_id": "…",
+      "meeting_id": "…",
+      "meeting_title": "Họp sprint 12",
+      "meeting_date": "2026-09-15T09:00:00.000Z",
+      "excerpt": "…",
+      "segment_seq": 142,
+      "segment_end_seq": 145,
+      "score": 0.83
+    }
+  ],
+  "next_offset": 10
+}
+```
+
+`meeting_date` là `null` nếu cuộc họp chưa từng ghi nhận thời điểm bắt đầu. `score` là cosine
+similarity trong khoảng `[0, 1]`, càng cao càng khớp. `next_offset` dùng làm `offset` cho trang kế
+tiếp; `null` nghĩa là hết trang.
+
+**Lỗi riêng của `/search`:** `QUOTA_EXCEEDED` (429) khi vượt hạn mức token, `AI_SERVICE_UNAVAILABLE`
+(503) khi Gemini không dùng được để nhúng câu hỏi — xem [§9](#9-mã-lỗi). Tần suất bị giới hạn
+60 lần/phút/người dùng ([§10](#10-giới-hạn-tần-suất)), vượt hạn mức trả `RATE_LIMITED` (429).
 
 **Khuôn phản hồi hỏi đáp:**
 

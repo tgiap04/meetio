@@ -139,18 +139,26 @@ Engine trên thiết bị sẽ tự ngắt. Client phải bật lại ngay và g
 ## 3. Luồng 2 — Pipeline phân tích
 
 Kích hoạt khi cuộc họp chuyển `queued` (do `end`, do sweep tự đóng, hoặc do `reindex`). Mỗi bước
-chạy trên **hàng đợi BullMQ riêng của nó** (`pipeline-chunk`, `pipeline-embed`, `pipeline-extract`,
-`pipeline-resolve`, `pipeline-summarize`) — thử lại, đo tải và scale độc lập theo từng bước, không
+chạy trên **hàng đợi BullMQ riêng của nó** — thử lại, đo tải và scale độc lập theo từng bước, không
 chung một hàng đợi lớn.
 
 ```
 queued
   │  job "meeting-processing" (jobId: <meeting>-r<run>)
   ▼
-processing ─┬─ 1. Cắt đoạn ─────── gộp transcript_segments thành chunk ~800 token, chồng lấn 15%
-            │                      giữ liên kết segment_start / segment_end để truy vết nguồn
+processing ─┬─ 1. Cắt đoạn (chunk) ── gộp transcript_segments thành chunk ~800 token ước lượng,
+            │                         chồng lấn ~15%, ưu tiên cắt tại chỗ ngừng lời dài (≥ 2s)
+            │                         thay vì giữa câu; giữ segment_start/end_seq để truy vết nguồn.
+            │                         Ghi content_hash (sha256 start:end:content) — chạy lại sau khi
+            │                         sửa transcript chỉ cắt lại đúng chunk bị đoạn sửa chạm tới
+            │                         (rechunkWithinRanges), giữ nguyên id/embedding của chunk còn lại.
+            │                         embedding và token_count để NULL ở bước này.
             │
-            ├─ 2. Nhúng vector ─── Gemini embedding theo lô → meeting_chunks.embedding
+            ├─ 2. Nhúng vector (embed) ── từng lô 20 chunk chưa có embedding → GeminiClient.embed
+            │                             (RETRIEVAL_DOCUMENT) → meeting_chunks.embedding +
+            │                             token_count (số token thật từ countTokens). Mỗi lô commit
+            │                             riêng — thử lại chỉ tốn phần chưa xong, không nhúng lại cả
+            │                             cuộc họp.
             │
             ├─ 3. Trích xuất ───── mỗi chunk → LLM trả JSON { entities[], relations[] }
             │                      bắt buộc đúng schema; sai schema thì thử lại tối đa 2 lần rồi bỏ chunk đó
@@ -189,13 +197,28 @@ tiếp mà không cần can thiệp thủ công.
 chạy lại cả 5 bước từ đầu. Chi tiết hợp đồng ở
 [api-spec.md §3](api-spec.md#3-vòng-đời-cuộc-họp).
 
-**Chi phí AI:** mọi lệnh gọi Gemini (nhúng, trích xuất, tóm tắt) đi qua `GeminiClient` — kiểm tra
-hạn mức trước khi gọi, giới hạn số lệnh chạy đồng thời, thử lại khi gặp lỗi 429/5xx, rồi ghi một
-dòng `usage_records` với đúng số token Gemini trả về. Người dùng chưa có `monthly_token_budget`
-(NULL) thì chưa bị chặn — hạn mức cụ thể còn là câu hỏi mở
-([OQ-04](../user_stories.md#5-câu-hỏi-còn-mở)). Nhúng vector (bước 2) chưa đi qua `GeminiClient`:
-API Gemini không trả số token cho embedding, nên cách tính chi phí cho bước này để Phase 12 — nơi
-gọi nó lần đầu — quyết định.
+**Chi phí AI:** mọi lệnh gọi Gemini (nhúng, trích xuất, tóm tắt, tìm kiếm) đi qua `GeminiClient` —
+kiểm tra hạn mức trước khi gọi, giới hạn số lệnh chạy đồng thời, thử lại khi gặp lỗi 429/5xx, rồi
+ghi một dòng `usage_records` với đúng số token Gemini trả về. Người dùng chưa có
+`monthly_token_budget` (NULL) thì chưa bị chặn — hạn mức cụ thể còn là câu hỏi mở
+([OQ-04](../user_stories.md#5-câu-hỏi-còn-mở)). API Gemini không trả số token cho embedding, nên
+`GeminiClient.embed` gọi `countTokens` (miễn phí) trên từng đoạn trước, cộng dồn số đó vào
+`usage_records` và ghi lại y nguyên vào `meeting_chunks.token_count` — không phải số ước lượng.
+
+**Nhiều khóa Gemini (key pool):** `GEMINI_API_KEY` nhận danh sách khóa phân tách bằng dấu phẩy,
+dùng luân phiên (round-robin) qua `GeminiKeyPool` + `GeminiCallRunner`. Một khóa nhận lỗi 429 thì
+"nghỉ" theo `retryDelay` Gemini trả về (mặc định `GEMINI_KEY_COOLDOWN_MS`, 60s) — hoặc tới nửa đêm
+giờ Thái Bình Dương kế tiếp nếu lỗi là hạn mức *theo ngày* — rồi lệnh gọi chuyển ngay sang khóa
+khác, không chờ. Chỉ lỗi HTTP 400 `API_KEY_INVALID` mới loại hẳn một khóa (tới khi restart); lỗi 403
+(API chưa bật, billing tắt, hay khóa bị giới hạn) giữ nguyên khóa vì "restart-less drop" không sửa
+được nguyên nhân đó, và trên cấu hình một khóa duy nhất sẽ gây mất dịch vụ âm thầm. Số khóa chỉ tăng
+thêm hạn mức khi chúng thuộc các Google Cloud project khác nhau. `GEMINI_MAX_CONCURRENCY` (mặc định
+4) giới hạn số lệnh gọi Gemini chạy đồng thời trên toàn bộ pool. Lỗi 5xx/mạng thử lại tối đa
+`retries` lần với chờ tăng dần theo cấp số nhân; hết khóa dùng được hoặc hết lượt thử thì ném
+`AiServiceUnavailableError` → `AI_SERVICE_UNAVAILABLE` (503). Chỉ số thứ tự khóa (1-based) được log,
+không bao giờ log giá trị khóa. Thiếu `GEMINI_API_KEY` không chặn server khởi động — `GeminiClient`
+tự báo "chưa cấu hình" và mọi lệnh gọi AI thất bại với `AI_SERVICE_UNAVAILABLE`, pipeline coi đó là
+lỗi có thể thử lại.
 
 **Thông báo hoàn tất ([US-30](../user_stories.md#us-30--nhận-thông-báo-khi-phân-tích-xong)):** khi
 lượt chạy hoàn tất, engine phát `processing_status(ready)` qua WebSocket rồi gọi thẳng
@@ -243,6 +266,22 @@ Câu hỏi của người dùng
 **Chống bịa đặt:** prompt bắt buộc chỉ trả lời trong phạm vi ngữ cảnh được cấp. Không có chunk nào
 đủ độ tương đồng tối thiểu thì trả lời thẳng là không tìm thấy, không gọi LLM. Câu trả lời không
 kèm được trích dẫn thì bị coi là độ tin cậy thấp và hiển thị kèm cảnh báo.
+
+**`GET /search` ([US-22](../user_stories.md#us-22--tìm-kiếm-ngữ-nghĩa-xuyên-các-cuộc-họp)) là một
+luồng riêng, đơn giản hơn** — không mở rộng qua đồ thị, không gọi LLM sinh câu trả lời: nhúng câu
+hỏi rồi trả thẳng các chunk gần nhất của người dùng đó, có phân trang. Điểm khác biệt đáng chú ý:
+`VectorRepository.searchChunks` quét **chính xác** (`ORDER BY (embedding <=> q) + 0`, cố tình cộng
+`+ 0` để trình lập kế hoạch Postgres không chọn chỉ mục HNSW), chứ không đi qua chỉ mục HNSW gần
+đúng như `findSimilarChunks`/`findSimilarEntities` dùng ở bước 2 phía trên. Lý do: một truy vấn
+HNSW lọc thêm theo `user_id` sẽ đi lạc — bước walk HNSW trả về các vector gần nhất của **mọi**
+người dùng trước, `WHERE user_id = …` mới lọc sau, nên với dữ liệu thưa (hoặc các entry chết do
+việc cắt/nhúng lại chunk sau khi sửa transcript để lại, chờ `VACUUM`) một trang có thể **rỗng** dù
+người dùng đó thực sự có chunk khớp — đã đo được ca này khi kiểm thử Phase 12. Quét chính xác qua
+`idx_chunks_user` luôn đầy đủ, và đủ nhanh: 41 ms (p95) với 7.500 chunk, 300 ms (p95) với 50.000
+chunk cho một người dùng — trong ngân sách < 2s
+(chi tiết đo: `plans/reports/perf-2026-09-26-semantic-search.md`). Chỉ cân nhắc đổi cách (partition
+theo người dùng, hay các tính năng lọc-trong-index mới của pgvector) nếu một người dùng vượt xa mốc
+đó.
 
 ---
 
