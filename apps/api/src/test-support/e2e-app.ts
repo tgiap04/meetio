@@ -169,10 +169,12 @@ export async function startE2eApp(extraEnv: Record<string, string> = {}): Promis
       return (await job.waitUntilFinished(maintenanceEvents, 30_000)) as number;
     },
     async close() {
-      // Meetings and everything under them go with the users via ON DELETE CASCADE.
-      await db.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [userIds]);
+      // Stop the server first: its pipeline may still be writing to these meetings, and deleting under
+      // a running resolve/summarize step deadlocks. Then meetings and everything under them go with
+      // the users via ON DELETE CASCADE.
       child.kill('SIGTERM');
       await new Promise((r) => (child.exitCode !== null ? r(null) : child.once('exit', r)));
+      await db.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [userIds]);
       await Promise.all([processingQueue.close(), maintenanceQueue.close(), maintenanceEvents.close(), db.end()]);
       // Drop this run's whole BullMQ namespace (queues, schedulers, events).
       const redis = connection();

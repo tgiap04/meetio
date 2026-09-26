@@ -44,16 +44,16 @@ maybeDescribe('pipeline control, status and push (e2e)', () => {
     return waitFor(() => meeting(id), (m) => m.status === 'ready');
   };
 
-  it('end starts run 1: chunk, embed, extract and resolve run, then it waits at the first unimplemented step (summarize)', async () => {
+  it('end starts run 1: every step runs and the meeting becomes ready', async () => {
     const id = await create();
     expect((await e2e.http('POST', `/meetings/${id}/end`, owner.token, {})).body.status).toBe('queued');
     const status = await waitFor(
       async () => (await e2e.http('GET', `/meetings/${id}/status`, owner.token)).body,
-      (s) => s.current_step === 'summarize',
+      (s) => s.status === 'ready',
     );
-    expect(status).toMatchObject({ meeting_id: id, status: 'processing', current_step: 'summarize', failure_reason: null });
+    expect(status).toMatchObject({ meeting_id: id, status: 'ready', failure_reason: null });
     expect(status.steps.map((s: { step: string; status: string }) => `${s.step}:${s.status}`)).toEqual([
-      'chunk:succeeded', 'embed:succeeded', 'extract:succeeded', 'resolve:succeeded', 'summarize:pending',
+      'chunk:succeeded', 'embed:succeeded', 'extract:succeeded', 'resolve:succeeded', 'summarize:succeeded',
     ]);
     expect((await meeting(id)).pipeline_run).toBe(1);
   });
@@ -65,7 +65,7 @@ maybeDescribe('pipeline control, status and push (e2e)', () => {
     await e2e.http('PATCH', `/meetings/${id}`, owner.token, { title: 'Bí mật: sáp nhập công ty X' });
     await e2e.http('POST', `/meetings/${id}/segments/bulk`, owner.token, { segments: [{ seq: 1, text: 'a', started_at_ms: 0, ended_at_ms: 1 }] });
     await e2e.http('POST', `/meetings/${id}/end`, owner.token, { last_seq: 1 });
-    await waitFor(() => meeting(id), (m) => m.status === 'processing');
+    await waitFor(() => meeting(id), (m) => m.status === 'processing' || m.status === 'ready');
     push.received.length = 0;
 
     await finishRun(id);
@@ -84,7 +84,7 @@ maybeDescribe('pipeline control, status and push (e2e)', () => {
     const segmentId = (await e2e.db.query('SELECT id FROM transcript_segments WHERE meeting_id = $1', [id])).rows[0].id;
     await e2e.http('PATCH', `/segments/${segmentId}`, owner.token, { text: 'đã sửa' });
     expect((await e2e.http('POST', `/meetings/${id}/reindex`, owner.token, { scope: 'changed' })).status).toBe(200);
-    await waitFor(() => meeting(id), (m) => m.status === 'processing' && m.pipeline_run === 2);
+    await waitFor(() => meeting(id), (m) => m.pipeline_run === 2 && (m.status === 'processing' || m.status === 'ready'));
     const before = push.received.length;
     await finishRun(id);
     await new Promise((r) => setTimeout(r, 500));
@@ -97,7 +97,7 @@ maybeDescribe('pipeline control, status and push (e2e)', () => {
     await e2e.http('PATCH', '/users/me', quiet.token, { notification_settings: { meeting_ready_push: false } });
     const id = await create(quiet.token);
     await e2e.http('POST', `/meetings/${id}/end`, quiet.token, {});
-    await waitFor(() => meeting(id), (m) => m.status === 'processing');
+    await waitFor(() => meeting(id), (m) => m.status === 'processing' || m.status === 'ready');
     const before = push.received.length;
     await finishRun(id);
     await new Promise((r) => setTimeout(r, 500));
@@ -109,7 +109,7 @@ maybeDescribe('pipeline control, status and push (e2e)', () => {
     expect((await e2e.http('POST', `/meetings/${id}/reindex`, owner.token, { scope: 'full' })).status).toBe(409);
     await e2e.http('POST', `/meetings/${id}/segments/bulk`, owner.token, { segments: [{ seq: 1, text: 'a', started_at_ms: 0, ended_at_ms: 1 }] });
     await e2e.http('POST', `/meetings/${id}/end`, owner.token, { last_seq: 1 });
-    await waitFor(() => meeting(id), (m) => m.status === 'processing');
+    await waitFor(() => meeting(id), (m) => m.status === 'processing' || m.status === 'ready');
     const firstRun = await finishRun(id);
 
     const unchanged = await e2e.http('POST', `/meetings/${id}/reindex`, owner.token, { scope: 'changed' });
@@ -117,34 +117,40 @@ maybeDescribe('pipeline control, status and push (e2e)', () => {
 
     const segmentId = (await e2e.db.query('SELECT id FROM transcript_segments WHERE meeting_id = $1', [id])).rows[0].id;
     await e2e.http('PATCH', `/segments/${segmentId}`, owner.token, { text: 'đã sửa' });
+    const [{ last }] = (await e2e.db.query('SELECT max(finished_at) AS last FROM processing_jobs WHERE meeting_id = $1', [id])).rows;
     const res = await e2e.http('POST', `/meetings/${id}/reindex`, owner.token, { scope: 'changed' });
     expect(res.body.status).toBe('queued');
     const queued = await waitFor(() => meeting(id), (m) => m.pipeline_run === 2);
     expect(queued.pipeline_scope).toBe('changed');
     expect(new Date(queued.pipeline_changed_since).getTime()).toBe(new Date(firstRun.pipeline_started_at).getTime());
-    const steps = (await e2e.http('GET', `/meetings/${id}/status`, owner.token)).body.steps;
-    expect(steps.every((s: { status: string }) => s.status !== 'succeeded')).toBe(true);
+    // Every step ran again for run 2 (reset, not skipped): each finished after the reindex was accepted.
+    await waitFor(() => meeting(id), (m) => m.status === 'ready');
+    const finished = (await e2e.db.query('SELECT finished_at FROM processing_jobs WHERE meeting_id = $1', [id])).rows as { finished_at: Date }[];
+    expect(finished).toHaveLength(5);
+    expect(finished.every((r) => new Date(r.finished_at).getTime() > new Date(last).getTime())).toBe(true);
   });
 
   it('retry after a failure resumes from the failed step and skips the succeeded ones (US-29)', async () => {
     const id = await create();
     await e2e.http('POST', `/meetings/${id}/end`, owner.token, {});
-    await waitFor(() => meeting(id), (m) => m.status === 'processing');
-    await e2e.db.query(`UPDATE processing_jobs SET status = 'succeeded' WHERE meeting_id = $1 AND step IN ('chunk', 'embed', 'extract', 'resolve')`, [id]);
+    await waitFor(() => meeting(id), (m) => m.status === 'ready');
     await e2e.db.query(`UPDATE processing_jobs SET status = 'failed', attempts = 4, error_message = 'x' WHERE meeting_id = $1 AND step = 'summarize'`, [id]);
     await e2e.db.query(`UPDATE meetings SET status = 'failed', failure_reason = 'summarize' WHERE id = $1`, [id]);
 
     const failed = await e2e.http('GET', `/meetings/${id}/status`, owner.token);
     expect(failed.body).toMatchObject({ status: 'failed', current_step: 'summarize', failure_reason: 'summarize' });
+    const before = (await e2e.db.query('SELECT step, finished_at FROM processing_jobs WHERE meeting_id = $1', [id])).rows as { step: string; finished_at: Date }[];
 
     expect((await e2e.http('POST', `/meetings/${id}/reindex`, owner.token, { scope: 'changed' })).status).toBe(200);
-    await waitFor(() => meeting(id), (m) => m.status === 'processing' && m.pipeline_run === 2);
-    const steps = Object.fromEntries(
-      (await e2e.http('GET', `/meetings/${id}/status`, owner.token)).body.steps.map((s: { step: string; status: string; attempts: number }) => [s.step, s]),
-    );
-    expect(['chunk', 'embed', 'extract', 'resolve'].map((k) => steps[k].status)).toEqual(['succeeded', 'succeeded', 'succeeded', 'succeeded']);
-    // summarize has no handler yet (Phase 14): it is queued again from zero attempts, not skipped.
-    expect(steps.summarize).toMatchObject({ status: 'pending', attempts: 0 });
+    await waitFor(() => meeting(id), (m) => m.status === 'ready' && m.pipeline_run === 2);
+    const after = (await e2e.db.query('SELECT step, status, attempts, finished_at FROM processing_jobs WHERE meeting_id = $1', [id])).rows as {
+      step: string; status: string; attempts: number; finished_at: Date;
+    }[];
+    for (const r of after.filter((x) => x.step !== 'summarize')) {
+      // skipped, not re-run: still the finish time from run 1
+      expect(new Date(r.finished_at).getTime()).toBe(new Date(before.find((b) => b.step === r.step)!.finished_at).getTime());
+    }
+    expect(after.find((r) => r.step === 'summarize')).toMatchObject({ status: 'succeeded', attempts: 1 });
   });
 
   it('moves a device token to whoever registered it last, and only its owner can remove it', async () => {

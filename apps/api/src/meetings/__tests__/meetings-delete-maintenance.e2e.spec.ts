@@ -145,10 +145,11 @@ maybeDescribe('meeting delete and maintenance sweeps (e2e)', () => {
     await e2e.runMaintenance('requeue-stranded-meetings');
     const deadline = Date.now() + 15_000;
     let status = 'queued';
-    while (status !== 'processing' && Date.now() < deadline) {
+    // Picked up again: it leaves `queued` — and with every step implemented it may already be `ready`.
+    while (status === 'queued' && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 50));
       status = (await e2e.db.query('SELECT status FROM meetings WHERE id = $1', [id])).rows[0].status;
     }
-    expect(status).toBe('processing');
+    expect(['processing', 'ready']).toContain(status);
   });
 });

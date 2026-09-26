@@ -4,6 +4,8 @@
  *   1. Does the text model honour the extraction responseSchema (answers that pass validation)?
  *   2. Does a ~60-minute meeting go through extract + resolve in under 2 minutes (phase-13 NFR)?
  *   3. Do the extracted entities make sense, and do name variants ("anh Bình" / "Bình") land on one entity?
+ *   4. Phase 14: is the 60-minute meeting summarized in under 60 seconds, with cited points, and are tasks
+ *      assigned only to people the transcript names (first look at OQ-02 — not a substitute for the gold set)?
  *
  *   yarn workspace @meetio/api graph:check
  *
@@ -23,6 +25,7 @@ import { EmbedStepHandler } from '../dist/chunking/embed-step.handler.js';
 import { ExtractStepHandler } from '../dist/graph/extract-step.handler.js';
 import { ResolveStepHandler } from '../dist/graph/resolve-step.handler.js';
 import { EntityResolver, DEFAULT_RESOLVER_OPTIONS } from '../dist/graph/entity-resolver.js';
+import { SummarizeStepHandler } from '../dist/summaries/summarize-step.handler.js';
 
 const LINES = [
   'Chào mọi người, hôm nay mình họp về tiến độ Dự án ABC, anh Bình chủ trì nhé.',
@@ -98,6 +101,8 @@ async function main() {
     const t2 = Date.now();
     await new ResolveStepHandler(AppDataSource, gemini, new EntityResolver(DEFAULT_RESOLVER_OPTIONS)).run(ctx);
     const t3 = Date.now();
+    await new SummarizeStepHandler(AppDataSource, gemini).run(ctx);
+    const t4 = Date.now();
 
     const [chunks] = await AppDataSource.query(
       `SELECT count(*)::int AS n, count(*) FILTER (WHERE extraction IS NULL)::int AS skipped FROM meeting_chunks WHERE meeting_id = $1`,
@@ -134,6 +139,15 @@ async function main() {
     );
     console.log(`5) Merge suggestions (threshold ${DEFAULT_RESOLVER_OPTIONS.suggestThreshold}): ${suggestions.length}`);
     for (const s of suggestions) console.log(`   ${s.a} ↔ ${s.b} (${Number(s.score).toFixed(3)})`);
+    const [summary] = await AppDataSource.query('SELECT summary_insufficient, summary_citations FROM meetings WHERE id = $1', [meetingId]);
+    console.log(`7) Summary: ${seconds(t4 - t3)} — NFR < 60s: ${t4 - t3 < 60_000 ? 'PASS' : 'FAIL'}; insufficient=${summary.summary_insufficient}`);
+    for (const c of summary.summary_citations) console.log(`   [${c.kind}] ${c.text} (${c.chunk_ids.length} chunk(s), seq ${c.segment_seq})`);
+    const actions = await AppDataSource.query(
+      `SELECT a.content, e.canonical_name AS assignee, a.due_date::text AS due FROM action_items a LEFT JOIN entities e ON e.id = a.assignee_entity_id WHERE a.meeting_id = $1 ORDER BY a.created_at`,
+      [meetingId],
+    );
+    console.log(`8) Action items (${actions.length}) — expected owners from the script: Tuấn (báo cáo lỗi, thứ Sáu), chị Lan (thiết kế cuối, thứ Hai), Tuấn (đánh giá công cụ):`);
+    for (const a of actions) console.log(`   ${a.content} — ${a.assignee ?? '(trống)'} — ${a.due ?? '(không hạn)'}`);
     const usage = await AppDataSource.query(
       `SELECT operation, count(*)::int AS calls, sum(input_tokens)::int AS input, sum(output_tokens)::int AS output FROM usage_records WHERE user_id = $1 GROUP BY 1 ORDER BY 1`,
       [userId],

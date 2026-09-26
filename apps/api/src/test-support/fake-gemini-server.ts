@@ -19,8 +19,13 @@ const textsOf = (body: { contents?: { parts?: { text?: string }[] }[]; requests?
 export class FakeGeminiServer {
   readonly calls: GeminiCall[] = [];
   readonly rateLimited = new Set<string>();
-  /** Answer to a generateContent prompt; defaults to "nothing found" in the extraction schema. */
+  /** Answer to an extraction prompt; defaults to "nothing found". */
   generate: (prompt: string) => string = () => '{"entities":[],"relations":[]}';
+  /** Answer to a summary prompt (told apart by its system instruction); defaults to one point citing the first part. */
+  summarize: (prompt: string) => string = (prompt) => {
+    const label = /\[([CP]\d+)\]/.exec(prompt)?.[1] ?? 'C1';
+    return JSON.stringify({ insufficient: false, summary_points: [{ text: 'Tóm tắt thử', sources: [label] }], decisions: [], action_items: [] });
+  };
   private server!: Server;
   baseUrl = '';
 
@@ -57,7 +62,10 @@ export class FakeGeminiServer {
         } else if (method === 'countTokens') {
           send(200, { totalTokens: texts.join(' ').split(/\s+/).filter(Boolean).length });
         } else {
-          send(200, { candidates: [{ content: { parts: [{ text: this.generate(texts.join('\n')) }] } }], usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } });
+          const system = (body.systemInstruction?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join(' ');
+          const prompt = texts.join('\n');
+          const text = system.includes('executive summary') ? this.summarize(prompt) : this.generate(prompt);
+          send(200, { candidates: [{ content: { parts: [{ text }] } }], usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } });
         }
       });
     });

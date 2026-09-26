@@ -34,10 +34,10 @@ maybeDescribe('semantic search end to end (e2e, compiled server + fake Gemini ov
       segments: lines.map((text, i) => ({ seq: i + 1, text, started_at_ms: i * 5000, ended_at_ms: i * 5000 + 4000 })),
     });
     await e2e.http('POST', `/meetings/${meetingId}/end`, owner.token, { last_seq: lines.length });
-    // chunk → resolve run for real; the pipeline then waits at summarize (Phase 14).
+    // every step runs for real now (Phase 14), so the meeting reaches ready.
     await waitFor(
       async () => (await e2e.http('GET', `/meetings/${meetingId}/status`, owner.token)).body,
-      (s) => s.current_step === 'summarize' && s.status === 'processing',
+      (s) => s.status === 'ready',
     );
   });
   afterAll(async () => e2e?.close());

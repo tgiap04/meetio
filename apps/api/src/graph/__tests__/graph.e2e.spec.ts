@@ -37,7 +37,7 @@ maybeDescribe('knowledge graph end to end (e2e, compiled server + fake Gemini ov
       segments: lines.map((text, i) => ({ seq: i + 1, text, started_at_ms: i * 5000, ended_at_ms: i * 5000 + 4000 })),
     });
     await e2e.http('POST', `/meetings/${id}/end`, owner.token, { last_seq: lines.length });
-    await waitFor(async () => (await get(`/meetings/${id}/status`)).body, (s) => s.current_step === 'summarize');
+    await waitFor(async () => (await get(`/meetings/${id}/status`)).body, (s) => s.status === 'ready');
     meetings.push(id);
     return id;
   };
