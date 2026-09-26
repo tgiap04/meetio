@@ -3,6 +3,7 @@ import { ScreenSurface } from '../../../src/components/ui/screen-surface';
 import { router } from 'expo-router';
 import { useMeQuery } from '../../../src/hooks/use-me-query';
 import { useRecentMeetingsQuery } from '../../../src/hooks/use-recent-meetings-query';
+import { useActionFiltersQuery } from '../../../src/hooks/use-action-filters-query';
 import { getErrorMessage } from '../../../src/api/error-messages';
 import { LoadingState } from '../../../src/components/loading-state';
 import { ErrorState } from '../../../src/components/error-state';
@@ -11,6 +12,7 @@ import { StartRecordingCard } from '../../../src/components/home/start-recording
 import { SecondaryActionRow } from '../../../src/components/home/secondary-action-row';
 import { RecentMeetingsSection } from '../../../src/components/home/recent-meetings-section';
 import {
+  ACTIONS_ROUTE,
   CONSENT_ROUTE,
   MEETING_DETAIL_ROUTE,
   RECORDING_SETUP_ROUTE,
@@ -28,13 +30,20 @@ import { colors } from '../../../src/theme/colors';
  *   gate the pre-design screen had, only its presentation changed — and the
  *   "Cuộc họp gần đây" list, now the real first page of `/meetings` (US-20)
  *   via `useRecentMeetingsQuery`.
- * - MOCK: the crown badge and the two secondary action rows. Neither has a
- *   destination anywhere in the design, so they render visibly but are
- *   deliberately inert (see `home-header.tsx` / `secondary-action-row.tsx`).
+ * - MOCK: the crown badge and the two original secondary action rows.
+ *   Neither has a destination anywhere in the design, so they render visibly
+ *   but are deliberately inert (see `home-header.tsx` / `secondary-action-row.tsx`).
+ * - REAL (Phase 14): the third secondary row, "Việc cần làm · N đang mở" —
+ *   the sole entry point into the cross-meeting action-item screen
+ *   (clarifications.md 2026-09-26); `N` is `open_total` from
+ *   `GET /actions/filters`, the exact count of every open item, assigned or
+ *   not.
  */
 export default function HomeScreen() {
   const meQuery = useMeQuery();
   const recentMeetingsQuery = useRecentMeetingsQuery();
+  const actionFiltersQuery = useActionFiltersQuery();
+  const openActionsCount = actionFiltersQuery.data?.open_total ?? 0;
 
   if (meQuery.isPending) {
     return <LoadingState />;
@@ -71,6 +80,11 @@ export default function HomeScreen() {
         {/* Neither row has a destination in the design — inert by design, not by omission. */}
         <SecondaryActionRow icon="audioFile" label="Nhập từ file âm thanh" />
         <SecondaryActionRow icon="castDevice" label="Kết nối thiết bị khác" />
+        <SecondaryActionRow
+          icon="checkCircle"
+          label={`Việc cần làm · ${openActionsCount} đang mở`}
+          onPress={() => router.push(ACTIONS_ROUTE)}
+        />
 
         <RecentMeetingsSection
           meetings={recentMeetings}

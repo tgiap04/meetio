@@ -4,7 +4,7 @@ import { ScreenSurface } from '../../src/components/ui/screen-surface';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MeetingStatus, type ExportSection } from '@meetio/shared';
 import { AppIcon } from '../../src/components/icons/app-icon';
-import { ActionItemsSection } from '../../src/components/meeting-detail/action-items-section';
+import { ActionItemsTab } from '../../src/components/meeting-detail/action-items-tab';
 import { MeetingDetailHero } from '../../src/components/meeting-detail/meeting-detail-hero';
 import { MeetingSummarySection } from '../../src/components/meeting-detail/meeting-summary-section';
 import { MeetingProcessingStatus } from '../../src/components/meeting-detail/meeting-processing-status';
@@ -18,7 +18,6 @@ import { useReindexMeetingMutation, useUpdateMeetingMutation } from '../../src/h
 import { useExportMeetingMutation } from '../../src/hooks/use-export-meeting-mutation';
 import { useMeetingRoomSocket } from '../../src/hooks/use-meeting-room-socket';
 import { getErrorMessage } from '../../src/api/error-messages';
-import { toActionItem, toMeetingSummary } from '../../src/utils/meeting-detail-mappers';
 import { MEETING_GRAPH_ROUTE, MEETING_TRANSCRIPT_ROUTE } from '../../src/navigation/app-routes';
 import { colors } from '../../src/theme/colors';
 
@@ -55,7 +54,6 @@ export default function MeetingDetailScreen() {
   const exportMutation = useExportMeetingMutation(id ?? '', meetingQuery.data?.title ?? 'cuoc-hop');
 
   const [activeContentTab, setActiveContentTab] = useState<ContentTabKey>('summary');
-  const [checkedIds, setCheckedIds] = useState<ReadonlySet<string>>(new Set());
   const [exportSheetVisible, setExportSheetVisible] = useState(false);
 
   if (!id) {
@@ -92,16 +90,8 @@ export default function MeetingDetailScreen() {
     }
   }
 
-  function toggleActionItem(itemId: string) {
-    setCheckedIds((previous) => {
-      const next = new Set(previous);
-      if (next.has(itemId)) {
-        next.delete(itemId);
-      } else {
-        next.add(itemId);
-      }
-      return next;
-    });
+  function handleOpenTranscript(segmentSeq: number) {
+    router.push({ pathname: MEETING_TRANSCRIPT_ROUTE, params: { id: meeting.id, seq: String(segmentSeq) } });
   }
 
   function handleTitleSave(title: string) {
@@ -153,14 +143,17 @@ export default function MeetingDetailScreen() {
         />
         <SegmentedTabs activeKey={activeContentTab} items={TAB_ITEMS} onChange={handleTabChange} />
         {isReady && activeContentTab === 'summary' ? (
-          <MeetingSummarySection summary={toMeetingSummary(meeting.id, meeting.summary)} />
-        ) : null}
-        {isReady ? (
-          <ActionItemsSection
-            checkedIds={checkedIds}
-            items={meeting.action_items.map(toActionItem)}
-            onToggle={toggleActionItem}
+          <MeetingSummarySection
+            decisions={meeting.summary_citations?.filter((citation) => citation.kind === 'decision') ?? []}
+            hasUnprocessedEdits={meeting.has_unprocessed_edits}
+            insufficient={meeting.summary_insufficient}
+            onCitationPress={handleOpenTranscript}
+            points={meeting.summary_citations?.filter((citation) => citation.kind === 'point') ?? []}
+            summary={meeting.summary}
           />
+        ) : null}
+        {isReady && activeContentTab === 'action-items' ? (
+          <ActionItemsTab meetingId={meeting.id} onOpenTranscript={handleOpenTranscript} />
         ) : null}
       </ScrollView>
       <ExportSheet

@@ -37,6 +37,16 @@ jest.mock('../../hooks/use-meeting-room-socket', () => ({
   useMeetingRoomSocket: (...args: unknown[]) => mockUseMeetingRoomSocket(...args),
 }));
 
+// ActionItemsTab owns its own data (query + mutations) and is unit-tested on
+// its own — stubbed here to a simple marker so this suite stays about the
+// screen shell (tabs, hero, export, retry), not the tab's internals.
+jest.mock('./action-items-tab', () => ({
+  ActionItemsTab: ({ meetingId }: { meetingId: string }) => {
+    const { Text: RNText } = jest.requireActual('react-native');
+    return <RNText>{`ActionItemsTab:${meetingId}`}</RNText>;
+  },
+}));
+
 import MeetingDetailScreen from '../../../app/(app)/meeting-detail';
 
 function meeting(overrides: Record<string, unknown> = {}) {
@@ -53,12 +63,13 @@ function meeting(overrides: Record<string, unknown> = {}) {
     audio_source: 'device_mic',
     recording_quality: 'standard',
     summary: 'Đã thảo luận về roadmap quý này.',
-    summary_citations: null,
+    summary_citations: [
+      { kind: 'point', text: 'Roadmap quý này đã chốt', chunk_ids: ['c1'], segment_seq: 2 },
+    ],
+    summary_insufficient: false,
     failure_reason: null,
     segment_count: 42,
-    action_items: [
-      { id: 'a1', content: 'Hoàn thiện API docs', assignee_entity_id: null, due_date: null, status: 'open', is_manual: false },
-    ],
+    action_items: [],
     processing_steps: [],
     has_unprocessed_edits: false,
     updated_at: '2026-01-15T09:30:00.000Z',
@@ -136,11 +147,11 @@ describe('MeetingDetailScreen', () => {
     expect(mockUseMeetingRoomSocket).toHaveBeenCalledWith('sprint-review');
   });
 
-  it('renders both the summary and action items under the Tóm tắt tab when ready', () => {
+  it('shows the summary under the Tóm tắt tab (and not the Action Items tab content) when ready', () => {
     mockSuccess();
     const renderer = render();
     expect(allText(renderer)).toContain('Tóm tắt nội dung');
-    expect(allText(renderer)).toContain('Action Items');
+    expect(allText(renderer)).not.toContain('ActionItemsTab:sprint-review');
   });
 
   it('switches to the Action Items tab without navigating', () => {
@@ -149,7 +160,7 @@ describe('MeetingDetailScreen', () => {
     pressTab(renderer, 'Action Items');
     expect(mockPush).not.toHaveBeenCalled();
     expect(allText(renderer)).not.toContain('Tóm tắt nội dung');
-    expect(allText(renderer)).toContain('Action Items');
+    expect(allText(renderer)).toContain('ActionItemsTab:sprint-review');
   });
 
   it('tapping Transcript pushes the transcript route with the resolved id', () => {
@@ -176,7 +187,7 @@ describe('MeetingDetailScreen', () => {
     });
     const renderer = render();
     expect(allText(renderer)).not.toContain('Tóm tắt nội dung');
-    expect(allText(renderer)).not.toContain('Hoàn thiện API docs');
+    expect(allText(renderer)).not.toContain('ActionItemsTab:sprint-review');
     expect(allText(renderer)).toContain('Đang tạo embedding');
   });
 
@@ -206,12 +217,16 @@ describe('MeetingDetailScreen', () => {
     expect(renderer.root.findByProps({ visible: true }).type).toBeTruthy();
   });
 
-  it('toggles an action-item checkbox locally', () => {
+  it('tapping a summary citation pushes the transcript route with the citation segment_seq', () => {
     mockSuccess();
     const renderer = render();
-    const checkbox = renderer.root.findByProps({ accessibilityLabel: 'Hoàn thiện API docs, chưa hoàn thành' });
-    act(() => checkbox.props.onPress());
-    expect(renderer.root.findByProps({ accessibilityLabel: 'Hoàn thiện API docs, đã hoàn thành' })).toBeTruthy();
+    act(() => {
+      renderer.root.findByProps({ accessibilityLabel: 'Roadmap quý này đã chốt' }).props.onPress();
+    });
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: MEETING_TRANSCRIPT_ROUTE,
+      params: { id: 'sprint-review', seq: '2' },
+    });
   });
 
   it('autosaves the title on blur', () => {

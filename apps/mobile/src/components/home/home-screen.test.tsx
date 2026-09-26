@@ -31,8 +31,19 @@ jest.mock('../../hooks/use-recent-meetings-query', () => ({
   useRecentMeetingsQuery: (...args: unknown[]) => mockUseRecentMeetingsQuery(...args),
 }));
 
+const mockUseActionFiltersQuery = jest.fn();
+jest.mock('../../hooks/use-action-filters-query', () => ({
+  useActionFiltersQuery: (...args: unknown[]) => mockUseActionFiltersQuery(...args),
+}));
+
 import HomeScreen from '../../../app/(app)/(tabs)/index';
-import { CONSENT_ROUTE, MEETING_DETAIL_ROUTE, RECORDING_SETUP_ROUTE, TAB_LIBRARY_ROUTE } from '../../navigation/app-routes';
+import {
+  ACTIONS_ROUTE,
+  CONSENT_ROUTE,
+  MEETING_DETAIL_ROUTE,
+  RECORDING_SETUP_ROUTE,
+  TAB_LIBRARY_ROUTE,
+} from '../../navigation/app-routes';
 
 function render() {
   let renderer!: TestRenderer.ReactTestRenderer;
@@ -55,6 +66,9 @@ describe('(tabs)/index (Home) screen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseRecentMeetingsQuery.mockReturnValue({ data: { items: RECENT_ITEMS, next_cursor: null } });
+    mockUseActionFiltersQuery.mockReturnValue({
+      data: { open_total: 3, assignees: [], meetings: [] },
+    });
   });
 
   it('renders LoadingState while /me is pending', () => {
@@ -137,7 +151,7 @@ describe('(tabs)/index (Home) screen', () => {
     });
     const renderer = render();
     act(() => {
-      findButton(renderer, 1).props.onPress();
+      findButton(renderer, 2).props.onPress();
     });
     expect(mockPush).toHaveBeenCalledWith(TAB_LIBRARY_ROUTE);
   });
@@ -150,8 +164,32 @@ describe('(tabs)/index (Home) screen', () => {
     });
     const renderer = render();
     act(() => {
-      findButton(renderer, 2).props.onPress();
+      findButton(renderer, 3).props.onPress();
     });
     expect(mockPush).toHaveBeenCalledWith({ pathname: MEETING_DETAIL_ROUTE, params: { id: 'sprint-review' } });
+  });
+
+  it('shows the sum of open_count in the "Việc cần làm" row label', () => {
+    mockUseMeQuery.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { user: { display_name: 'Anh', recording_consent_at: null } },
+    });
+    const renderer = render();
+    const texts = renderer.root.findAllByType(Text).map((node) => node.props.children).flat().join('');
+    expect(texts).toContain('Việc cần làm · 3 đang mở');
+  });
+
+  it('routes the "Việc cần làm" row to the actions screen', () => {
+    mockUseMeQuery.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { user: { display_name: 'Anh', recording_consent_at: null } },
+    });
+    const renderer = render();
+    act(() => {
+      findButton(renderer, 1).props.onPress();
+    });
+    expect(mockPush).toHaveBeenCalledWith(ACTIONS_ROUTE);
   });
 });

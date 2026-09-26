@@ -32,6 +32,9 @@ export const ENTITIES_LIST_ROUTE = '/(app)/entities';
 export const ENTITY_DETAIL_ROUTE = '/(app)/entity-detail';
 export const MERGE_SUGGESTIONS_ROUTE = '/(app)/merge-suggestions';
 
+// --- Cross-meeting action items (Phase 14) ----------------------------------
+export const ACTIONS_ROUTE = '/(app)/actions';
+
 // --- Existing stacked screens (unchanged, listed for discoverability) ------
 // `PERMISSION_ROUTE` was dropped here by P13's tap audit: the mic-permission
 // screen is reached exclusively through the boot resolver's own

@@ -1,9 +1,7 @@
 import { isRenderableVietnameseText } from '../theme/typography';
 import {
   ABOUT_MEETIO_ENTRIES,
-  ACTION_ITEMS,
   AUDIO_SOURCE_OPTIONS,
-  MEETING_SUMMARY,
   MEETINGS,
   RECORDING_SETTINGS_DEFAULTS,
   SETTINGS_ENTRIES,
@@ -23,8 +21,6 @@ function collectAllStrings(): string[] {
     strings.push(line.text);
     if (line.translation) strings.push(line.translation);
   }
-  strings.push(MEETING_SUMMARY.paragraph);
-  for (const item of ACTION_ITEMS) strings.push(item.title, item.assignee);
   for (const option of AUDIO_SOURCE_OPTIONS) {
     strings.push(option.label);
     if (option.description) strings.push(option.description);
@@ -73,19 +69,6 @@ describe('transcript.mock', () => {
     const withTranslation = TRANSCRIPT_LINES.filter((l) => l.translation !== undefined);
     expect(withTranslation).toHaveLength(1);
     expect(withTranslation[0].id).toBe('line-1');
-  });
-});
-
-describe('meeting-detail.mock', () => {
-  it('summary references the Sprint Review meeting', () => {
-    expect(MEETING_SUMMARY.meetingId).toBe('sprint-review');
-    expect(MEETING_SUMMARY.paragraph.length).toBeGreaterThan(0);
-  });
-
-  it('holds three action items with unique ids', () => {
-    expect(ACTION_ITEMS).toHaveLength(3);
-    const ids = ACTION_ITEMS.map((a) => a.id);
-    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 

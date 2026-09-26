@@ -1,52 +1,89 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
-import { ActionItemCard } from './action-item-card';
-import type { ActionItem } from '../../mocks/types';
+import type { MeetingActionItem } from '@meetio/shared';
+import { ActionItemCard, type ActionItemCardProps } from './action-item-card';
 
-const ITEM: ActionItem = {
-  id: 'action-1',
-  title: 'Hoàn thiện API docs',
-  assignee: 'Bình',
-  due: '15/05',
-};
+function item(overrides: Partial<MeetingActionItem> = {}): MeetingActionItem {
+  return {
+    id: 'a1',
+    meeting_id: 'm1',
+    content: 'Hoàn thiện API docs',
+    assignee_entity_id: null,
+    assignee_name: 'Bình',
+    due_date: '2026-05-15',
+    status: 'open',
+    is_manual: false,
+    source_chunk_id: 'c1',
+    segment_seq: 4,
+    created_at: '2026-05-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
 
-function render(checked: boolean, onToggle = jest.fn()) {
+function render(props: Partial<ActionItemCardProps> = {}) {
   let renderer!: TestRenderer.ReactTestRenderer;
+  const handlers = {
+    onToggle: jest.fn(),
+    onEdit: jest.fn(),
+    onDelete: jest.fn(),
+    onOpenTranscript: jest.fn(),
+  };
   act(() => {
-    renderer = TestRenderer.create(<ActionItemCard checked={checked} item={ITEM} onToggle={onToggle} />);
+    renderer = TestRenderer.create(<ActionItemCard item={item()} {...handlers} {...props} />);
   });
-  return { renderer, onToggle };
+  return { renderer, ...handlers };
 }
 
 describe('ActionItemCard', () => {
-  it('renders the title and the "assignee · due" meta line', () => {
-    const { renderer } = render(false);
+  it('renders the content and the "assignee · due" meta line', () => {
+    const { renderer } = render();
     const texts = renderer.root.findAllByType(Text).map((node) => node.props.children).flat().join('');
     expect(texts).toContain('Hoàn thiện API docs');
     expect(texts).toContain('Bình');
     expect(texts).toContain('15/05');
   });
 
-  it('reflects an unchecked state in its accessibility state and label', () => {
-    const { renderer } = render(false);
-    const checkbox = renderer.root.findByProps({ testID: 'action-item-checkbox-action-1' });
+  it('shows only the parts that are set — blank assignee is not replaced by a placeholder', () => {
+    const { renderer } = render({ item: item({ assignee_name: null, due_date: null }) });
+    const texts = renderer.root.findAllByType(Text).map((node) => node.props.children).flat().join('');
+    expect(texts).not.toContain('Chưa có');
+  });
+
+  it('reflects checked/unchecked state and calls onToggle with the item id', () => {
+    const { renderer, onToggle } = render();
+    const checkbox = renderer.root.findByProps({ testID: 'action-item-checkbox-a1' });
     expect(checkbox.props.accessibilityState).toEqual({ checked: false });
-    expect(checkbox.props.accessibilityLabel).toContain('chưa hoàn thành');
+    act(() => checkbox.props.onPress());
+    expect(onToggle).toHaveBeenCalledWith('a1');
   });
 
-  it('reflects a checked state in its accessibility state and label', () => {
-    const { renderer } = render(true);
-    const checkbox = renderer.root.findByProps({ testID: 'action-item-checkbox-action-1' });
+  it('renders as checked and strikes through the title when status is done', () => {
+    const { renderer } = render({ item: item({ status: 'done' }) });
+    const checkbox = renderer.root.findByProps({ testID: 'action-item-checkbox-a1' });
     expect(checkbox.props.accessibilityState).toEqual({ checked: true });
-    expect(checkbox.props.accessibilityLabel).toContain('đã hoàn thành');
   });
 
-  it('calls onToggle with the item id when tapped', () => {
-    const { renderer, onToggle } = render(false);
-    const checkbox = renderer.root.findByProps({ testID: 'action-item-checkbox-action-1' });
+  it('tapping the body opens the transcript at segment_seq when present', () => {
+    const { renderer, onOpenTranscript } = render();
     act(() => {
-      checkbox.props.onPress();
+      renderer.root.findByProps({ testID: 'action-item-body-a1' }).props.onPress();
     });
-    expect(onToggle).toHaveBeenCalledWith('action-1');
+    expect(onOpenTranscript).toHaveBeenCalledWith(4);
+  });
+
+  it('calls onEdit with the item when the edit icon is tapped', () => {
+    const { renderer, onEdit } = render();
+    act(() => {
+      renderer.root.findByProps({ accessibilityLabel: 'Sửa việc cần làm' }).props.onPress();
+    });
+    expect(onEdit).toHaveBeenCalledWith(item());
+  });
+
+  it('calls onDelete with the item when the trash icon is tapped', () => {
+    const { renderer, onDelete } = render();
+    act(() => {
+      renderer.root.findByProps({ accessibilityLabel: 'Xóa việc cần làm' }).props.onPress();
+    });
+    expect(onDelete).toHaveBeenCalledWith(item());
   });
 });

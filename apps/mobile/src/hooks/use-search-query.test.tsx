@@ -59,12 +59,13 @@ describe('useInfiniteSearchQuery', () => {
   it('exposes hasNextPage false once the query settles with next_offset null', async () => {
     mockedSearchTranscripts.mockResolvedValue({ items: [], next_offset: null });
     renderHarness('x', true);
-    // react-query's notifyManager batches the commit via a macrotask
-    // (`setTimeout`), not just a microtask — a plain `await Promise.resolve()`
-    // doesn't flush it, so this waits on a real timer tick instead.
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+    // react-query commits through a macrotask (`setTimeout`), and under a busy full-suite run one
+    // tick is not always enough — wait for the query to settle (bounded) instead of a fixed tick.
+    for (let i = 0; i < 100 && !hookResult.isSuccess; i++) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+    }
     expect(hookResult.isSuccess).toBe(true);
     expect(hookResult.hasNextPage).toBe(false);
   });

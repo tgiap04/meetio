@@ -81,6 +81,10 @@ const GLYPH = {
   trash: 'trash-2',
   merge: 'git-merge',
   undo: 'corner-up-left',
+
+  // --- Action items / "Việc cần làm" (Phase 14) ---------------------------
+  plus: 'plus',
+  chevronDown: 'chevron-down',
 } as const satisfies Record<string, keyof typeof Feather.glyphMap>;
 
 export type AppIconName = keyof typeof GLYPH;

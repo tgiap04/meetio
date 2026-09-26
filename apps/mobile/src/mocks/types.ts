@@ -38,19 +38,9 @@ export interface TranscriptLine {
 }
 
 // --- Meeting detail (screen 08) ---------------------------------------------
-
-export interface MeetingSummary {
-  readonly meetingId: string;
-  readonly paragraph: string;
-}
-
-export interface ActionItem {
-  readonly id: string;
-  readonly title: string;
-  readonly assignee: string;
-  /** Verbatim design format, `DD/MM`. */
-  readonly due: string;
-}
+// Retired by Phase 14: screen 08's summary and action-items tabs now render
+// `MeetingDetailResponse`'s real fields and `MeetingActionItem` (`@meetio/shared`),
+// not this fixture shape — see `src/components/meeting-detail/`.
 
 // --- Knowledge graph (screen 10) --------------------------------------------
 // Retired by Phase 13: screen 10 now renders `GET /meetings/:id/graph`'s real
