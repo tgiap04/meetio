@@ -125,6 +125,57 @@ client không bao giờ gửi lại toàn bộ transcript.
 Engine trên thiết bị sẽ tự ngắt. Client phải bật lại ngay và ghi nhận mốc gián đoạn. Khoảng gián
 đoạn hiển thị rõ trong transcript thay vì nối liền hai đoạn như chưa có chuyện gì xảy ra.
 
+**Cài đặt thật trên thiết bị (Phase 07/08)**
+
+- **Chỉ nhận diện trên máy:** `expo-stt-engine.ts` luôn đặt `requiresOnDeviceRecognition: true` —
+  không có nhánh nào tắt cờ này. Bản `expo-speech-recognition` gốc trên iOS âm thầm rơi về nhận
+  diện đám mây khi máy không hỗ trợ trên-máy; Meetio patch thư viện đó
+  (`.yarn/patches/expo-speech-recognition-npm-57.1.0-50fb306965.patch`) để thất bại rõ ràng thay vì
+  lặng lẽ vi phạm cam kết "audio không rời thiết bị" ở mục 0.
+- **Vòng lặp tự khởi động lại** (`restart-loop.ts`, cổng ra từ spike Phase 00): engine chết là
+  chuyện bình thường (im lặng, hết phiên, hệ điều hành ngắt) — bật lại sau 100ms, lùi theo cấp số
+  nhân ×2 tới tối đa 5s nếu khởi động liên tục thất bại. Khoảng thời gian không nhận diện được đo
+  và báo lên; đoạn transcript kế tiếp mang `gap_before_ms` (chỉ đánh dấu nếu ≥ 1s —
+  `segment-assembler.ts`, `GAP_MARK_MIN_MS`) để hiện "— gián đoạn N giây —" thay vì nối liền hai
+  đoạn.
+- **Hàng đợi ngoại tuyến trên máy** (`apps/mobile/src/queue/`, SQLite qua `expo-sqlite`): mỗi đoạn
+  đã chốt được ghi xuống đĩa **trước khi** gửi đi, cùng transaction với việc cấp `seq` kế tiếp
+  (`segment-queue.ts`) — segment và seq không bao giờ lệch nhau dù app chết giữa chừng. Bản ghi
+  cuộc họp, các thao tác pause/resume/end đang chờ, và các đoạn chưa được ack đều nằm trên cùng
+  một kết nối SQLite (`queue-db.ts`).
+- **Sync worker** (`sync-worker.ts`) rút cạn hàng đợi theo thứ tự: tạo cuộc họp (idempotent theo
+  `id` client sinh) → phát lại pause/resume theo đúng thứ tự → đồng bộ transcript → `end` chỉ khi
+  không còn gì đang chờ. Transcript đi qua kênh WebSocket từng đoạn một khi cuộc họp đang ghi trực
+  tiếp trên chính thiết bị này và tồn đọng ở mức thấp; tồn đọng vượt quá `BULK_THRESHOLD` (50 đoạn)
+  hoặc gặp lỗi `RATE_LIMITED` thì chuyển sang `POST /segments/bulk` (gộp tới `BULK_LIMIT` = 1000
+  đoạn/lần) trong 60 giây rồi mới thử lại kênh realtime. Mất mạng thì lùi thời gian thử lại theo cấp
+  số nhân (2s → tối đa 30s).
+- **Chặn theo chủ sở hữu:** mọi request của worker mang `expectedOwnerId` (interceptor ở
+  `axios-client.ts`) — access token gắn trên request phải khớp đúng người sở hữu dữ liệu đang đồng
+  bộ, nếu không request bị chặn trước khi rời máy (`OwnerMismatchError`). Trên điện thoại dùng
+  chung, một lượt đồng bộ đang chạy dở của người trước không thể vô tình đẩy dữ liệu vào tài khoản
+  người vừa đăng nhập.
+- **Phục hồi sau khi app đóng đột ngột** ([US-15](../user_stories.md#us-15--phục-hồi-cuộc-họp-sau-khi-app-đóng-đột-ngột),
+  `recording-recovery.ts`): màn Home liệt kê mọi cuộc họp còn dang dở — cuộc đang ghi/tạm dừng còn
+  trong hàng đợi cục bộ trên chính máy này, cuộc đã ghi trên máy khác cùng tài khoản (`serverOnly`),
+  và cuộc đã kết thúc cục bộ nhưng còn đang đồng bộ nốt (`ending`) — kèm nút "Tiếp tục" / "Kết
+  thúc".
+- **Ghi nền:** Android chạy foreground service loại `microphone`
+  (`plugins/with-microphone-foreground-service.js`) để tiếp tục ghi khi app xuống nền hoặc khóa màn
+  hình; iOS giữ tiến trình sống qua `UIBackgroundModes: ['audio']` (`app.config.ts`) — sống được
+  chừng nào audio session còn chạy.
+- **Nguồn âm Bluetooth** do hệ điều hành định tuyến (route âm thanh hệ thống); Meetio không tự chọn
+  hay ép thiết bị vào ở tầng ứng dụng.
+
+**Giới hạn đã biết**
+- **iOS không loại được tệp SQLite khỏi sao lưu iCloud** — `expo-sqlite` đặt file dưới `Documents`,
+  nơi iCloud sao lưu, và không có cách loại trừ một file đơn lẻ; Android loại được cả ứng dụng khỏi
+  sao lưu Google Drive (`allowBackup: false`). Phạm vi lộ trên iOS chỉ giới hạn ở các đoạn **chưa
+  được ack** — đoạn nào đồng bộ xong bị xóa khỏi hàng đợi ngay.
+- **Bấm vào thông báo "đã xử lý xong" sau khi app đã bị hệ điều hành kill** mở app về màn Home
+  (banner phục hồi ở trên), không nhảy thẳng tới đúng cuộc họp — chưa có bộ lắng nghe điều hướng
+  theo `response.notification` khi app khởi động lại từ trạng thái kill.
+
 > **Rủi ro chưa được kiểm chứng ([OQ-01](../user_stories.md#5-câu-hỏi-còn-mở), [OQ-05](../user_stories.md#5-câu-hỏi-còn-mở)):**
 > giới hạn thực tế của nhận diện trên thiết bị với hội thoại dài, **và** tỉ lệ nhận diện sai khi
 > nguồn âm là loa laptop cách 30–50cm chứ không phải giọng nói trực tiếp. Phải chạy spike đo trước khi thi công E2. Nếu

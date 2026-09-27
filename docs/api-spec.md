@@ -89,10 +89,10 @@ chuyển hẳn sang tài khoản đang đăng ký — tài khoản cũ không c�
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| POST | `/meetings` | **Tạo lúc bắt đầu họp.** Body `{title?, source_language, translate_to?, audio_source, recording_quality}` → `{id, status:"recording", started_at}` |
-| POST | `/meetings/:id/pause` | `recording` → `paused` |
-| POST | `/meetings/:id/resume` | `paused` → `recording` |
-| POST | `/meetings/:id/end` | Body `{last_seq?}`. `recording`\|`paused` → `ended` → `queued`, kích hoạt pipeline |
+| POST | `/meetings` | **Tạo lúc bắt đầu họp.** Body `{title?, source_language, translate_to?, audio_source, recording_quality, id?, started_at?}` → `{id, status:"recording", started_at}` |
+| POST | `/meetings/:id/pause` | Body `{at?}`. `recording` → `paused` |
+| POST | `/meetings/:id/resume` | Body `{at?}`. `paused` → `recording` |
+| POST | `/meetings/:id/end` | Body `{last_seq?, at?}`. `recording`\|`paused` → `ended` → `queued`, kích hoạt pipeline |
 | GET | `/meetings` | Danh sách phân trang. Lọc: `?q=`, `?from=`, `?to=` (theo `created_at`), `?status=` |
 | GET | `/meetings/:id` | Chi tiết: metadata, tóm tắt, action items, trạng thái xử lý (không kèm segments) |
 | PATCH | `/meetings/:id` | Sửa `title`, `translate_to` |
@@ -108,6 +108,21 @@ thời điểm kết thúc, khiến sự kiện `join_room` không có id để 
 `POST /meetings` trả **403** `CONSENT_REQUIRED` (`details: {consent_version}`) khi người gọi chưa
 đồng ý với nội dung đồng ý hiện hành — kiểm tra ở tầng nghiệp vụ, không chỉ ở màn hình app
 ([NFR-01](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)).
+
+`id` (UUID do client tự sinh) và `started_at` phục vụ việc bắt đầu ghi khi mất mạng, phát lại khi
+có mạng trở lại ([US-15](../user_stories.md#us-15--phục-hồi-cuộc-họp-sau-khi-app-đóng-đột-ngột)):
+gọi lại `POST /meetings` với đúng `id` đã dùng chỉ trả về bản ghi đã tạo (idempotent, không tạo bản
+thứ hai); gọi với một `id` đã thuộc người khác trả **404** `MEETING_NOT_FOUND` giống hệt mọi cuộc
+họp không thuộc về mình. `started_at` bị kẹp vào khoảng `[now − 24h, now]` — không cho phép lùi xa
+hơn cửa sổ tự đóng cuộc họp treo ([mục 3](system-architecture.md#1-vòng-đời-cuộc-họp) ở
+system-architecture); tiêu đề mặc định (khi không truyền `title`) tính theo `started_at` này, không
+phải theo lúc request tới server.
+
+`pause` / `resume` / `end` đều nhận thêm `at` tùy chọn — thời điểm người dùng thật sự bấm nút, cho
+trường hợp thao tác diễn ra lúc mất mạng và được phát lại sau. `at` bị kẹp vào
+`[mốc bắt đầu trạng thái đó, now]` (không được sớm hơn `started_at`, hoặc sớm hơn thời điểm tạm dừng
+đang mở với `resume`, và không bao giờ muộn hơn hiện tại của server) — nên thời lượng tạm dừng vẫn
+đúng dù bản ghi phát lại trễ. Bỏ qua `at` thì server dùng thời điểm nhận được request.
 
 `end` chỉ thành công khi seq `1..last_seq` đã nằm đủ trong PostgreSQL — server xả nốt hàng đợi
 đang gom lô rồi mới đếm. Thiếu seq nào thì trả **409** `SEGMENTS_PENDING` kèm

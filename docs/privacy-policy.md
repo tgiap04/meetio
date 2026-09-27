@@ -59,6 +59,11 @@ Mọi kết nối tới máy chủ dùng mã hóa TLS. Mã đăng nhập đượ
 cho mỗi người đọc dữ liệu của chính mình. Nội dung bản chép lời, câu hỏi và câu trả lời không được ghi vào nhật ký hệ
 thống.
 
+Mỗi đoạn chép lời được lưu tạm trên điện thoại trước khi gửi lên máy chủ, và bị xóa khỏi máy ngay khi máy chủ xác nhận
+đã nhận — nhờ vậy mất mạng hay app bị đóng đột ngột cũng không mất nội dung. Trên Android, dữ liệu tạm này bị loại khỏi
+bản sao lưu tự động của thiết bị. Trên iOS, phần chưa kịp gửi có thể nằm trong bản sao lưu iCloud của chính bạn cho tới
+khi gửi xong.
+
 ## 7. Đồng ý
 
 Trước lần ghi đầu tiên, và mỗi khi nội dung đồng ý thay đổi, Meetio hỏi bạn đồng ý với việc xử lý nêu trên. Không đồng
