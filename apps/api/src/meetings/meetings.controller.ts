@@ -8,7 +8,7 @@ import { MeetingQueryService } from './meeting-query.service.js';
 import { MeetingDeletionService } from './meeting-deletion.service.js';
 import { toMeetingListItem } from './meeting-mappers.js';
 import { CreateMeetingDto } from './dto/create-meeting.dto.js';
-import { EndMeetingDto } from './dto/end-meeting.dto.js';
+import { EndMeetingDto, MeetingTransitionDto } from './dto/end-meeting.dto.js';
 import { UpdateMeetingDto } from './dto/update-meeting.dto.js';
 import { ListMeetingsQueryDto } from './dto/list-meetings.query.dto.js';
 import {
@@ -56,8 +56,12 @@ export class MeetingsController {
   @ApiOperation({ summary: 'recording → paused' })
   @ApiOkResponse({ type: MeetingStateResponseDto })
   @ApiConflictResponse({ description: 'INVALID_STATE_TRANSITION' })
-  pause(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseMeetingIdPipe) id: string): Promise<MeetingStateResponseDto> {
-    return this.lifecycle.pause(id, user.userId);
+  pause(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseMeetingIdPipe) id: string,
+    @Body() dto: MeetingTransitionDto,
+  ): Promise<MeetingStateResponseDto> {
+    return this.lifecycle.pause(id, user.userId, dto);
   }
 
   @Post(':id/resume')
@@ -65,8 +69,12 @@ export class MeetingsController {
   @ApiOperation({ summary: 'paused → recording' })
   @ApiOkResponse({ type: MeetingStateResponseDto })
   @ApiConflictResponse({ description: 'INVALID_STATE_TRANSITION' })
-  resume(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseMeetingIdPipe) id: string): Promise<MeetingStateResponseDto> {
-    return this.lifecycle.resume(id, user.userId);
+  resume(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseMeetingIdPipe) id: string,
+    @Body() dto: MeetingTransitionDto,
+  ): Promise<MeetingStateResponseDto> {
+    return this.lifecycle.resume(id, user.userId, dto);
   }
 
   @Post(':id/end')
@@ -79,7 +87,7 @@ export class MeetingsController {
     @Param('id', ParseMeetingIdPipe) id: string,
     @Body() dto: EndMeetingDto,
   ): Promise<MeetingStateResponseDto> {
-    return this.lifecycle.end(id, user.userId, dto.last_seq);
+    return this.lifecycle.end(id, user.userId, dto);
   }
 
   @Patch(':id')

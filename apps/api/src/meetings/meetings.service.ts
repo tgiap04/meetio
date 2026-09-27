@@ -4,17 +4,18 @@ import { consentRequired, CURRENT_CONSENT_VERSION } from '../users/consent.js';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource } from 'typeorm';
 import { MeetingStatus } from '../database/enums/meeting-status.enum.js';
-import type { Meeting } from '../database/entities/index.js';
+import { Meeting } from '../database/entities/index.js';
 import { SegmentBatchWriter } from '../segments/segment-batch-writer.service.js';
 import { SegmentUpsertRepository } from '../segments/segment-upsert.repository.js';
 import { MeetingsRepository } from './meetings.repository.js';
 import { transition } from './meeting-state-machine.js';
-import { closePause, openPause, recordedDurationSec } from './meeting-timing.js';
+import { clampInstant, closePause, MAX_OFFLINE_START_MS, openPause, recordedDurationSec } from './meeting-timing.js';
 import { defaultMeetingTitle } from './default-meeting-title.js';
 import { MeetingPipelineTrigger } from './meeting-pipeline.trigger.js';
 import { SegmentsPendingException } from './segments-pending.exception.js';
 import { toMeetingStateResponse } from './meeting-state-response.js';
 import type { CreateMeetingDto } from './dto/create-meeting.dto.js';
+import type { EndMeetingDto, MeetingTransitionDto } from './dto/end-meeting.dto.js';
 import type { UpdateMeetingDto } from './dto/update-meeting.dto.js';
 import type { CreateMeetingResponseDto, MeetingStateResponseDto } from './dto/meeting-responses.dto.js';
 
@@ -48,30 +49,41 @@ export class MeetingsService {
       });
     }
     const now = new Date();
-    const meeting = await this.meetings.createForUser(userId, {
-      title: dto.title?.trim() || defaultMeetingTitle(now),
+    // US-07 offline start: the client dates the meeting from when recording began, not from the replay.
+    const startedAt = clampInstant(dto.started_at, new Date(now.getTime() - MAX_OFFLINE_START_MS), now);
+    const values = {
+      title: dto.title?.trim() || defaultMeetingTitle(startedAt),
       status: MeetingStatus.RECORDING,
       source_language: dto.source_language,
       translate_to: dto.translate_to ?? null,
       audio_source: dto.audio_source,
       recording_quality: dto.recording_quality,
-      started_at: now,
+      started_at: startedAt,
       last_activity_at: now,
-    });
-    return { id: meeting.id, status: meeting.status, started_at: now.toISOString() };
+    };
+    if (!dto.id) {
+      const meeting = await this.meetings.createForUser(userId, values);
+      return { id: meeting.id, status: meeting.status, started_at: startedAt.toISOString() };
+    }
+    // Client-generated id: a replayed create must return the meeting it already made. INSERT … ON CONFLICT
+    // DO NOTHING, never `save()` — that would UPDATE a row with this id, whoever owns it. Someone else's id
+    // then reads as MEETING_NOT_FOUND, exactly like every other foreign meeting.
+    await this.dataSource.createQueryBuilder().insert().into(Meeting).values({ ...values, id: dto.id, user_id: userId }).orIgnore().execute();
+    const meeting = await this.meetings.findOneOrFail(dto.id, userId);
+    return { id: meeting.id, status: meeting.status, started_at: (meeting.started_at ?? startedAt).toISOString() };
   }
 
-  pause(id: string, userId: string): Promise<MeetingStateResponseDto> {
+  pause(id: string, userId: string, dto: MeetingTransitionDto = {}): Promise<MeetingStateResponseDto> {
     return this.changeState(id, userId, (meeting, now) => {
       meeting.status = transition(meeting.status, 'pause');
-      openPause(meeting, now);
+      openPause(meeting, clampInstant(dto.at, meeting.started_at, now));
     });
   }
 
-  resume(id: string, userId: string): Promise<MeetingStateResponseDto> {
+  resume(id: string, userId: string, dto: MeetingTransitionDto = {}): Promise<MeetingStateResponseDto> {
     return this.changeState(id, userId, (meeting, now) => {
       meeting.status = transition(meeting.status, 'resume');
-      closePause(meeting, now);
+      closePause(meeting, clampInstant(dto.at, meeting.paused_at, now));
     });
   }
 
@@ -85,7 +97,8 @@ export class MeetingsService {
    * holds once the lock is taken. The transaction then re-validates the move,
    * which is what makes a concurrent second `end` fail with 409.
    */
-  async end(id: string, userId: string, lastSeq: number | undefined): Promise<MeetingStateResponseDto> {
+  async end(id: string, userId: string, dto: EndMeetingDto = {}): Promise<MeetingStateResponseDto> {
+    const lastSeq = dto.last_seq;
     const current = await this.meetings.findOneOrFail(id, userId);
     transition(current.status, 'end'); // an already-ended meeting gets 409 before any scan
     await this.segmentWriter.flush(id);
@@ -98,9 +111,10 @@ export class MeetingsService {
 
     const response = await this.changeStateReturningRun(id, userId, (meeting, now) => {
       const ended = transition(meeting.status, 'end');
-      meeting.duration_sec = recordedDurationSec(meeting, now);
-      closePause(meeting, now);
-      meeting.ended_at = now;
+      const endedAt = clampInstant(dto.at, meeting.paused_at ?? meeting.started_at, now);
+      meeting.duration_sec = recordedDurationSec(meeting, endedAt);
+      closePause(meeting, endedAt);
+      meeting.ended_at = endedAt;
       meeting.status = transition(ended, 'enqueue');
       meeting.pipeline_run += 1;
       meeting.pipeline_scope = 'full';

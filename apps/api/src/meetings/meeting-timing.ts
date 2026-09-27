@@ -26,3 +26,17 @@ export function recordedDurationSec(meeting: TimedMeeting, endedAt: Date): numbe
   const wallMs = endedAt.getTime() - meeting.started_at.getTime();
   return Math.max(0, Math.floor((wallMs - meeting.paused_duration_ms - openPauseMs) / 1000));
 }
+
+/** How far back a create replayed after an offline start may date the meeting — the same 24h the idle auto-close uses. */
+export const MAX_OFFLINE_START_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The instant a client says something happened (a transition replayed after the network came back),
+ * clamped to [notBefore, now]. Missing → `now`. The client clock is trusted for ordering within a
+ * meeting, never beyond the server's present or before the state it transitions from.
+ */
+export function clampInstant(at: string | undefined, notBefore: Date | null, now: Date): Date {
+  if (!at) return now;
+  const ms = Math.min(new Date(at).getTime(), now.getTime());
+  return new Date(notBefore ? Math.max(ms, notBefore.getTime()) : ms);
+}

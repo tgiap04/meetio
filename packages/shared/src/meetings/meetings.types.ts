@@ -17,6 +17,13 @@ export interface CreateMeetingRequest {
   translate_to?: string | null;
   audio_source: AudioSource;
   recording_quality: RecordingQuality;
+  /**
+   * Client-generated UUID, so a meeting started offline keeps one id from its first segment on.
+   * Creating the same id again returns the existing meeting (idempotent replay).
+   */
+  id?: string;
+  /** When recording actually began, for a create replayed after the network came back. Clamped to [now − 24h, now]. */
+  started_at?: string;
 }
 
 export interface CreateMeetingResponse {
@@ -30,8 +37,16 @@ export interface CreateMeetingResponse {
  * seqs are contiguous from 1, so the server can name exactly which ones it is missing.
  * Omitted means the meeting produced no segments.
  */
-export interface EndMeetingRequest {
+export interface EndMeetingRequest extends MeetingTransitionRequest {
   last_seq?: number;
+}
+
+/**
+ * Optional body of `pause` / `resume` (and part of `end`): when the user actually pressed the button,
+ * for a transition replayed after the network came back. Clamped server-side so paused time stays right.
+ */
+export interface MeetingTransitionRequest {
+  at?: string;
 }
 
 /** `details` of a `409 SEGMENTS_PENDING` — what the client still has to resend. */

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, Length, Matches, ValidateIf } from 'class-validator';
+import { IsEnum, IsISO8601, IsOptional, IsString, IsUUID, Length, Matches, ValidateIf } from 'class-validator';
 import type { CreateMeetingRequest } from '@meetio/shared';
 import { AudioSource } from '../../database/enums/audio-source.enum.js';
 import { RecordingQuality } from '../../database/enums/recording-quality.enum.js';
@@ -33,4 +33,14 @@ export class CreateMeetingDto implements CreateMeetingRequest {
   @ApiProperty({ enum: RecordingQuality })
   @IsEnum(RecordingQuality)
   recording_quality!: RecordingQuality;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Client-generated id; creating it again returns the existing meeting' })
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
+  @ApiPropertyOptional({ description: 'When recording began (offline start replayed later). Clamped to [now − 24h, now]' })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  started_at?: string;
 }
