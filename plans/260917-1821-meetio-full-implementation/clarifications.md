@@ -60,3 +60,10 @@
 - Q: Cuộc họp đến hạn lưu trữ (retention_days)? → A: Xóa hẳn như người dùng tự xóa; báo trước 7 ngày bằng push một lần; tính từ lúc cuộc họp kết thúc
 - Q: Bộ đo hiệu năng NFR-05/06 trong CI khi không có khóa Gemini? → A: CI đo phần của hệ thống với Gemini giả (hỏng thì gãy build); số đo có Gemini thật chạy bằng script (graph:check, qa:check) và ghi vào bảng NFR
 - Q: NFR-13 yêu cầu iOS 15+ nhưng Expo SDK 57 bắt buộc iOS 16.4+? → A: Nâng yêu cầu lên iOS 16.4+ (sửa user_stories.md NFR-13); không hạ Expo SDK
+
+## Session 2026-09-27 (Phase 07–08)
+- Q: Phase 07 bị cổng Phase 00 chặn nhưng ghi âm chưa chạy — làm gì? → A: Làm Phase 07 ngay theo giả định của Phase 00 (expo-speech-recognition trên máy); số đo Phase 00 vẫn cần để chốt ngưỡng, nếu không đạt thì chỉ thay lớp engine
+- Q: Máy không nhận diện được trên máy (Android < 13, chưa cài gói offline)? → A: Chỉ nhận diện trên máy (requiresOnDeviceRecognition); không liệt kê ngôn ngữ máy không hỗ trợ và hướng dẫn tải gói offline; không dùng engine mạng
+- Q: Phạm vi hàng đợi gửi đoạn? → A: Làm luôn Phase 08 — hàng đợi SQLite bền, bắt đầu được khi mất mạng, banner cuộc họp dang dở khi mở lại app
+- Q: Hai mức chế độ ghi (US-43)? → A: Chất lượng cao = chữ hiện từng từ + sóng âm; Tiết kiệm pin = chữ hiện khi dứt câu, không sóng âm
+- Q: Nguồn thiết bị ngoài Bluetooth (US-42)? → A: Để hệ điều hành định tuyến (iOS allowBluetooth, Android mic mặc định); không viết module native, không tự phát hiện thiết bị

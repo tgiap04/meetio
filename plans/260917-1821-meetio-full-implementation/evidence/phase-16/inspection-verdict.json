@@ -1,0 +1,68 @@
+{
+  "score": 9,
+  "criticalCount": 0,
+  "decision": "BLOCKED",
+  "acceptanceCovered": [
+    "a user over their budget is blocked before any cost is incurred, proven by a test (pre-existing UsageTracker.assertWithinBudget, apps/api/src/ai/usage-tracker.ts:22-33, called at apps/api/src/ai/gemini.client.ts:85,115 before any Gemini call; privacy.e2e.spec.ts's 'blocks Q&A when user exceeds quota' case and the 0-budget test drive this end to end)",
+    "automated measurements confirm our share of NFR-05 and NFR-06 in CI (apps/api/src/perf/__tests__/perf-budgets.e2e.spec.ts:35-58 asserts segment-ack p95 < 500ms over 200 segments/10 meetings; :60-85 asserts a 600-segment/60-min meeting goes end-to-ready in < 30s with fake Gemini, and the QA server-side p95 < 1000ms)",
+    "a table covers all 13 NFRs, each row with how it was measured and the measured result (docs/nfr-verification.md; independently re-checked NFR-13's iOS 16.4 claim against node_modules/expo-modules-core/ExpoModulesCore.podspec — accurate; NFR-04 and NFR-03 rows rewritten this round to state precisely what is and isn't proven, see below)",
+    "the privacy policy is readable in the app and states correctly where data goes (apps/mobile/src/content/privacy-policy.ts + privacy-policy.test.ts's word-sequence drift test against docs/privacy-policy.md; data-flow table matches actual system components; the TLS claim in §6, previously contradicted by NFR-03's own status, now carries an explicit pre-release gate in the doc's internal callout — 'chỉ công bố bản này khi máy chủ production đã chỉ nhận HTTPS' — cross-linked from the NFR-03 row, and the drift test's line-filter (strips lines starting with '>') confirms this callout never reaches the in-app text)",
+    "recording is refused server-side until the current consent text is accepted, including for users who accepted an older version (apps/api/src/meetings/meetings.service.ts:40-49 checks users.consent_version via consentRequired() before creating a meeting; privacy.e2e.spec.ts:38-53 proves both never-consented and v1-consented users get 403 CONSENT_REQUIRED, and succeed after POST /users/me/consent bumps to v2)",
+    "meetings past the user's retention period are deleted, with one generic reminder 7 days before, and live meetings are never touched (apps/api/src/jobs/retention.job.ts: DUE expression matches the recorded design; announce()'s (now, now+7d] window and apply()'s <= now window are mutually exclusive by construction; both filter m.status NOT IN ('recording','paused'); privacy.e2e.spec.ts proves announce-once, delete-when-due, live-meeting survival, NULL-retention keep-forever, created_at fallback when never ended, soft-deleted meetings untouched, and — new this round — a real Postgres BEFORE DELETE trigger blocking one of three overdue meetings proves the sweep continues past a real failure ('keeps sweeping when one deletion fails', not a vacuous case)",
+    "scanning server logs finds no transcript text, prompts, questions, answers or tokens (apps/api/src/common/logging/json-logger.ts allowlists structured fields at :10-13; the free-text msg/stack channel is now filtered too — new apps/api/src/common/logging/log-error.ts's errorCode() returns only the error's name and stackFrames() keeps only '^\\s+at\\s' lines, dropping the message line where data could hide; every call site that used to interpolate error.message/error.stack/String(error) (pipeline-engine.ts, pipeline-events.adapter.ts, extract-step.handler.ts, summary-generator.ts, extraction-schema.ts, retention.job.ts, meeting-ready.notifier.ts, api-exception.filter.ts) was rewritten to stop doing so, verified by reading each diff. NEW ADVERSARIAL PROOF this round: privacy.e2e.spec.ts:241-267 drives a real FakeGeminiServer (confirmed by reading test-support/e2e-app.ts and fake-gemini-server.ts, not a mock of internals) to (a) return an HTTP 400 whose message embeds a marker string, forcing extract to fail for good, and (b) return an entity with a marker-carrying 'type' value, forcing a schema-error retry-then-skip — then scans the whole log for 'pipeline_step_error' (present) and all four marker/secret strings (absent). json-logger.spec.ts:25-38 adds matching unit coverage for an Error whose message carries content, passed both as the second arg to .error() and as the message to .warn(). docs/nfr-verification.md's NFR-04 row now states the precise, honest scope of this guarantee: allowlisted fields + name-only errors + stack frames only, verified by a success-path AND a failure-path e2e scan, explicitly NOT a mechanical filter on free-text messages — call-site discipline is what's being verified, and that's exactly what the two test suites check. This is an accurate claim, not an overclaim.)"
+  ],
+  "regressionChecked": [
+    "consent bypass via other routes: verified again this round — no change since last pass. MeetingSegmentsController.bulk and the realtime segment-ingest handler carry no consent check by design (consent gates only creating a NEW recording, POST /meetings, and no other route creates one)",
+    "mobile gate correctness: unchanged since last pass — index.tsx gates on consent_required, axios-client.ts adds a global 403 redirect, both covered by tests",
+    "the ownership-violation log line (api-exception.filter.ts:90) was changed from request.originalUrl to request.route?.path ?? request.path as part of this round's fix — this closes a leak path I had not flagged in the first pass (a query string on a rejected cross-user request could have carried a search term); verified the new code reads the route pattern, not the raw URL",
+    "the retention 'no push token' test was previously asserting on push.received globally in a shared-DB e2e suite where the sweep covers every user; rewritten this round to scope its assertion to its own two meeting ids via WHERE id = ANY($1::uuid[]) — correct fix for a test-isolation bug, verified by reading the query",
+    "request-logging.interceptor.spec.ts (new) has zero `any` casts (checked directly, not just described) and adds a CRLF header-injection case; the interceptor's existing REQUEST_ID regex (anchored ^...$, charset \\w-) already rejected it, now proven by test rather than assumed",
+    "temper-results.json read directly, all real exit codes: 8/8 pass — api unit 402 (+10 from prior verdict), e2e 145 (+9), schema 5, mobile 1086 (unchanged), both typechecks and eslint --max-warnings=0 clean"
+  ],
+  "contractStatus": "OK",
+  "refuted": [],
+  "unproven": [
+    "NFR-01: docs/privacy-policy.md still has legal entity name/address/contact/server-location left blank, explicitly flagged in the doc itself as needed before release — needs real legal input, not code",
+    "NFR-13: the iOS 16.4-floor-vs-Expo-SDK-57 decision is correctly identified as open in the doc but not made in this diff",
+    "NFR-02/05/08 device-side speech recognition timing and translation depend on Phase 00/07/09, correctly deferred and honestly marked pending rather than claimed done",
+    "TLS deployment itself (NFR-03) is still not done — this is no longer an inconsistency (the policy now explicitly gates its own publication on it), but the underlying infra work remains outstanding and outside this diff's scope"
+  ],
+  "reachableRegressions": [],
+  "findings": [
+    {
+      "severity": "High",
+      "category": "Data leakage",
+      "location": "apps/api/src/pipeline/pipeline-engine.ts:115-118",
+      "summary": "(Fixed this round, re-confirmed.) Step-failure logging no longer interpolates error.stack/message into a free-text string; now logs a structured {event:'pipeline_step_error', error_code} field plus stackFrames(error) (message line stripped). New log-error.ts (errorCode/stackFrames) is applied consistently across every call site that previously leaked. Adversarial e2e (privacy.e2e.spec.ts:241-267) drives a real fake-Gemini provider error and a real malformed-model-value failure and proves neither reaches the log. Residual, correctly-acknowledged limitation: this is call-site discipline backed by a test, not a structural guarantee — a future call site could still build a content-bearing string directly. nfr-verification.md's NFR-04 row states this scope honestly rather than overclaiming a mechanical filter.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "High",
+      "category": "Security",
+      "location": "docs/privacy-policy.md:7-8",
+      "summary": "(Fixed this round, re-confirmed.) The TLS claim in §6 is now explicitly gated by a pre-release callout ('chỉ công bố bản này khi máy chủ production đã chỉ nhận HTTPS...'), cross-linked from nfr-verification.md's NFR-03 row. The drift test's line-filter (strips '>'-prefixed lines) keeps this callout out of the in-app screen, verified by reading privacy-policy.test.ts's stripMarkdownChrome.",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Medium",
+      "category": "Query efficiency",
+      "location": "apps/api/src/jobs/retention.job.ts:37-43",
+      "summary": "Unchanged from prior round, not asked for: retention sweep's WHERE/ORDER BY on a computed date expression plus a status NOT IN filter has no supporting index; low risk today (hourly maintenance job) but will full-scan meetings/users as volume grows.",
+      "disposition": "Defer"
+    },
+    {
+      "severity": "Medium",
+      "category": "Error boundaries",
+      "location": "apps/api/src/jobs/retention.job.ts:75-93",
+      "summary": "Unchanged from prior round, not asked for: the one retention-notice push is claimed (retention_notified_at set) atomically before the push is attempted; if the Expo push itself throws, the meeting is marked notified and never retried, so a user can have a meeting deleted having never actually received the promised 7-day warning, surfaced only as a log line.",
+      "disposition": "Defer"
+    },
+    {
+      "severity": "Low",
+      "category": "Structure",
+      "location": "apps/api/scripts/ops-metrics.mjs:14",
+      "summary": "Unchanged from prior round, not asked for: CLI arg (process.argv[2]) is interpolated directly into a raw SQL template string rather than bound as a parameter; not attacker-reachable (local ops tool, developer-supplied arg) but worth binding on principle.",
+      "disposition": "Defer"
+    }
+  ]
+}

@@ -4,7 +4,7 @@
 [US-15](../../user_stories.md#us-15--phục-hồi-cuộc-họp-sau-khi-app-đóng-đột-ngột)
 
 ## Tổng quan
-**Ưu tiên:** Cao · **Trạng thái:** ⬜ pending · **Phụ thuộc:** Phase 07
+**Ưu tiên:** Cao · **Trạng thái:** 🟡 **implemented — pending Phase 00 real-device verification** · **Phụ thuộc:** Phase 07
 
 Giữ cho không một chữ nào mất đi, dù mạng rớt hay app chết.
 
@@ -47,20 +47,20 @@ theo lô, gửi qua WebSocket nếu còn kết nối, ngược lại đợi. M�
 9. Test hỗn loạn: kill app ngẫu nhiên giữa cuộc họp 30 lần, kiểm tra không mất đoạn nào.
 
 ## Todo
-- [ ] Hàng đợi SQLite có giao dịch
-- [ ] Ghi vào hàng đợi trước khi gửi
-- [ ] sync-worker gửi lô + xóa theo ack
-- [ ] Theo dõi mạng + đuổi bù khi có lại
-- [ ] Chỉ báo trạng thái đồng bộ
-- [ ] Phát hiện + banner cuộc họp dang dở
-- [ ] Luồng tiếp tục có hợp nhất và khử trùng
-- [ ] Test hỗn loạn 30 lần kill app
+- [x] Hàng đợi SQLite có giao dịch
+- [x] Ghi vào hàng đợi trước khi gửi
+- [x] sync-worker gửi lô + xóa theo ack
+- [x] Theo dõi mạng + đuổi bù khi có lại
+- [x] Chỉ báo trạng thái đồng bộ
+- [x] Phát hiện + banner cuộc họp dang dở
+- [x] Luồng tiếp tục có hợp nhất và khử trùng
+- [~] Test hỗn loạn 30 lần kill app — code + simulated test done (jest, gả lập kill); real device pending (Phase 17)
 
 ## Chuẩn hoàn thành
-- Bật chế độ máy bay 10 phút giữa cuộc họp: bật lại mạng thì mọi đoạn lên server trong 30 giây, đúng thứ tự.
-- Kill app giữa cuộc họp: mở lại thấy banner, chọn tiếp tục thì transcript đầy đủ.
-- Test hỗn loạn 30 lần: không mất đoạn nào, không trùng đoạn nào.
-- Hàng đợi 3.600 đoạn không làm app giật hay ngốn bộ nhớ bất thường.
+- Bật chế độ máy bay 10 phút giữa cuộc họp: bật lại mạng thì mọi đoạn lên server trong 30 giây, đúng thứ tự — **code ✓**
+- Kill app giữa cuộc họp: mở lại thấy banner, chọn tiếp tục thì transcript đầy đủ — **code ✓**
+- Test hỗn loạn 30 lần: không mất đoạn nào, không trùng đoạn nào — **simulated ✓ (jest), real device pending Phase 17**
+- Hàng đợi 3.600 đoạn không làm app giật hay ngốn bộ nhớ bất thường — **chưa đo** (code gửi theo lô 1000 + danh sách ảo hóa; đo trên máy tầm thấp ở Phase 17)
 
 ## Rủi ro
 | Rủi ro | Đối sách |
@@ -74,4 +74,34 @@ Hàng đợi SQLite chứa nội dung cuộc họp — đặt trong vùng lưu t
 iCloud/Google Drive để nội dung nhạy cảm không rò ra bản sao lưu đám mây.
 
 ## Tiếp theo
-Mở khóa Phase 09 (dịch song song).
+Mở khóa Phase 09 (dịch song song). Phase 17 (kiểm thử & nghiệm thu) — real-device kill, 60min run, lock-screen/airplane-mode recovery — chờ Phase 00 test thực tế xong để chốt ngưỡng mất chữ.
+
+## Thiết kế thi công (2026-09-27)
+Làm cùng Phase 07 (quyết định người dùng).
+
+**API (nhỏ, tương thích ngược):** `POST /meetings` nhận thêm `id` (UUID do client sinh) và `started_at` tuỳ chọn — tạo lặp
+cùng `id` của cùng người trả lại bản đã có (idempotent), `started_at` kẹp trong [now − 24h, now]. `pause`/`resume`/`end`
+nhận `at` tuỳ chọn (thời điểm thao tác khi phát lại sau mất mạng), kẹp trong [mốc chuyển trạng thái gần nhất, now] —
+thời gian tạm dừng vẫn đúng dù phát lại muộn.
+
+**SQLite (`expo-sqlite`, WAL, một kết nối):** `local_meetings(id, status, create_body, started_at, server_created,
+last_seq)` · `pending_ops(id, meeting_id, op, at)` thao tác vòng đời chờ phát lại theo thứ tự · `pending_segments(meeting_id,
+seq, payload, attempts)`. Ghi đoạn vào bảng trong giao dịch (tăng `last_seq` + insert) **trước** khi gửi.
+
+**Sync worker:** phát lại `pending_ops` theo thứ tự (create trước); socket.io `/meeting-room` với access token (TOKEN_EXPIRED →
+refresh rồi nối lại); gửi đoạn theo thứ tự, xoá khi `segment_ack`; tồn > 50 đoạn hoặc `RATE_LIMITED` → đuổi bù bằng
+`/segments/bulk` (1000/lần). Trạng thái: đã đồng bộ / đang chờ N / mất kết nối. Không thêm `expo-network` — trạng thái socket
+và lỗi HTTP đủ biết mất mạng. Kết thúc: xả hết hàng đợi → `end {last_seq}`; 409 `SEGMENTS_PENDING` → gửi lại seq thiếu.
+
+**Phục hồi (US-15):** mở app → cuộc họp local chưa `ended` + `GET /meetings?status=recording|paused` → banner "Có cuộc họp
+chưa kết thúc" (giờ bắt đầu) ở Home: Tiếp tục (nạp đoạn server + local, khử trùng theo seq, bật mic, seq nối tiếp) / Kết thúc.
+Server đã tự đóng sau 24h (409 khi resume) → báo và chỉ còn Kết thúc/xem.
+
+**Bảo mật:** Android `allowBackup: false`; iOS: file SQLite nằm trong vùng iCloud sao lưu và không loại ra được — chỉ các đoạn chưa được server xác nhận nằm trong đó (xóa ngay khi có ack); NFR-02 (audio) không liên quan vì audio không bao giờ được lưu.
+
+**Test hỗn loạn (2026-09-27):** meetings-offline-replay.e2e (API) + jest integration test gả lập kill (dựng lại worker từ cùng DB ở điểm ngẫu nhiên × 30, all seq track) — ✓ không mất/không trùng. Kill thật + 60min run + lock-screen 10min + airplane-mode 10min trên máy thuộc Phase 17 (khi Phase 00 test thực tế xong).
+
+**Reviewer findings (2026-09-27):**
+- **Critical (fixed):** shared-phone account switch mid-sync có thể upload meeting của user A dưới token user B → fixed: axios request-interceptor guard `expectedOwnerId` + worker dừng ngay nếu owner change, with regression tests
+- **Medium (fixed):** failed disk write trước đây drop đoạn → giờ giữ trong memory, retry theo thứ tự
+- Dead components removed

@@ -4,7 +4,7 @@
 [Phase 00](phase-00-spike-stt-feasibility.md)
 
 ## Tổng quan
-**Ưu tiên:** Cao · **Trạng thái:** ⬜ pending · **Phụ thuộc:** **Phase 00 (cổng chặn)**, 05, 06
+**Ưu tiên:** Cao · **Trạng thái:** 🟡 **implemented — pending Phase 00 real-device verification** · **Phụ thuộc:** **Phase 00 (cổng chặn)**, 05, 06
 
 Toàn bộ trải nghiệm ghi cuộc họp phía client: chọn nguồn âm và chất lượng, bật mic, hiện chữ, chạy
 nền, kết thúc.
@@ -58,15 +58,15 @@ Danh sách transcript dùng `FlashList` ảo hóa. Đoạn chưa chốt giữ �
 9. Kết thúc: chờ hàng đợi rỗng → gọi `end` → chuyển sang màn hình chi tiết.
 
 ## Todo
-- [ ] Lớp bọc engine STT (điểm hoán đổi)
-- [ ] Vòng khởi động lại + đánh dấu gián đoạn
-- [ ] Máy trạng thái ghi âm đồng bộ với server
-- [ ] Màn hình ghi + danh sách ảo hóa
-- [ ] Tự cuộn nhường quyền người dùng
-- [ ] Chọn nguồn âm thanh + chế độ chất lượng (US-42, US-43)
-- [ ] Chọn ngôn ngữ
-- [ ] Chạy nền trên cả hai nền tảng
-- [ ] Luồng kết thúc có chờ đồng bộ
+- [x] Lớp bọc engine STT (điểm hoán đổi)
+- [x] Vòng khởi động lại + đánh dấu gián đoạn
+- [x] Máy trạng thái ghi âm đồng bộ với server
+- [x] Màn hình ghi + danh sách ảo hóa
+- [x] Tự cuộn nhường quyền người dùng
+- [x] Chọn nguồn âm thanh + chế độ chất lượng (US-42, US-43)
+- [x] Chọn ngôn ngữ
+- [~] Chạy nền trên cả hai nền tảng — code + simulated test done; real device pending (Phase 00 measurements)
+- [x] Luồng kết thúc có chờ đồng bộ
 
 ## Chuẩn hoàn thành
 - Ghi liên tục 60 phút không cần chạm tay, đạt ngưỡng mất chữ mà Phase 00 xác lập.
@@ -87,4 +87,43 @@ Audio không bao giờ rời thiết bị ([NFR-02](../../user_stories.md#4-yêu
 trừ khi Phase 00 lật lại quyết định này, và khi đó phải xin đồng ý lại từ người dùng.
 
 ## Tiếp theo
-Mở khóa Phase 08 (hàng đợi ngoại tuyến) và Phase 09 (dịch song song).
+Phase 08 được mở khóa (hàng đợi ngoại tuyến). Phase 09 (dịch song song) được mở khóa (5, 07 xong). Phase 17 chờ Phase 00 test thực tế.
+
+## Thiết kế thi công (2026-09-27)
+Quyết định người dùng: [clarifications.md › Phase 07–08](clarifications.md). Làm **gộp với Phase 08**; cổng Phase 00
+được người dùng mở — số đo máy thật vẫn là điều kiện chốt ngưỡng mất chữ.
+
+**Engine (`src/recording/stt-engine.ts` + `expo-stt-engine.ts`):** file duy nhất import `expo-speech-recognition`
+(điểm hoán đổi, mock trong jest). Luôn `requiresOnDeviceRecognition: true`, `continuous: true`, `addsPunctuation: false`.
+Ngôn ngữ liệt kê = `installedLocales` (on-device) ∩ {vi-VN, en-US}; rỗng → thẻ hướng dẫn tải gói offline, nút Bắt đầu khoá.
+iOS `iosCategory` bật `allowBluetooth` khi chọn thiết bị ngoài.
+
+**Vòng khởi động lại (`restart-loop.ts`):** port nguyên lõi spike (100ms, giãn nhịp khi lỗi liên tiếp, bỏ kết quả phiên cũ
+trong lúc chờ `start`). Thêm: đo khoảng chết (phiên chết → phiên mới `start`), gắn `gap_before_ms` vào đoạn chốt kế tiếp
+khi ≥ 1000ms (dưới 1 giây không hiện, vẫn log). Tạm dừng/tiếp tục không tính là gián đoạn.
+
+**Đoạn chốt (`segment-assembler.ts`):** `started_at_ms` = partial đầu tiên của câu, `ended_at_ms` = lúc `final`, tính
+theo đồng hồ tường từ `started_at` của cuộc họp. Seq cấp bởi hàng đợi (Phase 08), liên tục từ 1.
+
+**Phiên ghi (`recording-session.ts` + `recording.store.ts`):** idle → recording ⇄ paused → ending → ended. Store Zustand chỉ
+giữ trạng thái client của phiên (không phải dữ liệu server). Tạm dừng = dừng engine hẳn (US-09).
+
+**Chế độ (US-43):** `high` = `interimResults` + sóng âm từ `volumechange`; `standard` = chỉ `final`, không sóng âm. Nguồn âm và
+chế độ nhớ cho phiên sau (secure-store, như `device-preferences`).
+
+**Chạy nền:** Android foreground service loại `microphone` (`react-native-background-actions` + config plugin như spike),
+chạm notification mở lại màn ghi (`meetio://recording-live`). iOS `UIBackgroundModes: audio`.
+
+**Màn hình:** 05 Cài đặt ghi âm dùng dữ liệu thật; ẩn khối dịch tới Phase 09. 06 Đang ghi: đồng hồ thật (trừ tạm dừng),
+sóng âm, chỉ báo đồng bộ, danh sách `FlatList` (như transcript Phase 10, không thêm FlashList), partial khác màu, mốc gián
+đoạn, tự cuộn nhường quyền + nút "Xuống dòng mới nhất (N)"; ẩn tab ngôn ngữ dịch; X = thu nhỏ về Home (vẫn ghi, Home có
+banner quay lại). Kết thúc: xác nhận → tiến trình đồng bộ → 07 với trạng thái xử lý thật → chi tiết cuộc họp.
+
+**Sai lệch đã ghi nhận (2026-09-27):**
+- Android notification không có nút Kết thúc (react-native-background-actions không hỗ trợ action) — chạm vào mở màn ghi
+- Không tự phát hiện Bluetooth / ghi mốc chuyển nguồn (quyết định người dùng); Bluetooth do hệ điều hành định tuyến, không module native hay marker switch
+- `FlatList` thay `FlashList` ảo hóa
+- Không thêm `expo-network` — trạng thái socket.io và lỗi HTTP đủ biết mất mạng
+- expo-speech-recognition patched via .yarn/patches để fail closed trên iOS (luôn requiresOnDeviceRecognition = true, installedLocales = on-device)
+- iOS SQLite queue file không thể loại khỏi iCloud backup trực tiếp (chỉ segment chưa được ack rò ra, không nội dung final)
+- Nhãn gián đoạn: "— Gián đoạn N giây —"

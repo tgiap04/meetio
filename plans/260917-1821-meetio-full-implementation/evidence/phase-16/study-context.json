@@ -1,0 +1,45 @@
+{
+  "task": "Phase 16: NFR hardening — consent v2 enforced server-side (NFR-01), monthly AI usage with an 80% warning (NFR-07, no default cap per OQ-04), retention job that warns 7 days ahead and deletes due meetings, allowlist JSON logging with request and pipeline-step lines (NFR-04/11), QA latency capture and an ops metrics script, CI performance budgets with a fake Gemini (NFR-05/06), privacy policy document and in-app screen, and the 13-NFR verification table",
+  "mode": "interactive",
+  "acceptanceCriteria": [
+    "a user over their budget is blocked before any cost is incurred, proven by a test",
+    "scanning server logs finds no transcript text, prompts, questions, answers or tokens",
+    "automated measurements confirm our share of NFR-05 and NFR-06 in CI",
+    "a table covers all 13 NFRs, each row with how it was measured and the measured result",
+    "the privacy policy is readable in the app and states correctly where data goes",
+    "recording is refused server-side until the current consent text is accepted, including for users who accepted an older version",
+    "meetings past the user's retention period are deleted, with one generic reminder 7 days before, and live meetings are never touched"
+  ],
+  "touchpoints": [
+    "apps/api/src/users/",
+    "apps/api/src/meetings/meetings.service.ts",
+    "apps/api/src/jobs/",
+    "apps/api/src/common/logging/",
+    "apps/api/src/configure-app.ts",
+    "apps/api/src/main.ts",
+    "apps/api/src/pipeline/pipeline-engine.ts",
+    "apps/api/src/qa/qa.service.ts",
+    "apps/api/src/database/migrations/1758000000019-AddConsentVersionRetentionNoticeQaLatency.ts",
+    "apps/api/scripts/ops-metrics.mjs",
+    "apps/api/src/privacy/__tests__/",
+    "apps/api/src/perf/__tests__/",
+    "apps/api/src/test-support/e2e-app.ts",
+    "packages/shared/src/",
+    "docs/privacy-policy.md",
+    "docs/nfr-verification.md",
+    "apps/mobile/"
+  ],
+  "blastRadius": [
+    "POST /meetings now returns 403 CONSENT_REQUIRED without current consent; every existing consented user must re-consent",
+    "PublicUser gains consent_required; GetMeResponse gains usage; RecordConsentResponse gains consent_version; new ApiErrorCode CONSENT_REQUIRED",
+    "a global request logging interceptor and an optional JSON logger",
+    "a new hourly maintenance job deletes meetings",
+    "e2e users are created with current consent"
+  ],
+  "contracts": [
+    "api-spec sections 2 and 3 (users/me, consent, meetings create)",
+    "packages/shared user, users and notification types",
+    "users, meetings and qa_messages schema",
+    "LOG_FORMAT environment variable"
+  ]
+}
