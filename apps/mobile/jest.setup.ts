@@ -36,3 +36,30 @@ jest.mock('react-native-safe-area-context', () =>
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   require('react-native-safe-area-context/jest/mock').default,
 );
+
+/**
+ * Recording (Phase 07–08) native modules. The queue runs on REAL SQLite in tests — Node's built-in
+ * `node:sqlite` behind the same interface — so a screen test exercises the actual SQL, not a mock.
+ * Speech recognition is a scriptable fake (`fakeSpeech`); the Android foreground service is inert.
+ */
+jest.mock('expo-sqlite', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  openDatabaseAsync: async () => require('./src/queue/test-support/node-sqlite-db').openNodeSqliteDb(),
+}));
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('expo-speech-recognition', () => require('./src/recording/test-support/fake-speech-module'));
+jest.mock('react-native-background-actions', () => {
+  let running = false;
+  return {
+    __esModule: true,
+    default: {
+      start: jest.fn(async () => {
+        running = true;
+      }),
+      stop: jest.fn(async () => {
+        running = false;
+      }),
+      isRunning: () => running,
+    },
+  };
+});

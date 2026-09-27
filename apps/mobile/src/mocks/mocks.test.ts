@@ -1,9 +1,7 @@
 import { isRenderableVietnameseText } from '../theme/typography';
 import {
   ABOUT_MEETIO_ENTRIES,
-  AUDIO_SOURCE_OPTIONS,
   MEETINGS,
-  RECORDING_SETTINGS_DEFAULTS,
   SETTINGS_ENTRIES,
   TRANSCRIPT_LINES,
   type MeetingStatus,
@@ -21,11 +19,6 @@ function collectAllStrings(): string[] {
     strings.push(line.text);
     if (line.translation) strings.push(line.translation);
   }
-  for (const option of AUDIO_SOURCE_OPTIONS) {
-    strings.push(option.label);
-    if (option.description) strings.push(option.description);
-  }
-  strings.push(RECORDING_SETTINGS_DEFAULTS.language, RECORDING_SETTINGS_DEFAULTS.qualityMode);
   for (const entry of [...SETTINGS_ENTRIES, ...ABOUT_MEETIO_ENTRIES]) {
     strings.push(entry.label);
     if (entry.value) strings.push(entry.value);
@@ -69,19 +62,6 @@ describe('transcript.mock', () => {
     const withTranslation = TRANSCRIPT_LINES.filter((l) => l.translation !== undefined);
     expect(withTranslation).toHaveLength(1);
     expect(withTranslation[0].id).toBe('line-1');
-  });
-});
-
-describe('recording-options.mock', () => {
-  it('holds two audio source options with unique ids', () => {
-    expect(AUDIO_SOURCE_OPTIONS).toHaveLength(2);
-    const ids = AUDIO_SOURCE_OPTIONS.map((o) => o.id);
-    expect(new Set(ids).size).toBe(ids.length);
-  });
-
-  it('translation is enabled by default, targeting English', () => {
-    expect(RECORDING_SETTINGS_DEFAULTS.translationEnabled).toBe(true);
-    expect(RECORDING_SETTINGS_DEFAULTS.translationTarget).toBe('Tiếng Anh');
   });
 });
 

@@ -4,33 +4,31 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 export interface RecordingStatusBarProps {
-  /** Verbatim design value, `HH:MM:SS` — static, see module doc on `recording-live.tsx`. */
+  /** `HH:MM:SS` of recorded time, pauses excluded. */
   elapsed: string;
+  paused: boolean;
+  /** Leaves the screen; recording carries on and Home offers the way back. */
   onClose: () => void;
 }
 
 /**
- * Top of screen-06: a red dot, "Đang ghi âm", the elapsed time beneath it,
- * and a close (X) button that leaves the recording chain entirely.
- *
- * NOTE ON THE COPY: this label reads "Đang ghi âm" (recording in progress)
- * while no audio is ever captured — see the prototype-honesty note in
- * `recording-live.tsx` and the phase hand-back. Acceptable for a UI-only
- * prototype; must not ship to a real user without an actual recording
- * pipeline behind it.
+ * Top of screen 06: the recording indicator and elapsed time. The indicator tells the truth —
+ * red "Đang ghi âm" only while the microphone is on, grey "Đã tạm dừng" otherwise (US-09).
  */
-export function RecordingStatusBar({ elapsed, onClose }: RecordingStatusBarProps) {
+export function RecordingStatusBar({ elapsed, paused, onClose }: RecordingStatusBarProps) {
   return (
     <View style={styles.row}>
       <View style={styles.left}>
-        <View style={styles.dot} testID="recording-status-dot" />
+        <View style={[styles.dot, paused && styles.dotPaused]} testID="recording-status-dot" />
         <View>
-          <Text style={styles.label}>Đang ghi âm</Text>
-          <Text style={styles.elapsed}>{elapsed}</Text>
+          <Text style={styles.label}>{paused ? 'Đã tạm dừng' : 'Đang ghi âm'}</Text>
+          <Text style={styles.elapsed} testID="recording-elapsed">
+            {elapsed}
+          </Text>
         </View>
       </View>
       <Pressable
-        accessibilityLabel="Đóng"
+        accessibilityLabel="Thu nhỏ, vẫn tiếp tục ghi"
         accessibilityRole="button"
         hitSlop={8}
         onPress={onClose}
@@ -46,6 +44,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 16 },
   left: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.danger, marginTop: 6 },
+  dotPaused: { backgroundColor: colors.textMuted },
   label: { ...typography.label, color: colors.text },
   elapsed: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
 });

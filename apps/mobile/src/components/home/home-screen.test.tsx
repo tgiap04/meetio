@@ -15,6 +15,9 @@ jest.mock('expo-router', () => ({
   router: { push: (...args: unknown[]) => mockPush(...args) },
 }));
 
+// The recording banners (US-15) have their own tests; here they render a marker only.
+jest.mock('./recording-banners', () => ({ RecordingBanners: () => null }));
+
 const mockUseMeQuery = jest.fn();
 jest.mock('../../hooks/use-me-query', () => ({
   useMeQuery: (...args: unknown[]) => mockUseMeQuery(...args),

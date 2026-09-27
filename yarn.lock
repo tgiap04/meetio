@@ -2883,12 +2883,15 @@ __metadata:
     expo-router: "npm:~57.0.21"
     expo-secure-store: "npm:~57.0.4"
     expo-sharing: "npm:~57.0.22"
+    expo-speech-recognition: "patch:expo-speech-recognition@npm%3A57.1.0#~/.yarn/patches/expo-speech-recognition-npm-57.1.0-50fb306965.patch"
+    expo-sqlite: "npm:~57.0.3"
     expo-status-bar: "npm:~57.0.1"
     jest: "npm:^29.7.0"
     jest-expo: "npm:^57.0.5"
     react: "npm:19.2.3"
     react-dom: "npm:19.2.3"
     react-native: "npm:0.86.3"
+    react-native-background-actions: "npm:^4.1.0"
     react-native-gesture-handler: "npm:~2.29.0"
     react-native-reanimated: "npm:~4.6.0"
     react-native-safe-area-context: "npm:~5.10.0"
@@ -5328,6 +5331,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"await-lock@npm:^2.2.2":
+  version: 2.2.2
+  resolution: "await-lock@npm:2.2.2"
+  checksum: 10c0/bedf00dad44c6325a655bf3bd523ab9e1ce41023da6a8c379990c76ac1d942ac7e5301627ab84ba37917ab5247506ba429b7f6e4bf77074093f255571b9ad5ee
+  languageName: node
+  linkType: hard
+
 "axios@npm:^1.20.0":
   version: 1.20.0
   resolution: "axios@npm:1.20.0"
@@ -7400,6 +7410,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"eventemitter3@npm:^4.0.7":
+  version: 4.0.7
+  resolution: "eventemitter3@npm:4.0.7"
+  checksum: 10c0/5f6d97cbcbac47be798e6355e3a7639a84ee1f7d9b199a07017f1d2f1e2fe236004d14fa5dfaeba661f94ea57805385e326236a6debbc7145c8877fbc0297c6b
+  languageName: node
+  linkType: hard
+
 "eventemitter3@npm:^5.0.1":
   version: 5.0.4
   resolution: "eventemitter3@npm:5.0.4"
@@ -7769,6 +7786,41 @@ __metadata:
     react: "*"
     react-native: "*"
   checksum: 10c0/0f4a263f7f9335267b955a230ca371a825644ce28ef9b4e3c2f32df4bdbee789a275418f241d64def7bd4033d6695b358de7bc34ad741fdd22800eaf1f64fb1f
+  languageName: node
+  linkType: hard
+
+"expo-speech-recognition@npm:57.1.0":
+  version: 57.1.0
+  resolution: "expo-speech-recognition@npm:57.1.0"
+  peerDependencies:
+    expo: "*"
+    react: "*"
+    react-native: "*"
+  checksum: 10c0/9e9ad4a648ede409e6b357caee4e851593f04c923e06a89e023af8b6144df22f99ffc1b1d503a8080bfd4d77a850b82e6b2f39457f35066541c7de9f0813fe29
+  languageName: node
+  linkType: hard
+
+"expo-speech-recognition@patch:expo-speech-recognition@npm%3A57.1.0#~/.yarn/patches/expo-speech-recognition-npm-57.1.0-50fb306965.patch":
+  version: 57.1.0
+  resolution: "expo-speech-recognition@patch:expo-speech-recognition@npm%3A57.1.0#~/.yarn/patches/expo-speech-recognition-npm-57.1.0-50fb306965.patch::version=57.1.0&hash=fe56fc"
+  peerDependencies:
+    expo: "*"
+    react: "*"
+    react-native: "*"
+  checksum: 10c0/2cbbc76e70a5bfbc6f0126c680cc3842f3bb9648f6bb0564a76a4fb1fbb49e4bcfb6ded86941e7f84940ef93d355f582d207ac010f64f9f0bb687751505725c7
+  languageName: node
+  linkType: hard
+
+"expo-sqlite@npm:~57.0.3":
+  version: 57.0.3
+  resolution: "expo-sqlite@npm:57.0.3"
+  dependencies:
+    await-lock: "npm:^2.2.2"
+  peerDependencies:
+    expo: "*"
+    react: "*"
+    react-native: "*"
+  checksum: 10c0/1b3e938c1481fd3849641d5abf635ecaa82c992343738857edbe530f4379f7c2d4d246392e000b5dc08c5ab6ebef0b14433a8b4e79d93b2a98dc3a9938b9ae80
   languageName: node
   linkType: hard
 
@@ -12840,6 +12892,17 @@ __metadata:
   version: 16.13.1
   resolution: "react-is@npm:16.13.1"
   checksum: 10c0/33977da7a5f1a287936a0c85639fec6ca74f4f15ef1e59a6bc20338fc73dc69555381e211f7a3529b8150a1f71e4225525b41b60b52965bda53ce7d47377ada1
+  languageName: node
+  linkType: hard
+
+"react-native-background-actions@npm:^4.1.0":
+  version: 4.1.0
+  resolution: "react-native-background-actions@npm:4.1.0"
+  dependencies:
+    eventemitter3: "npm:^4.0.7"
+  peerDependencies:
+    react-native: ">=0.47.0"
+  checksum: 10c0/92e3c5413747892aaaa123a05ef876643184dda2973965917ceba65a57848143c3668095ebd82cfb3d0d6b8810c9a503ff00a98d008d2edf64006ff809e93dbc
   languageName: node
   linkType: hard
 

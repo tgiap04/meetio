@@ -5,12 +5,21 @@ import { typography } from '../../theme/typography';
 
 /** Verbatim from `design/screen-07-sau-khi-ghi-am.png`. */
 const TITLE = 'Đã ghi âm xong!';
-const DURATION = '42 phút 18 giây';
-const WORD_COUNT = '1.284 từ đã được ghi nhận';
+
+/** `42 phút 18 giây` — recorded time, pauses excluded (the server's `duration_sec`). */
+export function formatRecordedDuration(durationSec: number): string {
+  const minutes = Math.floor(durationSec / 60);
+  const seconds = durationSec % 60;
+  return minutes > 0 ? `${minutes} phút ${seconds} giây` : `${seconds} giây`;
+}
+
+export interface RecordingDoneHeroProps {
+  durationSec: number | null;
+}
 
 /**
  * Hero block at the top of the post-recording screen: a haloed check circle
- * plus the confirmation title, duration and word count.
+ * plus the confirmation title and the real recorded duration.
  *
  * The halo is a larger `primaryTint` circle behind a solid `primary` circle —
  * the same two-circle technique screen 06's pause button uses. Built as a
@@ -19,7 +28,7 @@ const WORD_COUNT = '1.284 từ đã được ghi nhận';
  * so each builds its own copy. If this shape is needed a third time, P13
  * promotes it into `src/components/ui/` after all screen phases land.
  */
-export function RecordingDoneHero() {
+export function RecordingDoneHero({ durationSec }: RecordingDoneHeroProps) {
   return (
     <View style={styles.container}>
       <View style={styles.halo}>
@@ -28,8 +37,8 @@ export function RecordingDoneHero() {
         </View>
       </View>
       <Text style={styles.title}>{TITLE}</Text>
-      <Text style={styles.duration}>{DURATION}</Text>
-      <Text style={styles.wordCount}>{WORD_COUNT}</Text>
+      {durationSec !== null ? <Text style={styles.duration}>{formatRecordedDuration(durationSec)}</Text> : null}
+      <Text style={styles.wordCount}>Transcript đã lưu đầy đủ trên máy chủ</Text>
     </View>
   );
 }

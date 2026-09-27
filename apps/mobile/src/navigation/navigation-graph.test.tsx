@@ -86,10 +86,10 @@ describe('the recording chain is a connected path (Home -> 05 -> 06 -> 07 -> 08)
     expect(readAppFile('(app)/recording-live.tsx')).toContain('RECORDING_DONE_ROUTE');
   });
 
-  it('recording-done (07) pushes MEETING_DETAIL_ROUTE (08) and MEETING_GRAPH_ROUTE (10)', () => {
-    const source = readAppFile('(app)/recording-done.tsx');
-    expect(source).toContain('MEETING_DETAIL_ROUTE');
-    expect(source).toContain('MEETING_GRAPH_ROUTE');
+  it('recording-done (07) opens MEETING_DETAIL_ROUTE (08) with the ended meeting id', () => {
+    // Phase 07: screen 07 is about ONE real meeting now; the graph (10) is reached from 08, which
+    // has the id — the prototype's id-less jump to 10 is gone.
+    expect(readAppFile('(app)/recording-done.tsx')).toMatch(/pathname:\s*MEETING_DETAIL_ROUTE,\s*params:\s*\{\s*id\s*\}/);
   });
 
   it('meeting-detail (08) pushes MEETING_TRANSCRIPT_ROUTE (09) and MEETING_GRAPH_ROUTE (10)', () => {
@@ -132,11 +132,14 @@ describe('every stacked screen (non-tab) has a real back edge', () => {
     '(app)/meeting-graph.tsx',
     '(app)/recording-setup.tsx',
     '(app)/recording-live.tsx',
-    '(app)/recording-done.tsx',
   ];
 
   it.each(stackedScreens)('%s calls router.back()', (relativePath) => {
     expect(readAppFile(relativePath)).toContain('router.back()');
+  });
+
+  it('(app)/recording-done.tsx goes back to Home — the recording screen behind it has ended', () => {
+    expect(readAppFile('(app)/recording-done.tsx')).toContain('router.replace(APP_HOME_ROUTE)');
   });
 });
 

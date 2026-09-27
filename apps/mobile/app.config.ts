@@ -19,6 +19,19 @@ const plugins: ExpoConfig['plugins'] = [
   ],
   'expo-sharing',
   [
+    'expo-speech-recognition',
+    {
+      microphonePermission:
+        'Meetio cần quyền truy cập microphone để ghi âm cuộc họp và chuyển giọng nói thành văn bản.',
+      speechRecognitionPermission:
+        'Meetio chuyển giọng nói thành văn bản ngay trên điện thoại. Âm thanh không rời khỏi máy.',
+      androidSpeechServicePackages: ['com.google.android.googlequicksearchbox', 'com.google.android.as'],
+    },
+  ],
+  'expo-sqlite',
+  // Android: foreground service loại `microphone` để ghi tiếp khi app xuống nền / khóa màn hình (US-10).
+  './plugins/with-microphone-foreground-service.js',
+  [
     'expo-notifications',
     {
       icon: './assets/icon.png',
@@ -49,6 +62,8 @@ const config = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.tobi-04.meetio',
+    // US-10: nhận diện tiếp khi khóa màn hình — iOS chỉ giữ app sống khi audio session còn chạy.
+    infoPlist: { UIBackgroundModes: ['audio'] },
   },
   android: {
     adaptiveIcon: {
@@ -59,6 +74,8 @@ const config = {
     },
     predictiveBackGestureEnabled: false,
     package: 'com.tobi_04.meetio',
+    // Hàng đợi transcript (SQLite) chứa nội dung cuộc họp — không cho vào bản sao lưu Google Drive.
+    allowBackup: false,
   },
   web: {
     favicon: './assets/favicon.png',

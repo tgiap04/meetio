@@ -85,6 +85,11 @@ const GLYPH = {
   // --- Action items / "Việc cần làm" (Phase 14) ---------------------------
   plus: 'plus',
   chevronDown: 'chevron-down',
+
+  // --- Real recording + sync (Phase 07–08) ----------------------------------
+  stop: 'square',
+  offline: 'wifi-off',
+  warning: 'alert-circle',
 } as const satisfies Record<string, keyof typeof Feather.glyphMap>;
 
 export type AppIconName = keyof typeof GLYPH;

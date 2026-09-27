@@ -16,10 +16,10 @@ describe('formatSegmentTimestamp', () => {
 
 describe('formatGapLabel', () => {
   it('rounds to the nearest second', () => {
-    expect(formatGapLabel(2_400)).toBe('— Khoảng lặng 2s —');
+    expect(formatGapLabel(2_400)).toBe('— Gián đoạn 2 giây —');
   });
 
   it('never reports zero seconds for a real gap', () => {
-    expect(formatGapLabel(200)).toBe('— Khoảng lặng 1s —');
+    expect(formatGapLabel(200)).toBe('— Gián đoạn 1 giây —');
   });
 });

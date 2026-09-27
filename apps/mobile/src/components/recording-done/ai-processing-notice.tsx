@@ -11,14 +11,7 @@ const HEADING = 'Đang xử lý bằng AI';
 // source as the crop allows.
 const BODY_LINE_1 =
   'Chúng tôi đang phân tích nội dung cuộc họp để tạo bản tóm tắt, action items và đồ thị tri thức.';
-/**
- * Prototype-honesty note: this line promises a notification
- * ("chúng tôi sẽ thông báo khi hoàn tất") that this screen never sends —
- * nothing in this app polls the pipeline or pushes a notification when it
- * finishes; the four rows below are a static snapshot. Harmless copy in a
- * prototype; it would be a real consent problem if shipped to a user without
- * the notification actually being built.
- */
+/** True since Phase 11: the pipeline sends a push when the meeting is ready (US-29). */
 const BODY_LINE_2 = 'Bạn có thể rời đi, chúng tôi sẽ thông báo khi hoàn tất.';
 
 /** Peach notice card announcing the AI pipeline has started — screen-07. */

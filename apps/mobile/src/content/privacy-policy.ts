@@ -121,6 +121,10 @@ export const PRIVACY_POLICY_CONTENT: readonly PrivacyPolicyBlock[] = [
     type: 'paragraph',
     text: 'Mọi kết nối tới máy chủ dùng mã hóa TLS. Mã đăng nhập được lưu trong vùng lưu trữ an toàn của điện thoại. Máy chủ chỉ cho mỗi người đọc dữ liệu của chính mình. Nội dung bản chép lời, câu hỏi và câu trả lời không được ghi vào nhật ký hệ thống.',
   },
+  {
+    type: 'paragraph',
+    text: 'Mỗi đoạn chép lời được lưu tạm trên điện thoại trước khi gửi lên máy chủ, và bị xóa khỏi máy ngay khi máy chủ xác nhận đã nhận — nhờ vậy mất mạng hay app bị đóng đột ngột cũng không mất nội dung. Trên Android, dữ liệu tạm này bị loại khỏi bản sao lưu tự động của thiết bị. Trên iOS, phần chưa kịp gửi có thể nằm trong bản sao lưu iCloud của chính bạn cho tới khi gửi xong.',
+  },
   { type: 'heading', text: '7. Đồng ý' },
   {
     type: 'paragraph',

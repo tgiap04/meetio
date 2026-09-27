@@ -1,56 +1,54 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppIcon } from '../icons/app-icon';
 import { colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 
 export interface RecordingControlsProps {
-  /** Left circle — camera. No destination is drawn in the design; deliberately inert. */
-  onCameraPress?: () => void;
-  /** Centre pause — the screen's only forward edge, to the post-recording screen. */
-  onPausePress: () => void;
-  /** Right circle — bookmark. No destination is drawn in the design; deliberately inert. */
-  onBookmarkPress?: () => void;
+  paused: boolean;
+  /** Disabled while a pause/resume/end is being written. */
+  busy?: boolean;
+  onPauseToggle: () => void;
+  onEnd: () => void;
 }
 
 /**
- * The three controls under the waveform: a plain camera circle, the large
- * orange pause button with a peach halo ring behind it, and a plain bookmark
- * circle. Camera and bookmark have no forward edge in the design — see the
- * phase hand-back, they are intentionally inert here.
+ * Under the waveform: the large orange pause/resume button with its peach halo (design screen 06)
+ * and "Kết thúc" beside it. Pausing turns the microphone off entirely (US-09). The design's camera
+ * and bookmark circles had no destination and are gone now that the screen records for real.
  */
-export function RecordingControls({ onCameraPress, onPausePress, onBookmarkPress }: RecordingControlsProps) {
+export function RecordingControls({ paused, busy = false, onPauseToggle, onEnd }: RecordingControlsProps) {
   return (
     <View style={styles.row}>
-      <Pressable
-        accessibilityLabel="Camera"
-        accessibilityRole="button"
-        onPress={onCameraPress}
-        style={styles.sideButton}
-        testID="recording-camera-button"
-      >
-        <AppIcon color={colors.text} name="camera" size={20} />
-      </Pressable>
+      <View style={styles.side} />
 
       <View style={styles.centreWrap}>
         <View style={styles.halo} />
         <Pressable
-          accessibilityLabel="Tạm dừng ghi âm"
+          accessibilityLabel={paused ? 'Tiếp tục ghi âm' : 'Tạm dừng ghi âm'}
           accessibilityRole="button"
-          onPress={onPausePress}
+          accessibilityState={{ disabled: busy }}
+          disabled={busy}
+          onPress={onPauseToggle}
           style={styles.pauseButton}
           testID="recording-pause-button"
         >
-          <AppIcon color={colors.primaryText} name="pause" size={28} />
+          <AppIcon color={colors.primaryText} name={paused ? 'mic' : 'pause'} size={28} />
         </Pressable>
       </View>
 
       <Pressable
-        accessibilityLabel="Đánh dấu"
+        accessibilityLabel="Kết thúc cuộc họp"
         accessibilityRole="button"
-        onPress={onBookmarkPress}
-        style={styles.sideButton}
-        testID="recording-bookmark-button"
+        accessibilityState={{ disabled: busy }}
+        disabled={busy}
+        onPress={onEnd}
+        style={styles.side}
+        testID="recording-end-button"
       >
-        <AppIcon color={colors.text} name="bookmark" size={20} />
+        <View style={styles.endButton}>
+          <AppIcon color={colors.danger} name="stop" size={20} />
+        </View>
+        <Text style={styles.endLabel}>Kết thúc</Text>
       </Pressable>
     </View>
   );
@@ -58,7 +56,8 @@ export function RecordingControls({ onCameraPress, onPausePress, onBookmarkPress
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 32 },
-  sideButton: {
+  side: { width: 64, alignItems: 'center', gap: 4 },
+  endButton: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -66,14 +65,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  endLabel: { ...typography.caption, color: colors.textMuted },
   centreWrap: { alignItems: 'center', justifyContent: 'center' },
-  halo: {
-    position: 'absolute',
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.primaryTint,
-  },
+  halo: { position: 'absolute', width: 96, height: 96, borderRadius: 48, backgroundColor: colors.primaryTint },
   pauseButton: {
     width: 76,
     height: 76,

@@ -1,72 +1,96 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Redirect, router } from 'expo-router';
+import { useEffect, useRef } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { ScreenSurface } from '../../src/components/ui/screen-surface';
 import { RecordingControls } from '../../src/components/recording-live/recording-controls';
 import { RecordingStatusBar } from '../../src/components/recording-live/recording-status-bar';
-import {
-  LiveTranscriptFeed,
-  type LiveTranscriptLanguage,
-} from '../../src/components/recording-live/live-transcript-feed';
+import { LiveTranscriptList } from '../../src/components/recording-live/live-transcript-list';
+import { SyncIndicator } from '../../src/components/recording-live/sync-indicator';
+import { EndingPanel } from '../../src/components/recording-live/ending-panel';
 import { Waveform } from '../../src/components/recording-live/waveform';
-import { SegmentedTabs } from '../../src/components/ui/segmented-tabs';
+import { useRecordingStore } from '../../src/recording/recording.store';
+import { useElapsedClock } from '../../src/hooks/use-elapsed-clock';
+import { useRecordingActions } from '../../src/hooks/use-recording-actions';
 import { RECORDING_DONE_ROUTE } from '../../src/navigation/app-routes';
+import { APP_HOME_ROUTE } from '../../src/navigation/route-guards';
 import { colors } from '../../src/theme/colors';
+import { typography } from '../../src/theme/typography';
 
 /**
- * Screen 06 — the middle of the recording chain (05 Cài đặt ghi âm → **06** →
- * 07 Sau khi kết thúc). Presentation only: the waveform is a fixed array,
- * the elapsed time is the design's static `00:24:18`, and no `expo-audio` or
- * permission API is touched here (see phase-05's hard rule — importing
- * `expo-audio` crashes `jest-expo` at module load before any test body runs).
- *
- * PROTOTYPE-HONESTY NOTE: this screen displays "Đang ghi âm" (recording in
- * progress) while capturing no audio whatsoever. That is acceptable inside a
- * UI-only prototype but must never reach a real user as production behavior —
- * a recording indicator that does not reflect reality is a consent problem,
- * not a cosmetic one. Tracked in the phase-05 hand-back; must be resolved
- * before any real audio pipeline ships behind this screen.
- *
- * Pause is the screen's only forward edge (no "resume" state is drawn in the
- * design) — it advances to `RECORDING_DONE_ROUTE`. The X leaves the chain
- * entirely via `router.back()`. Camera and bookmark are deliberately inert;
- * the design draws no destination for either.
+ * Screen 06 — the live recording. Everything here reflects the real session: the indicator,
+ * the clock (pauses excluded), the input level, the transcript as it is recognised, and whether
+ * it has reached the server. The X only minimises — recording continues and Home links back.
+ * "Kết thúc" waits for every segment to sync (US-16), then moves on to screen 07.
  */
-const ELAPSED_TIME = '00:24:18';
-
-const LANGUAGE_TABS = [
-  { key: 'vi', label: 'Tiếng Việt' },
-  { key: 'en', label: 'Tiếng Anh' },
-] as const;
-
 export default function RecordingLiveScreen() {
-  const [language, setLanguage] = useState<LiveTranscriptLanguage>('vi');
+  const phase = useRecordingStore((s) => s.phase);
+  const lines = useRecordingStore((s) => s.lines);
+  const partial = useRecordingStore((s) => s.partial);
+  const volume = useRecordingStore((s) => s.volume);
+  const quality = useRecordingStore((s) => s.quality);
+  const sync = useRecordingStore((s) => s.sync);
+  const problem = useRecordingStore((s) => s.problem);
+  const endedMeetingId = useRecordingStore((s) => s.endedMeetingId);
+  const elapsed = useElapsedClock();
+  const { run, busy, error } = useRecordingActions();
+  // Once we have moved on to screen 07, the store is idle — that must not ALSO redirect Home.
+  const movedOn = useRef(false);
 
+  useEffect(() => {
+    if (!endedMeetingId) return;
+    movedOn.current = true;
+    useRecordingStore.setState({ endedMeetingId: null });
+    router.replace({ pathname: RECORDING_DONE_ROUTE, params: { id: endedMeetingId } });
+  }, [endedMeetingId]);
+
+  if (phase === 'idle') return movedOn.current || endedMeetingId ? null : <Redirect href={APP_HOME_ROUTE} />;
+
+  const leave = () => (router.canGoBack() ? router.back() : router.replace(APP_HOME_ROUTE));
+
+  function confirmEnd() {
+    Alert.alert('Kết thúc cuộc họp?', 'Meetio sẽ đồng bộ nốt transcript rồi bắt đầu tóm tắt.', [
+      { text: 'Ghi tiếp', style: 'cancel' },
+      { text: 'Kết thúc', style: 'destructive', onPress: () => void run((s) => s.end()) },
+    ]);
+  }
+
+  const paused = phase === 'paused';
   return (
     <ScreenSurface style={styles.screen}>
-      <RecordingStatusBar elapsed={ELAPSED_TIME} onClose={() => router.back()} />
+      <RecordingStatusBar elapsed={elapsed} onClose={leave} paused={paused || phase === 'ending'} />
+      <SyncIndicator online={sync.online} pending={sync.pending} />
+      {problem || error ? (
+        <View style={styles.problem} testID="recording-problem">
+          <Text style={styles.problemText}>{problem ?? error}</Text>
+        </View>
+      ) : null}
 
-      <View style={styles.waveformWrap}>
-        <Waveform />
-      </View>
+      {phase === 'ending' ? (
+        <EndingPanel onLeave={leave} online={sync.online} pending={sync.pending} />
+      ) : (
+        <>
+          <View style={styles.waveformWrap}>
+            <Waveform level={quality === 'high' && !paused ? volume : null} testID="recording-waveform" />
+          </View>
+          <RecordingControls
+            busy={busy}
+            onEnd={confirmEnd}
+            onPauseToggle={() => void run((s) => (paused ? s.resume() : s.pause()))}
+            paused={paused}
+          />
+        </>
+      )}
 
-      <RecordingControls onPausePress={() => router.push(RECORDING_DONE_ROUTE)} />
-
-      <View style={styles.tabsWrap}>
-        <SegmentedTabs
-          activeKey={language}
-          items={[...LANGUAGE_TABS]}
-          onChange={(key) => setLanguage(key as LiveTranscriptLanguage)}
-        />
-      </View>
-
-      <LiveTranscriptFeed language={language} />
+      <View style={styles.divider} />
+      <LiveTranscriptList lines={lines} partial={partial} />
     </ScreenSurface>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface, paddingTop: 8, gap: 20 },
+  screen: { flex: 1, backgroundColor: colors.surface, paddingTop: 8, gap: 16 },
   waveformWrap: { paddingHorizontal: 16, alignItems: 'center' },
-  tabsWrap: { paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+  divider: { height: 1, backgroundColor: colors.border },
+  problem: { marginHorizontal: 16, padding: 12, borderRadius: 12, backgroundColor: colors.warningTint },
+  problemText: { ...typography.caption, color: colors.warning },
 });

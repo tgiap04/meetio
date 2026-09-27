@@ -8,6 +8,7 @@ import { getErrorMessage } from '../../../src/api/error-messages';
 import { LoadingState } from '../../../src/components/loading-state';
 import { ErrorState } from '../../../src/components/error-state';
 import { HomeHeader } from '../../../src/components/home/home-header';
+import { RecordingBanners } from '../../../src/components/home/recording-banners';
 import { StartRecordingCard } from '../../../src/components/home/start-recording-card';
 import { SecondaryActionRow } from '../../../src/components/home/secondary-action-row';
 import { RecentMeetingsSection } from '../../../src/components/home/recent-meetings-section';
@@ -80,6 +81,8 @@ export default function HomeScreen() {
     <ScreenSurface>
       <ScrollView contentContainerStyle={styles.container} style={styles.scroll}>
         <HomeHeader displayName={meQuery.data.user.display_name} />
+
+        <RecordingBanners ownerId={meQuery.data.user.id} />
 
         <StartRecordingCard onPress={handleStartRecordingPress} />
 

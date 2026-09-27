@@ -2,6 +2,7 @@ import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig 
 import type { ApiErrorEnvelope, RefreshTokenResponse } from '@meetio/shared';
 import { ApiErrorCode } from '@meetio/shared';
 import { createSingleFlight } from './refresh-single-flight';
+import { tokenSubject } from './token-subject';
 import { clearTokens, writeTokens } from '../storage/secure-store';
 import { useSessionStore } from '../store/session.store';
 import { CONSENT_ROUTE } from '../navigation/app-routes';
@@ -9,6 +10,25 @@ import { CONSENT_ROUTE } from '../navigation/app-routes';
 /** Marks a request config that has already been retried once after a refresh. */
 interface RetriableConfig extends InternalAxiosRequestConfig {
   _retriedAfterRefresh?: boolean;
+}
+
+/**
+ * Set on a request made on behalf of a specific user's queued data (the transcript sync worker).
+ * The request is refused before it leaves the device unless the token it is about to carry
+ * belongs to that user — on a shared phone, a sync pass still running when someone else signs in
+ * must never upload the previous user's meeting into the new account.
+ */
+export class OwnerMismatchError extends Error {
+  constructor() {
+    super('Access token belongs to a different user than the queued data');
+    this.name = 'OwnerMismatchError';
+  }
+}
+
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    expectedOwnerId?: string;
+  }
 }
 
 export const apiClient: AxiosInstance = axios.create({
@@ -54,6 +74,10 @@ export const refreshAccessToken = createSingleFlight(performRefresh);
 
 apiClient.interceptors.request.use((config) => {
   const { accessToken } = useSessionStore.getState();
+  // Checked here, where the token is attached — no gap between the check and the send.
+  if (config.expectedOwnerId && tokenSubject(accessToken) !== config.expectedOwnerId) {
+    throw new OwnerMismatchError();
+  }
   if (accessToken) {
     config.headers.set('Authorization', `Bearer ${accessToken}`);
   }

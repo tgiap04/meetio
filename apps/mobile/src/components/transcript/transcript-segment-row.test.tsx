@@ -38,13 +38,13 @@ describe('TranscriptSegmentRow', () => {
   it('shows a gap marker when gap_before_ms is set', () => {
     const { renderer } = render({ segment: segment({ gap_before_ms: 3_000 }) });
     const texts = renderer.root.findAllByType(Text).map((n) => n.props.children);
-    expect(texts).toContain('— Khoảng lặng 3s —');
+    expect(texts).toContain('— Gián đoạn 3 giây —');
   });
 
   it('renders no gap marker when gap_before_ms is null', () => {
     const { renderer } = render();
     const texts = renderer.root.findAllByType(Text).map((n) => n.props.children);
-    expect(texts.join(' ')).not.toContain('Khoảng lặng');
+    expect(texts.join(' ')).not.toContain('Gián đoạn');
   });
 
   it('shows the "đã sửa" badge once the segment has been edited', () => {

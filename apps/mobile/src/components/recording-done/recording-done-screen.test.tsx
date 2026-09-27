@@ -1,31 +1,38 @@
 import TestRenderer, { act } from 'react-test-renderer';
+import { Text } from 'react-native';
 
 /**
- * Exercises `app/(app)/recording-done.tsx` without touching native
- * navigation. Mirrors `permission-screen.test.tsx`'s approach of mocking
- * `expo-router`'s `router` object directly.
- *
- * Lives in `src/`, not next to the route file: Expo Router turns every file
- * under `app/` into a route, including `*.test.tsx` — see the note atop
- * `src/navigation/app-group-layout.test.tsx` for the collision that caused
- * (route `/(app)/_layout` crashing the running app with jest globals bundled
- * in, while typecheck/lint/tests all stayed green). Importing the screen by
- * relative path from here avoids that.
+ * `app/(app)/recording-done.tsx` (screen 07) — lives in `src/` because every file under `app/`
+ * becomes a route (see src/navigation/app-group-layout.test.tsx).
  */
-const mockBack = jest.fn();
-const mockPush = jest.fn();
+const mockReplace = jest.fn();
+let mockParams: { id?: string } = { id: 'm-1' };
 jest.mock('expo-router', () => ({
-  router: {
-    back: (...args: unknown[]) => mockBack(...args),
-    push: (...args: unknown[]) => mockPush(...args),
-  },
+  router: { replace: (...args: unknown[]) => mockReplace(...args) },
+  useLocalSearchParams: () => mockParams,
+}));
+
+const mockUseMeetingQuery = jest.fn();
+jest.mock('../../hooks/use-meeting-detail-query', () => ({ useMeetingQuery: (id: string) => mockUseMeetingQuery(id) }));
+const mockRoomSocket = jest.fn();
+jest.mock('../../hooks/use-meeting-room-socket', () => ({ useMeetingRoomSocket: (id: string) => mockRoomSocket(id) }));
+const mockReindex = jest.fn();
+jest.mock('../../hooks/use-meeting-mutations', () => ({
+  useReindexMeetingMutation: () => ({ mutate: mockReindex, isPending: false }),
 }));
 
 import RecordingDoneScreen from '../../../app/(app)/recording-done';
-import { ProcessingStepRow } from './processing-step-row';
-import { StatusBadge } from '../ui/status-badge';
-import { SecondaryButton } from '../ui/secondary-button';
-import { MEETING_DETAIL_ROUTE, MEETING_GRAPH_ROUTE } from '../../navigation/app-routes';
+import { MeetingProcessingStatus } from '../meeting-detail/meeting-processing-status';
+import { MEETING_DETAIL_ROUTE } from '../../navigation/app-routes';
+import { APP_HOME_ROUTE } from '../../navigation/route-guards';
+
+const MEETING = {
+  id: 'm-1',
+  status: 'processing',
+  duration_sec: 2538,
+  failure_reason: null,
+  processing_steps: [{ step: 'chunk', status: 'succeeded' }],
+};
 
 function render() {
   let renderer!: TestRenderer.ReactTestRenderer;
@@ -34,53 +41,47 @@ function render() {
   });
   return renderer;
 }
+const texts = (r: TestRenderer.ReactTestRenderer) => r.root.findAllByType(Text).map((t) => [t.props.children].flat().join(''));
 
 describe('(app)/recording-done screen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockParams = { id: 'm-1' };
+    mockUseMeetingQuery.mockReturnValue({ data: MEETING });
   });
 
-  it('renders exactly one processing badge and one navigable (chevron) row', () => {
-    const renderer = render();
-    expect(renderer.root.findAllByType(StatusBadge)).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ name: 'chevronRight' })).toHaveLength(1);
+  it('shows the real recorded duration and the live pipeline status of THIS meeting', () => {
+    const r = render();
+    expect(mockUseMeetingQuery).toHaveBeenCalledWith('m-1');
+    expect(mockRoomSocket).toHaveBeenCalledWith('m-1'); // progress arrives over the room socket
+    expect(texts(r)).toContain('42 phút 18 giây');
+    const status = r.root.findByType(MeetingProcessingStatus);
+    expect(status.props).toMatchObject({ status: 'processing', processingSteps: MEETING.processing_steps });
   });
 
-  it('back chevron navigates back to the live recording screen', () => {
-    const renderer = render();
-    const back = renderer.root.findByProps({ accessibilityLabel: 'Quay lại' });
-
-    act(() => {
-      back.props.onPress();
-    });
-
-    expect(mockBack).toHaveBeenCalledTimes(1);
+  it('retrying a failed pipeline resumes it from the failed step', () => {
+    mockUseMeetingQuery.mockReturnValue({ data: { ...MEETING, status: 'failed', failure_reason: 'x' } });
+    const r = render();
+    act(() => r.root.findByType(MeetingProcessingStatus).props.onRetry());
+    expect(mockReindex).toHaveBeenCalledWith({ scope: 'changed' });
   });
 
-  it('exactly one of the four pipeline rows is navigable, and it is Knowledge Graph', () => {
-    const renderer = render();
-    const rows = renderer.root.findAllByType(ProcessingStepRow);
-    expect(rows).toHaveLength(4);
-
-    const navigableRows = rows.filter((row) => row.props.onPress);
-    expect(navigableRows).toHaveLength(1);
-    expect(navigableRows[0].props.label).toBe('Knowledge Graph');
-
-    act(() => {
-      navigableRows[0].props.onPress();
-    });
-
-    expect(mockPush).toHaveBeenCalledWith(MEETING_GRAPH_ROUTE);
+  it('"Xem cuộc họp" opens screen 08 for this meeting right away — no waiting for the AI (US-16)', () => {
+    const r = render();
+    act(() => r.root.findByProps({ label: 'Xem cuộc họp' }).props.onPress());
+    expect(mockReplace).toHaveBeenCalledWith({ pathname: MEETING_DETAIL_ROUTE, params: { id: 'm-1' } });
   });
 
-  it('"Xem chi tiết tiến trình" pushes the meeting-detail route', () => {
-    const renderer = render();
-    const button = renderer.root.findByType(SecondaryButton);
+  it('back goes Home — the recording behind this screen has ended', () => {
+    const r = render();
+    act(() => r.root.findByProps({ accessibilityLabel: 'Quay lại' }).props.onPress());
+    expect(mockReplace).toHaveBeenCalledWith(APP_HOME_ROUTE);
+  });
 
-    act(() => {
-      button.props.onPress();
-    });
-
-    expect(mockPush).toHaveBeenCalledWith(MEETING_DETAIL_ROUTE);
+  it('shows no duration until the meeting has loaded', () => {
+    mockUseMeetingQuery.mockReturnValue({ data: undefined });
+    const r = render();
+    expect(texts(r).some((t) => t.includes('phút'))).toBe(false);
+    expect(r.root.findAllByType(MeetingProcessingStatus)).toHaveLength(0);
   });
 });

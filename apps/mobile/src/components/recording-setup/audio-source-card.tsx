@@ -3,16 +3,17 @@ import { StyleSheet, View } from 'react-native';
 import { RadioRow } from './radio-row';
 import { SurfaceCard } from '../ui/surface-card';
 import { colors } from '../../theme/colors';
-import type { RecordingOption } from '../../mocks/types';
+import type { RecordingOption } from '../../content/recording-options';
 
-export interface AudioSourceCardProps {
-  options: readonly RecordingOption[];
-  selectedId: string;
-  onSelect: (id: string) => void;
+export interface AudioSourceCardProps<T extends string> {
+  options: readonly RecordingOption<T>[];
+  selectedId: T | null;
+  onSelect: (id: T) => void;
 }
 
-/** "Nguồn âm thanh" card — one `RadioRow` per option, one inset divider between rows. */
-export function AudioSourceCard({ options, selectedId, onSelect }: AudioSourceCardProps) {
+/** A radio card — one `RadioRow` per option, one inset divider between rows. Used for the audio
+ *  source (design "Nguồn âm thanh" card), and in the same style for language and quality. */
+export function AudioSourceCard<T extends string>({ options, selectedId, onSelect }: AudioSourceCardProps<T>) {
   return (
     <SurfaceCard style={styles.card}>
       {options.map((option, index) => (

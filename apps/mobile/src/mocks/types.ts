@@ -48,21 +48,7 @@ export interface TranscriptLine {
 // shape — see `src/components/knowledge-graph/`.
 
 // --- Recording setup (screen 05) --------------------------------------------
-
-export interface RecordingOption {
-  readonly id: string;
-  readonly label: string;
-  readonly description?: string;
-}
-
-/** The single currently-selected value shown per row; the design draws no
- *  expanded option list for language, translation target, or quality mode. */
-export interface RecordingSettingsDefaults {
-  readonly language: string;
-  readonly translationEnabled: boolean;
-  readonly translationTarget: string;
-  readonly qualityMode: string;
-}
+// Retired by Phase 07: screen 05 uses real options (`src/content/recording-options.ts`).
 
 // --- Settings (screen 14) ---------------------------------------------------
 

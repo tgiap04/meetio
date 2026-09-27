@@ -24,6 +24,9 @@ jest.mock('expo-router', () => ({
   Stack: (props: unknown) => mockStack(props),
 }));
 
+// The transcript sync the layout starts is covered by its own tests; this file is about the guard.
+jest.mock('../hooks/use-recording-sync', () => ({ useRecordingSync: () => undefined }));
+
 jest.mock('../store/session.store', () => ({
   useSessionStore: jest.fn(),
 }));
