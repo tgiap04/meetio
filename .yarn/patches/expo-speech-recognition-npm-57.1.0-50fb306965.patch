@@ -1,0 +1,39 @@
+diff --git a/ios/ExpoSpeechRecognitionModule.swift b/ios/ExpoSpeechRecognitionModule.swift
+index 9dc90826634fe3424c0c143eb7cfd72efe90498a..a1512a8287f5c1fae8ce54d0bc33eaabb7318137 100644
+--- a/ios/ExpoSpeechRecognitionModule.swift
++++ b/ios/ExpoSpeechRecognitionModule.swift
+@@ -392,12 +392,14 @@ public class ExpoSpeechRecognitionModule: Module {
+ 
+     AsyncFunction("getSupportedLocales") { (options: GetSupportedLocaleOptions, promise: Promise) in
+       let supportedLocales = SFSpeechRecognizer.supportedLocales().map { $0.identifier }.sorted()
+-      let installedLocales = supportedLocales
++      // Meetio patch: "installed" = recognisable ON-DEVICE for that locale, not merely supported by the server.
++      let installedLocales = supportedLocales.filter {
++        SFSpeechRecognizer(locale: Locale(identifier: $0))?.supportsOnDeviceRecognition ?? false
++      }
+ 
+       // Return as an object
+       promise.resolve([
+         "locales": supportedLocales,
+-        // On iOS, the installed locales are the same as the supported locales
+         "installedLocales": installedLocales,
+       ])
+     }
+diff --git a/ios/ExpoSpeechRecognizer.swift b/ios/ExpoSpeechRecognizer.swift
+index b27842501f72e1a5a9382636397cbef30d5a2b30..3d7de463d0b3cb4a4c2387388892111b2208c074 100644
+--- a/ios/ExpoSpeechRecognizer.swift
++++ b/ios/ExpoSpeechRecognizer.swift
+@@ -585,9 +585,10 @@ actor ExpoSpeechRecognizer: ObservableObject {
+     // These won't get emitted to the user, however
+     request.shouldReportPartialResults = options.interimResults || !options.continuous
+ 
+-    if recognizer.supportsOnDeviceRecognition {
+-      request.requiresOnDeviceRecognition = options.requiresOnDeviceRecognition
+-    }
++    // Meetio patch: fail closed. Upstream only set the flag when the recognizer supports on-device
++    // recognition, so an unsupported locale silently streamed audio to Apple's servers. Setting it
++    // unconditionally makes such a request fail instead (NFR-02: audio never leaves the device).
++    request.requiresOnDeviceRecognition = options.requiresOnDeviceRecognition
+ 
+     if let taskHint = options.iosTaskHint {
+       request.taskHint = taskHint.sfSpeechRecognitionTaskHint
