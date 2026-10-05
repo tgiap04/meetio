@@ -14,10 +14,10 @@ jest.mock('expo-router', () => ({
   router: { push: (...args: unknown[]) => mockPush(...args), back: (...args: unknown[]) => mockBack(...args) },
 }));
 
-const mockMutateAsync = jest.fn();
+const mockMutate = jest.fn();
 let mockMutationState: { isPending: boolean; isError: boolean; error?: unknown };
 jest.mock('../../hooks/use-account-mutations', () => ({
-  useRecordConsentMutation: () => ({ mutateAsync: mockMutateAsync, ...mockMutationState }),
+  useRecordConsentMutation: () => ({ mutate: mockMutate, ...mockMutationState }),
 }));
 
 import ConsentScreen from '../../../app/(app)/consent';
@@ -56,7 +56,8 @@ describe('ConsentScreen (NFR-01, consent v2)', () => {
   });
 
   it('confirming consent calls the mutation then navigates back', async () => {
-    mockMutateAsync.mockResolvedValue({ recording_consent_at: '2026-09-27T00:00:00Z', consent_version: 2 });
+    // Like TanStack's `mutate`: runs `onSuccess` once the request resolves.
+    mockMutate.mockImplementation((_vars: unknown, options?: { onSuccess?: () => void }) => options?.onSuccess?.());
     const renderer = render();
     const confirmButton = renderer.root.findAll(
       (node) => node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function',
@@ -64,7 +65,7 @@ describe('ConsentScreen (NFR-01, consent v2)', () => {
     await act(async () => {
       await confirmButton.props.onPress();
     });
-    expect(mockMutateAsync).toHaveBeenCalledTimes(1);
+    expect(mockMutate).toHaveBeenCalledTimes(1);
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
 

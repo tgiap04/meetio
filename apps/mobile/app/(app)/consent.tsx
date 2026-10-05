@@ -24,9 +24,10 @@ export default function ConsentScreen() {
   const consentMutation = useRecordConsentMutation();
   const errorMessage = consentMutation.isError ? getErrorMessage(consentMutation.error) : null;
 
-  async function handleConfirm() {
-    await consentMutation.mutateAsync();
-    router.back();
+  // `mutate`, not `mutateAsync`: a failure (offline, server down) is shown through
+  // `errorMessage` below — awaiting it here would also surface as an unhandled rejection.
+  function handleConfirm() {
+    consentMutation.mutate(undefined, { onSuccess: () => router.back() });
   }
 
   return (
