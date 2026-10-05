@@ -329,8 +329,12 @@ endef
 clean-ios: ## Xoá build iOS (apps/mobile/ios + DerivedData của Meetio)
 	$(call purge_paths,iOS,apps/mobile/ios $(DERIVED_DATA)/Meetio-*)
 
-clean-android: ## Xoá build Android (apps/mobile/android + cache gradle của dự án)
+clean-android: ## Xoá build Android (apps/mobile/android + build native trong node_modules)
 	$(call purge_paths,Android,apps/mobile/android)
+	@# Cache CMake/ninja của từng thư viện native: đổi phiên bản một gói (vd. react-native-worklets)
+	@# để lại đường dẫn .so cũ trong cấu hình của gói khác → "ninja: error ... missing and no known rule".
+	@rm -rf node_modules/*/android/build node_modules/*/android/.cxx node_modules/@*/*/android/build node_modules/@*/*/android/.cxx
+	@echo "  ✅ đã xoá build native trong node_modules — chạy 'make device-adr' để build lại"
 
 clean: clean-ios clean-android ## Dọn toàn bộ đầu ra build native của dự án
 	@echo ""
