@@ -15,7 +15,9 @@ import { SegmentedTabs } from '../../src/components/ui/segmented-tabs';
 import { LoadingState } from '../../src/components/loading-state';
 import { ErrorState } from '../../src/components/error-state';
 import { useMeetingQuery } from '../../src/hooks/use-meeting-detail-query';
-import { useReindexMeetingMutation, useUpdateMeetingMutation } from '../../src/hooks/use-meeting-mutations';
+import { useReindexMeetingMutation } from '../../src/hooks/use-meeting-mutations';
+import { useRenameMeetingDialog } from '../../src/hooks/use-rename-meeting';
+import { RenameMeetingDialog } from '../../src/components/meeting/rename-meeting-dialog';
 import { useExportMeetingMutation } from '../../src/hooks/use-export-meeting-mutation';
 import { useMeetingRoomSocket } from '../../src/hooks/use-meeting-room-socket';
 import { getErrorMessage } from '../../src/api/error-messages';
@@ -50,7 +52,7 @@ export default function MeetingDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const meetingQuery = useMeetingQuery(id);
   useMeetingRoomSocket(id);
-  const updateMeetingMutation = useUpdateMeetingMutation(id ?? '');
+  const renameDialog = useRenameMeetingDialog();
   const reindexMutation = useReindexMeetingMutation(id ?? '');
   const exportMutation = useExportMeetingMutation(id ?? '', meetingQuery.data?.title ?? 'cuoc-hop');
 
@@ -95,10 +97,6 @@ export default function MeetingDetailScreen() {
     router.push({ pathname: MEETING_TRANSCRIPT_ROUTE, params: { id: meeting.id, seq: String(segmentSeq) } });
   }
 
-  function handleTitleSave(title: string) {
-    updateMeetingMutation.mutate({ title });
-  }
-
   function handleRetry() {
     reindexMutation.mutate({ scope: 'changed' });
   }
@@ -133,7 +131,7 @@ export default function MeetingDetailScreen() {
         <MeetingDetailHero
           hasUnprocessedEdits={meeting.has_unprocessed_edits}
           meeting={meeting}
-          onTitleSave={handleTitleSave}
+          onRenamePress={() => renameDialog.open({ id: meeting.id, title: meeting.title })}
         />
         <MeetingProcessingStatus
           failureReason={meeting.failure_reason}
@@ -157,6 +155,7 @@ export default function MeetingDetailScreen() {
           <ActionItemsTab meetingId={meeting.id} onOpenTranscript={handleOpenTranscript} />
         ) : null}
       </ScrollView>
+      <RenameMeetingDialog {...renameDialog.dialogProps} />
       <ExportSheet
         exporting={exportMutation.isPending}
         onClose={() => setExportSheetVisible(false)}

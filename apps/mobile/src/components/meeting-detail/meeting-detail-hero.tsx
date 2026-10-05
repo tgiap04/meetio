@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { MeetingDetailResponse } from '@meetio/shared';
 import { AppIcon } from '../icons/app-icon';
 import { StatusBadge } from '../ui/status-badge';
@@ -11,33 +10,17 @@ import { typography } from '../../theme/typography';
 
 export interface MeetingDetailHeroProps {
   meeting: MeetingDetailResponse;
-  onTitleSave: (title: string) => void;
+  /** Opens the shared rename dialog. */
+  onRenamePress: () => void;
   hasUnprocessedEdits: boolean;
 }
 
 /**
- * Real-data hero card for screen 08 (US-25): calendar tile, an always-editable
- * title field that autosaves on blur, the "date/time · duration" meta line,
- * and the status badge. A blank save reverts to the server's default
- * time-based title (`updateMeeting` contract) — this component only sends
- * whatever text is in the field, trimmed, and lets the server own that rule.
+ * Real-data hero card for screen 08 (US-25): calendar tile, the meeting title
+ * with a pencil button that opens the shared rename dialog, the
+ * "date/time · duration" meta line, and the status badge.
  */
-export function MeetingDetailHero({ meeting, onTitleSave, hasUnprocessedEdits }: MeetingDetailHeroProps) {
-  const [draftTitle, setDraftTitle] = useState(meeting.title);
-
-  // The server title can change out from under the field (another device's
-  // edit, or a blank-title revert) — resync whenever it does, but only while
-  // the user isn't actively typing a different value already in flight.
-  useEffect(() => {
-    setDraftTitle(meeting.title);
-  }, [meeting.title]);
-
-  function handleBlur() {
-    if (draftTitle.trim() !== meeting.title) {
-      onTitleSave(draftTitle.trim());
-    }
-  }
-
+export function MeetingDetailHero({ meeting, onRenamePress, hasUnprocessedEdits }: MeetingDetailHeroProps) {
   return (
     <SurfaceCard style={styles.card}>
       <View style={styles.row}>
@@ -45,13 +28,20 @@ export function MeetingDetailHero({ meeting, onTitleSave, hasUnprocessedEdits }:
           <AppIcon color={colors.text} name="calendar" size={24} />
         </View>
         <View style={styles.body}>
-          <TextInput
-            accessibilityLabel="Tiêu đề cuộc họp"
-            onBlur={handleBlur}
-            onChangeText={setDraftTitle}
-            style={styles.title}
-            value={draftTitle}
-          />
+          <View style={styles.titleRow}>
+            <Text numberOfLines={2} style={styles.title}>
+              {meeting.title}
+            </Text>
+            <Pressable
+              accessibilityLabel="Đổi tên cuộc họp"
+              accessibilityRole="button"
+              hitSlop={4}
+              onPress={onRenamePress}
+              style={styles.renameButton}
+            >
+              <AppIcon color={colors.textMuted} name="edit" size={18} />
+            </Pressable>
+          </View>
           <Text style={styles.meta}>{formatMeetingMeta(meeting)}</Text>
         </View>
         <StatusBadge status={toStatusBadgeStatus(meeting.status)} />
@@ -77,7 +67,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   body: { flex: 1, gap: 2 },
-  title: { ...typography.sectionTitle, color: colors.text, padding: 0 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  title: { ...typography.sectionTitle, color: colors.text, flexShrink: 1 },
+  renameButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginVertical: -10 },
   meta: { ...typography.caption, color: colors.textMuted },
   unprocessedNotice: { ...typography.caption, color: colors.warning },
 });

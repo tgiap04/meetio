@@ -1,5 +1,6 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { Text } from 'react-native';
+import { Modal, Text } from 'react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MeetingStatus, ProcessingStep } from '@meetio/shared';
 import { MEETING_GRAPH_ROUTE, MEETING_TRANSCRIPT_ROUTE } from '../../navigation/app-routes';
 
@@ -17,13 +18,17 @@ jest.mock('expo-router', () => ({
 
 const mockUseMeetingQuery = jest.fn();
 jest.mock('../../hooks/use-meeting-detail-query', () => ({
+  ...jest.requireActual('../../hooks/use-meeting-detail-query'),
   useMeetingQuery: (...args: unknown[]) => mockUseMeetingQuery(...args),
 }));
 
-const mockUpdateMutate = jest.fn();
+const mockUpdateMeeting = jest.fn();
+jest.mock('../../api/meetings', () => ({
+  updateMeeting: (...args: unknown[]) => mockUpdateMeeting(...args),
+}));
+
 const mockReindexMutate = jest.fn();
 jest.mock('../../hooks/use-meeting-mutations', () => ({
-  useUpdateMeetingMutation: () => ({ mutate: mockUpdateMutate, isPending: false }),
   useReindexMeetingMutation: () => ({ mutate: mockReindexMutate, isPending: false }),
 }));
 
@@ -86,10 +91,27 @@ function mockSuccess(overrides: Record<string, unknown> = {}) {
   });
 }
 
+function renameModal(r: TestRenderer.ReactTestRenderer) {
+  return r.root.findAllByType(Modal).filter((m) => m.props.testID === 'rename-meeting-dialog')[0];
+}
+
+const cleanups: (() => void)[] = [];
+
 function render() {
   let renderer!: TestRenderer.ReactTestRenderer;
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { gcTime: Infinity, retry: false }, mutations: { retry: false, gcTime: Infinity } },
+  });
   act(() => {
-    renderer = TestRenderer.create(<MeetingDetailScreen />);
+    renderer = TestRenderer.create(
+      <QueryClientProvider client={queryClient}>
+        <MeetingDetailScreen />
+      </QueryClientProvider>,
+    );
+  });
+  cleanups.push(() => {
+    act(() => renderer.unmount());
+    queryClient.clear();
   });
   return renderer;
 }
@@ -110,6 +132,12 @@ function pressTab(renderer: TestRenderer.ReactTestRenderer, label: string) {
 }
 
 describe('MeetingDetailScreen', () => {
+  afterEach(() => {
+    while (cleanups.length > 0) {
+      cleanups.pop()?.();
+    }
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockSearchParams = { id: 'sprint-review' };
@@ -141,9 +169,8 @@ describe('MeetingDetailScreen', () => {
   it('renders the resolved meeting title and joins the meeting room', () => {
     mockSuccess({ title: 'Client Discussion' });
     const renderer = render();
-    expect(renderer.root.findByProps({ accessibilityLabel: 'Tiêu đề cuộc họp' }).props.value).toBe(
-      'Client Discussion',
-    );
+    expect(allText(renderer)).toContain('Client Discussion');
+    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Tiêu đề cuộc họp' })).toHaveLength(0);
     expect(mockUseMeetingRoomSocket).toHaveBeenCalledWith('sprint-review');
   });
 
@@ -229,12 +256,20 @@ describe('MeetingDetailScreen', () => {
     });
   });
 
-  it('autosaves the title on blur', () => {
-    mockSuccess();
+  it('opens the rename dialog from the pencil button and saves the trimmed title', async () => {
+    mockSuccess({ title: 'Client Discussion' });
+    mockUpdateMeeting.mockResolvedValue({});
     const renderer = render();
-    const titleInput = renderer.root.findByProps({ accessibilityLabel: 'Tiêu đề cuộc họp' });
-    act(() => titleInput.props.onChangeText('New title'));
-    act(() => titleInput.props.onBlur());
-    expect(mockUpdateMutate).toHaveBeenCalledWith({ title: 'New title' });
+    expect(renameModal(renderer).props.visible).toBe(false);
+    act(() => renderer.root.findByProps({ accessibilityLabel: 'Đổi tên cuộc họp' }).props.onPress());
+    expect(renameModal(renderer).props.visible).toBe(true);
+    const input = renderer.root.findByProps({ accessibilityLabel: 'Tên cuộc họp' });
+    expect(input.props.value).toBe('Client Discussion');
+    act(() => input.props.onChangeText('  New title '));
+    act(() => renderer.root.findByProps({ accessibilityLabel: 'Lưu' }).props.onPress());
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    expect(mockUpdateMeeting).toHaveBeenCalledWith('sprint-review', { title: 'New title' });
   });
 });

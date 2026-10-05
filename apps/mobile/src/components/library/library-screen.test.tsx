@@ -1,5 +1,6 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { Alert, FlatList, Text, TextInput } from 'react-native';
+import { Alert, FlatList, Modal, Text, TextInput } from 'react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 /**
  * Exercises `app/(app)/(tabs)/library.tsx` against mocked data hooks, without
@@ -39,6 +40,11 @@ jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => ({
       {renderRightActions()}
     </>
   ),
+}));
+
+const mockUpdateMeeting = jest.fn();
+jest.mock('../../api/meetings', () => ({
+  updateMeeting: (...args: unknown[]) => mockUpdateMeeting(...args),
 }));
 
 const mockStartDelete = jest.fn();
@@ -88,14 +94,27 @@ function mockSuccess(
   return fetchNextPage;
 }
 
+function renameModal(r: TestRenderer.ReactTestRenderer) {
+  return r.root.findAllByType(Modal).filter((m) => m.props.testID === 'rename-meeting-dialog')[0];
+}
+
 const renderers: TestRenderer.ReactTestRenderer[] = [];
+const queryClients: QueryClient[] = [];
 
 function render() {
   let renderer!: TestRenderer.ReactTestRenderer;
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { gcTime: Infinity, retry: false }, mutations: { retry: false, gcTime: Infinity } },
+  });
   act(() => {
-    renderer = TestRenderer.create(<LibraryScreen />);
+    renderer = TestRenderer.create(
+      <QueryClientProvider client={queryClient}>
+        <LibraryScreen />
+      </QueryClientProvider>,
+    );
   });
   renderers.push(renderer);
+  queryClients.push(queryClient);
   return renderer;
 }
 
@@ -120,6 +139,7 @@ describe('(tabs)/library screen', () => {
     while (renderers.length > 0) {
       act(() => renderers.pop()?.unmount());
     }
+    queryClients.splice(0).forEach((client) => client.clear());
     act(() => {
       jest.runOnlyPendingTimers();
     });
@@ -360,5 +380,24 @@ describe('(tabs)/library screen', () => {
     mockSuccess([meeting()], { hasNextPage: true, isFetchingNextPage: true });
     const renderer = render();
     expect(renderer.root.findByProps({ testID: 'library-load-more-spinner' })).toBeTruthy();
+  });
+
+  it('"Đổi tên" action opens the rename dialog prefilled with the meeting title and saves', async () => {
+    mockSuccess([meeting({ id: 'm9', title: 'Sprint Review' })]);
+    mockUpdateMeeting.mockResolvedValue({});
+    const renderer = render();
+    expect(renameModal(renderer).props.visible).toBe(false);
+    act(() =>
+      renderer.root.findByProps({ accessibilityLabel: 'Đổi tên cuộc họp Sprint Review' }).props.onPress(),
+    );
+    expect(renameModal(renderer).props.visible).toBe(true);
+    const input = renderer.root.findByProps({ accessibilityLabel: 'Tên cuộc họp' });
+    expect(input.props.value).toBe('Sprint Review');
+    act(() => input.props.onChangeText('Retro'));
+    act(() => renderer.root.findByProps({ accessibilityLabel: 'Lưu' }).props.onPress());
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(10);
+    });
+    expect(mockUpdateMeeting).toHaveBeenCalledWith('m9', { title: 'Retro' });
   });
 });

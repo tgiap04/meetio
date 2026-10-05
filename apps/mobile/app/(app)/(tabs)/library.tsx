@@ -15,6 +15,8 @@ import { LoadingState } from '../../../src/components/loading-state';
 import { ErrorState } from '../../../src/components/error-state';
 import { useInfiniteMeetingsQuery } from '../../../src/hooks/use-meetings-query';
 import { useDebouncedValue } from '../../../src/hooks/use-debounced-value';
+import { RenameMeetingDialog } from '../../../src/components/meeting/rename-meeting-dialog';
+import { useRenameMeetingDialog } from '../../../src/hooks/use-rename-meeting';
 import { useDeleteMeetingWithUndo } from '../../../src/hooks/use-delete-meeting-with-undo';
 import { getErrorMessage } from '../../../src/api/error-messages';
 import { toStatusBadgeStatus } from '../../../src/components/ui/meeting-status-badge-mapping';
@@ -45,7 +47,7 @@ const EMPTY_DATE_RANGE: DateRangeFilter = { from: null, to: null };
  * of hundreds of rows loads more without a manual button, and rows outside
  * the viewport aren't mounted.
  *
- * A client-side 10s undo window on delete (US-26 — swipe a row left or long press it, see
+ * A client-side 10s undo window on delete (US-26 — swipe a row left for "Đổi tên" / "Xóa", or long press it to delete, see
  * `use-delete-meeting-with-undo.ts`).
  *
  * The mock's two hardcoded "Gần đây" / "Tuần trước" date groups are dropped:
@@ -60,6 +62,7 @@ export default function LibraryScreen() {
   const [dateFilterVisible, setDateFilterVisible] = useState(false);
   const debouncedQuery = useDebouncedValue(queryText.trim(), SEARCH_DEBOUNCE_MS);
   const { pendingDeleteId, startDelete, undoDelete } = useDeleteMeetingWithUndo();
+  const renameDialog = useRenameMeetingDialog();
   const openRowRef = useRef<SwipeableMethods | null>(null);
 
   const meetingsQuery = useInfiniteMeetingsQuery({
@@ -112,7 +115,7 @@ export default function LibraryScreen() {
   const hasActiveFilters = debouncedQuery !== '' || statusFilter !== 'all' || dateRangeLabel !== null;
 
   return (
-    <ScreenSurface>
+    <ScreenSurface edges={['top']}>
       <FlatList
         contentContainerStyle={styles.container}
         data={meetings}
@@ -151,6 +154,7 @@ export default function LibraryScreen() {
         renderItem={({ item }) => (
           <SwipeableMeetingRow
             onDeleteRequest={() => handleDeleteRequest(item)}
+            onRenameRequest={() => renameDialog.open({ id: item.id, title: item.title })}
             openRowRef={openRowRef}
             row={{
               badge: { status: toStatusBadgeStatus(item.status) },
@@ -165,6 +169,7 @@ export default function LibraryScreen() {
         style={styles.list}
         windowSize={7}
       />
+      <RenameMeetingDialog {...renameDialog.dialogProps} />
       <LibraryDateFilterSheet
         initialRange={dateRange}
         onApply={(range) => {

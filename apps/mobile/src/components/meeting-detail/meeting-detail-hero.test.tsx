@@ -1,5 +1,5 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { Text, TextInput } from 'react-native';
+import { Text } from 'react-native';
 import type { MeetingDetailResponse } from '@meetio/shared';
 import { MeetingDetailHero } from './meeting-detail-hero';
 
@@ -31,7 +31,7 @@ function meeting(overrides: Partial<MeetingDetailResponse> = {}): MeetingDetailR
 function render(props: Partial<Parameters<typeof MeetingDetailHero>[0]> = {}) {
   const merged = {
     meeting: meeting(),
-    onTitleSave: jest.fn(),
+    onRenamePress: jest.fn(),
     hasUnprocessedEdits: false,
     ...props,
   };
@@ -39,45 +39,30 @@ function render(props: Partial<Parameters<typeof MeetingDetailHero>[0]> = {}) {
   act(() => {
     renderer = TestRenderer.create(<MeetingDetailHero {...merged} />);
   });
-  return { renderer, onTitleSave: merged.onTitleSave };
+  return { renderer, onRenamePress: merged.onRenamePress };
 }
 
 describe('MeetingDetailHero', () => {
-  it('shows the meeting title in an editable field', () => {
+  it('shows the meeting title as plain text, not an editable field', () => {
     const { renderer } = render();
-    expect(renderer.root.findByType(TextInput).props.value).toBe('Weekly Sync');
+    expect(renderer.root.findAllByType(Text).map((n) => n.props.children)).toContain('Weekly Sync');
+    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Tiêu đề cuộc họp' })).toHaveLength(0);
   });
 
-  it('saves the trimmed title on blur when it changed', () => {
-    const { renderer, onTitleSave } = render();
-    act(() => {
-      renderer.root.findByType(TextInput).props.onChangeText('  New title  ');
-    });
-    act(() => {
-      renderer.root.findByType(TextInput).props.onBlur();
-    });
-    expect(onTitleSave).toHaveBeenCalledWith('New title');
-  });
-
-  it('does not save on blur when the title is unchanged', () => {
-    const { renderer, onTitleSave } = render();
-    act(() => {
-      renderer.root.findByType(TextInput).props.onBlur();
-    });
-    expect(onTitleSave).not.toHaveBeenCalled();
+  it('pencil button is labelled, at least 44pt, and calls onRenamePress', () => {
+    const { renderer, onRenamePress } = render();
+    const button = renderer.root.findByProps({ accessibilityLabel: 'Đổi tên cuộc họp' });
+    expect(button.props.accessibilityRole).toBe('button');
+    const flat = Object.assign({}, ...[button.props.style].flat());
+    expect(flat.width).toBeGreaterThanOrEqual(44);
+    expect(flat.height).toBeGreaterThanOrEqual(44);
+    act(() => button.props.onPress());
+    expect(onRenamePress).toHaveBeenCalledTimes(1);
   });
 
   it('shows the "đang cập nhật" notice when there are unprocessed edits', () => {
     const { renderer } = render({ hasUnprocessedEdits: true });
     const texts = renderer.root.findAllByType(Text).map((n) => n.props.children);
     expect(texts.join(' ')).toContain('đang cập nhật');
-  });
-
-  it('resyncs the field when the server title changes underneath it', () => {
-    const { renderer } = render();
-    act(() => {
-      renderer.update(<MeetingDetailHero hasUnprocessedEdits={false} meeting={meeting({ title: 'Renamed' })} onTitleSave={jest.fn()} />);
-    });
-    expect(renderer.root.findByType(TextInput).props.value).toBe('Renamed');
   });
 });

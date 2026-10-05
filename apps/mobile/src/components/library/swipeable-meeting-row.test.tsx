@@ -37,12 +37,14 @@ function render(
   onDelete: () => void,
   openRowRef: { current: SwipeableMethods | null } = { current: null },
   onLongPress?: () => void,
+  onRename: () => void = jest.fn(),
 ) {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(
       <SwipeableMeetingRow
         onDeleteRequest={onDelete}
+        onRenameRequest={onRename}
         openRowRef={openRowRef}
         row={{ leading: 'waveform', title: 'Sprint Review', meta: 'meta', onLongPress }}
       />,
@@ -60,7 +62,7 @@ describe('SwipeableMeetingRow', () => {
   it('renders the row and a red "Xóa" action with an accessibility label', () => {
     const renderer = render(jest.fn());
     expect(renderer.root.findAllByType(Text).map((n) => n.props.children)).toEqual(
-      expect.arrayContaining(['Sprint Review', 'Xóa']),
+      expect.arrayContaining(['Sprint Review', 'Đổi tên', 'Xóa']),
     );
     const action = renderer.root.findByProps({ accessibilityLabel: 'Xóa cuộc họp Sprint Review' });
     expect(action.props.accessibilityRole).toBe('button');
@@ -72,6 +74,18 @@ describe('SwipeableMeetingRow', () => {
     act(() => renderer.root.findByProps({ accessibilityLabel: 'Xóa cuộc họp Sprint Review' }).props.onPress());
     expect(mockClose).toHaveBeenCalledTimes(1);
     expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it('tapping "Đổi tên" closes the row and requests rename, not delete', () => {
+    const onDelete = jest.fn();
+    const onRename = jest.fn();
+    const renderer = render(onDelete, undefined, undefined, onRename);
+    const action = renderer.root.findByProps({ accessibilityLabel: 'Đổi tên cuộc họp Sprint Review' });
+    expect(action.props.accessibilityRole).toBe('button');
+    act(() => action.props.onPress());
+    expect(mockClose).toHaveBeenCalledTimes(1);
+    expect(onRename).toHaveBeenCalledTimes(1);
+    expect(onDelete).not.toHaveBeenCalled();
   });
 
   it('keeps the long-press handler on the row', () => {
