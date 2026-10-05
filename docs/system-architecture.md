@@ -15,7 +15,7 @@
 | Hàng đợi | BullMQ trên Redis | Tác vụ nền: cắt đoạn, nhúng vector, trích xuất đồ thị, tóm tắt |
 | Dữ liệu | PostgreSQL + pgvector | Bản ghi cuộc họp, transcript, vector, đồ thị tri thức |
 | Bộ nhớ đệm | Redis | Bộ đệm phiên ghi đang chạy, khử trùng lặp, giới hạn tần suất |
-| AI | Google Gemini API | Nhúng vector, dịch, trích xuất thực thể, tóm tắt, sinh câu trả lời |
+| AI | Google Gemini API | Nhúng vector, trích xuất thực thể, tóm tắt, sinh câu trả lời |
 
 **Nguyên tắc mặc định:** audio không rời khỏi thiết bị; backend chỉ nhận văn bản. Đây là cam kết ở
 [NFR-02](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr) và là ranh giới quyết định toàn bộ thiết kế
@@ -101,8 +101,8 @@ Bật engine nhận diện thiết bị
   │ ◄───────── WS segment_ack{seq:1} ───────────────┘ (bền vững trước khi ack)
   │ xóa khỏi hàng đợi local
   │
-  ├─ (nếu bật dịch) ─────────────────────────► gom lô → Gemini → dịch
-  │ ◄───────── WS segment_translated{seq:1, text}
+  ├─ (nếu bật dịch) dịch ngay trên máy (ML Kit) → lưu SQLite pending_translations
+  │ PUT /meetings/:id/segments/1/translation ──────►│ lưu translated_text (sau khi đoạn 1 đã ack)
   │
 Kết thúc
   │ đồng bộ nốt hàng đợi ────────────────────► mọi đoạn đã bền vững
@@ -232,38 +232,41 @@ Mỗi cuộc họp chạy ở một trong hai chế độ (`RecognitionMode` tro
   (kiểm hạn mức trước, ghi `usage_records` với `operation = 'stt'`). Âm thanh chỉ nằm trong bộ nhớ
   request, không ghi đĩa, không ghi log ([API §4](api-spec.md#nhận-diện-giọng-nói-trên-máy-chủ-phase-18)).
 
-#### Dịch trực tiếp (Phase 09)
+<a id="dịch-trên-máy-phase-21"></a>
+#### Dịch trên máy (Phase 09, chuyển sang thiết bị ở Phase 21)
 
-Chọn ngôn ngữ đích ở mục "Dịch sang" của màn cài đặt ghi âm (mặc định **tắt**, bật thì hiện cảnh báo
-tốn thêm chi phí AI); đích chỉ là `vi-VN` hoặc `en-US` và khác ngôn ngữ ghi (server kiểm ở
-`translate-target.ts`). Cuộc họp lưu `meetings.translate_to`.
+Chọn ngôn ngữ đích ở mục "Dịch sang" của màn cài đặt ghi âm (mặc định **tắt**); đích chỉ là `vi-VN` hoặc
+`en-US` và khác ngôn ngữ ghi (server kiểm ở `translate-target.ts`). Cuộc họp lưu `meetings.translate_to`.
+Máy chủ **không dịch và không gọi Gemini cho việc dịch**; không còn `TranslationModule`, bộ gom lô hay sự
+kiện WebSocket dịch.
 
 ```
-transcript_segment / bulk ─► ghi + COMMIT ─► segment_ack
-                                  └─(sau COMMIT, không chờ)─► TranslationService.enqueue
-                                        gom lô/cuộc họp ─► Gemini (JSON {seq,text}[]) ─► lưu translated_text
-                                        ─► WS segment_translated{meeting_id,seq,…}  |  segment_translation_failed
+đoạn chốt ─► (SQLite pending_segments) ─► sync-worker ─► segment_ack
+   └─► translation-runner (ML Kit, từng dòng một, hết 30 giây thì tính lỗi)
+         ─► upsert SQLite pending_translations ─► hiện ngay trên màn hình
+         ─► sync-worker: PUT .../segments/:seq/translation (chỉ đoạn đã ack) ─► 204 ─► xóa dòng
 ```
 
-- **Không chặn đường ghi:** `enqueue` chạy sau COMMIT, nuốt mọi lỗi; ack không bao giờ phụ thuộc dịch.
-  Cài đặt dịch của cuộc họp được nhớ 30 giây nên cuộc họp tắt dịch không tốn truy vấn DB cho mỗi đoạn;
-  `PATCH translate_to` xóa bộ nhớ đó ngay.
-- **Gom lô** (`translation-batcher.ts`): ~4 giây kể từ đoạn đầu hoặc đủ 8 đoạn (mặc định `TranslationService`;
-  `TRANSLATION_BATCH_WINDOW_MS`, `TRANSLATION_BATCH_MAX`). Một lượt gọi trả mảng `{seq,text}` ghép lại theo
-  `seq`. Lô thiếu/không đọc được → dịch lẻ phần còn thiếu; lỗi nhà cung cấp hoặc hết hạn mức → không tách
-  lô, báo thất bại cả lô.
-- **Ghi có điều kiện** (`translation-store.ts`): chỉ ghi vào đoạn chưa có bản dịch (hoặc có bản cho ngôn
-  ngữ khác) **và** khi cuộc họp vẫn muốn đúng ngôn ngữ đó — câu trả lời muộn không đè bản mới.
-- **Sửa đoạn:** `PATCH /segments/:id` xóa `translated_text`/`translated_to` rồi dịch lại ngầm.
-- **Thử lại:** đoạn thất bại hiện "Chưa dịch được · Thử lại" → `POST /meetings/:id/segments/:seq/translate`
-  ([API §4](api-spec.md#dịch-theo-đoạn-phase-09)). Sự kiện mang `meeting_id` để client dùng lại socket bỏ
-  được sự kiện muộn của cuộc họp khác.
-- **Mobile:** khi đang họp, bản dịch hiện dưới câu gốc (`translated-segment.tsx`); màn chi tiết có bộ
-  chuyển Gốc / Dịch / Song song (`view-mode.ts`, mặc định Song song).
-- Module `TranslationModule` cố ý không phụ thuộc `MeetingsModule`/`RealtimeModule` (cả hai gọi nó) để
-  tránh vòng; chỉ đọc bảng bằng SQL thô.
+- **Gói ngôn ngữ** (`modules/mlkit-translate`, hook `use-translation-packs.ts`): màn cài đặt kiểm cả hai
+  gói (ngôn ngữ nói và ngôn ngữ đích); thiếu thì người dùng bấm tải (~30 MB mỗi gói), nút Bắt đầu bị khóa
+  tới khi `ready` hoặc tắt dịch. Tải quá 5 phút tính là lỗi để thử lại. Bản dựng không có module native
+  báo `unavailable`.
+- **Dịch từng dòng** (`translation-runner.ts`): tuần tự một dòng một lúc; mỗi kết quả lưu vào SQLite
+  trước rồi mới hiện "xong". Lỗi hoặc quá 30 giây chỉ đánh dấu dòng đó thất bại ("Thử lại" dịch lại
+  trên máy), không chặn dòng sau.
+- **Đồng bộ** (`translation-sync.ts`, gọi trong `sync-worker.ts` sau bước đẩy đoạn): chỉ gửi bản dịch
+  của đoạn không còn trong `pending_segments`. 204 → xóa; **400** → đánh dấu `dropped`, không gửi lại;
+  **404** `NOT_FOUND` → thử lại có lùi thời gian, tối đa 10 lần (`TRANSLATION_MAX_NOT_FOUND`) rồi bỏ.
+- **Kết thúc chờ dịch:** `end()` đặt phase `ending`, chờ mọi dòng dịch xong hoặc lỗi (không giới hạn thời
+  gian), rồi mới ghi thao tác `end`; worker gửi `end` sau cùng khi không còn đoạn và bản dịch chờ gửi.
+- **Sửa đoạn:** `PATCH /segments/:id` đặt `translated_text`/`translated_to` về NULL (bản dịch cũ mô tả
+  câu cũ).
+- **Mobile:** bản dịch hiện dưới câu gốc (`translated-segment.tsx`); màn chi tiết có bộ chuyển
+  Gốc / Dịch / Song song (`view-mode.ts`, mặc định Song song).
 
 **Giới hạn đã biết**
+- **Dịch trên máy:** nếu app bị kill trong lúc `ending` (đang chờ dịch, `end` chưa được ghi), lần mở lại cuộc họp
+  được khôi phục như đang ghi (`recording`) — người dùng phải bấm kết thúc lại.
 - **iOS không loại được tệp SQLite khỏi sao lưu iCloud** — `expo-sqlite` đặt file dưới `Documents`,
   nơi iCloud sao lưu, và không có cách loại trừ một file đơn lẻ; Android loại được cả ứng dụng khỏi
   sao lưu Google Drive (`allowBackup: false`). Phạm vi lộ trên iOS chỉ giới hạn ở các đoạn **chưa
@@ -599,7 +602,7 @@ Mỗi cuộc họp 60 phút, ước tính khoảng 9.000 từ:
 
 | Bước | Số lần gọi | Ghi chú |
 |------|-----------|---------|
-| Dịch thời gian thực | ~180 lần nếu mỗi câu một lần | Đắt nhất. Thiết kế ban đầu ước gom 3–5 câu còn ~50; mã hiện gom tối đa 8 câu / cửa sổ ~4 giây (`operation = 'translate'`), số lượt gọi thực tế chưa đo |
+| Dịch thời gian thực | 0 lệnh gọi Gemini | Từ Phase 21 dịch bằng ML Kit trên máy: miễn phí, không ghi `usage_records` |
 | Nhận diện máy chủ — luồng | theo thời lượng ghi | Chỉ ở chế độ `server`. Tính theo thời gian phiên Live: `operation = 'stt-live'`, mỗi phút một dòng, 32 token/giây âm thanh |
 | Nhận diện máy chủ — đoạn 10 giây | ~360 đoạn / giờ | Chỉ khi luồng lùi về dự phòng; `operation = 'stt'` |
 | Nhúng chunk | ~15 | Rẻ, gom lô được |
@@ -608,8 +611,8 @@ Mỗi cuộc họp 60 phút, ước tính khoảng 9.000 từ:
 | Tóm tắt | 1 | Ngữ cảnh dài |
 | Hỏi đáp | tùy người dùng | 1 lần nhúng + 1 lần sinh cho mỗi câu hỏi |
 
-Dịch song song là khoản chi lớn nhất và là tính năng tùy chọn — vì vậy nó tắt mặc định và có cảnh
-báo chi phí khi bật ([US-17](../user_stories.md#us-17--bật-dịch-và-chọn-ngôn-ngữ-đích)).
+Dịch song song không còn tốn chi phí AI (chạy trên máy, Phase 21); nó vẫn tắt mặc định
+([US-17](../user_stories.md#us-17--bật-dịch-và-chọn-ngôn-ngữ-đích)).
 Hạn mức theo người dùng ở [NFR-07](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr); mức cụ thể là [OQ-04](../user_stories.md#5-câu-hỏi-còn-mở).
 
 ---

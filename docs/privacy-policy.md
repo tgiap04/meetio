@@ -37,14 +37,17 @@ mở lại ứng dụng nếu ứng dụng bị tắt giữa chừng. Chế đ�
 
 | Nơi nhận | Dữ liệu | Để làm gì |
 |---|---|---|
-| Máy chủ Meetio | Bản chép lời, tài khoản, kết quả AI, lịch sử hỏi đáp | Lưu trữ, đồng bộ giữa các thiết bị, tìm kiếm |
-| Google (Gemini API) | Văn bản bản chép lời, câu hỏi của bạn | Chia đoạn và tạo vector tìm kiếm, rút thực thể, tóm tắt, dịch bản chép lời (nếu bạn bật dịch), trả lời câu hỏi; gói miễn phí nên Google có thể dùng nội dung này để cải thiện sản phẩm |
+| Máy chủ Meetio | Bản chép lời, bản dịch (nếu bạn bật dịch), tài khoản, kết quả AI, lịch sử hỏi đáp | Lưu trữ, đồng bộ giữa các thiết bị, tìm kiếm |
+| Google (Gemini API) | Văn bản bản chép lời, câu hỏi của bạn | Chia đoạn và tạo vector tìm kiếm, rút thực thể, tóm tắt, trả lời câu hỏi; gói miễn phí nên Google có thể dùng nội dung này để cải thiện sản phẩm |
+| Google ML Kit (chạy trên điện thoại) | Gói ngôn ngữ dịch do điện thoại tải từ Google; bản chép lời không được gửi cho Google để dịch | Dịch bản chép lời ngay trên điện thoại (nếu bạn bật dịch); bản dịch được lưu cùng cuộc họp trên máy chủ Meetio |
 | Máy chủ Meetio và Google (Gemini API) | Âm thanh gửi liên tục (hoặc từng đoạn khoảng 10 giây khi dự phòng) — chỉ khi điện thoại không nhận diện giọng nói offline được | Chuyển thành chữ; Meetio không lưu âm thanh, còn Google có thể dùng âm thanh để cải thiện sản phẩm và người của Google có thể xem lại, theo điều khoản gói miễn phí của Gemini API |
 | Expo (dịch vụ thông báo đẩy) | Mã thiết bị và một thông báo chung chung | Báo khi cuộc họp xử lý xong hoặc sắp bị xóa theo hạn lưu trữ. Thông báo không chứa tiêu đề hay nội dung cuộc họp |
 
 Hiện Meetio dùng gói miễn phí của Gemini API. Theo điều khoản của Google cho gói này, Google có thể dùng nội dung được
 gửi tới (văn bản bản chép lời và câu hỏi của bạn; cùng âm thanh nếu bạn dùng chế độ nhận diện qua máy chủ) để cải
 thiện sản phẩm của họ, và người của Google có thể xem lại nội dung đó. Máy chủ Meetio vẫn không lưu âm thanh.
+
+Việc dịch (nếu bạn bật dịch) chạy trên điện thoại của bạn bằng Google ML Kit, không qua máy chủ Meetio hay Gemini API. Lần đầu dùng một ngôn ngữ, điện thoại tải gói ngôn ngữ của Google về máy; văn bản bản chép lời không được gửi tới Google để dịch. Bản dịch sau đó được gửi về máy chủ Meetio và lưu cùng cuộc họp.
 
 Meetio không bán dữ liệu của bạn và không dùng nội dung cuộc họp để quảng cáo.
 

@@ -109,7 +109,7 @@ thời điểm kết thúc, khiến sự kiện `join_room` không có id để 
 đồng ý với nội dung đồng ý hiện hành — kiểm tra ở tầng nghiệp vụ, không chỉ ở màn hình app
 ([NFR-01](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)).
 
-`translate_to` (khi tạo và khi `PATCH`): `null` hoặc bỏ qua = tắt dịch; chỉ nhận `vi-VN` hoặc `en-US` và phải **khác** `source_language`, sai thì **400** `VALIDATION_ERROR` với `details.translate_to` là lý do (`translate-target.ts`). `PATCH` đổi `translate_to` có hiệu lực ngay từ đoạn kế tiếp (server bỏ bộ nhớ đệm cài đặt dịch của cuộc họp). Cách dịch xem [mục 4](#dịch-theo-đoạn-phase-09).
+`translate_to` (khi tạo và khi `PATCH`): `null` hoặc bỏ qua = tắt dịch; chỉ nhận `vi-VN` hoặc `en-US` và phải **khác** `source_language`, sai thì **400** `VALIDATION_ERROR` với `details.translate_to` là lý do (`translate-target.ts`). `PATCH` đổi `translate_to` có hiệu lực ngay từ đoạn kế tiếp (server bỏ bộ nhớ đệm cài đặt dịch của cuộc họp). Cách dịch xem [mục 4](#dịch-theo-đoạn-phase-09-sửa-ở-phase-21).
 
 `id` (UUID do client tự sinh) và `started_at` phục vụ việc bắt đầu ghi khi mất mạng, phát lại khi
 có mạng trở lại ([US-15](../user_stories.md#us-15--phục-hồi-cuộc-họp-sau-khi-app-đóng-đột-ngột)):
@@ -185,27 +185,25 @@ luôn giá trị đó cho `?from_seq=` của trang kế tiếp.
 lại pipeline; client tự hỏi người dùng rồi gọi `POST /meetings/:id/reindex` khi muốn cập nhật lại
 tóm tắt ([US-24](../user_stories.md#us-24--sửa-nội-dung-nhận-diện-sai)).
 
-Sửa `text` cũng **xóa bản dịch cũ** của đoạn (`translated_text` và `translated_to` về NULL) vì bản dịch mô tả câu cũ; nếu cuộc họp đang bật dịch thì đoạn được dịch lại ngầm và đẩy qua `segment_translated` như mọi đoạn khác.
+Sửa `text` cũng **xóa bản dịch cũ** của đoạn (`translated_text` và `translated_to` về NULL) vì bản dịch mô tả câu cũ; màn transcript hiện nút "Dịch" cho đoạn đó — người dùng bấm thì điện thoại dịch lại trên máy rồi gửi qua `PUT /meetings/:id/segments/:seq/translation` ([bên dưới](#dịch-theo-đoạn-phase-09-sửa-ở-phase-21)).
 
-### Dịch theo đoạn (Phase 09)
+### Dịch theo đoạn (Phase 09, sửa ở Phase 21)
+
+Từ Phase 21, **máy chủ không dịch**: điện thoại dịch từng đoạn ngay trên máy (Google ML Kit) rồi lưu kết quả cùng đoạn bằng endpoint dưới đây. Không còn `POST .../translate`, không gọi Gemini để dịch, không ghi `usage_records` cho dịch.
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| POST | `/meetings/:id/segments/:seq/translate` | Dịch lại **một đoạn** sau khi dịch tự động thất bại. Không có body. Chỉ chủ cuộc họp |
+| PUT | `/meetings/:id/segments/:seq/translation` | Lưu bản dịch do điện thoại tạo cho **một đoạn**. Chỉ chủ cuộc họp |
 
-Dịch tự động chạy nền sau khi đoạn đã ghi bền vững (qua socket hoặc `/segments/bulk`) và **không bao giờ làm chậm hay làm lỗi `segment_ack`**. Các đoạn của một cuộc họp có `translate_to` được gom trong ~4 giây hoặc tối đa 8 đoạn rồi dịch bằng **một** lượt gọi Gemini (`TRANSLATION_BATCH_WINDOW_MS`, `TRANSLATION_BATCH_MAX` — đọc trong `translation.service.ts`, chưa có trong `.env.example`). Lô trả về thiếu hoặc không đọc được thì dịch lẻ từng đoạn còn thiếu; lỗi nhà cung cấp/hạn mức thì không tách lô mà báo thất bại cả lô. Kết quả đến client qua `segment_translated` / `segment_translation_failed` ([mục 8](#8-websocket)).
-
-Phản hồi **200** (idempotent: đoạn đã có bản dịch đúng ngôn ngữ đích hiện tại thì trả luôn bản đã lưu, không gọi Gemini): `{seq, translated_text, translated_to}`. Bản dịch cho ngôn ngữ đích cũ bị coi là lỗi thời và được dịch lại.
+Body: `{translated_text, translated_to}` — `translated_text` dài 1–10000 ký tự và không được chỉ gồm khoảng trắng; `translated_to` là `vi-VN` hoặc `en-US` và phải **bằng** `meetings.translate_to`. Phản hồi **204**, không có body. Idempotent: gửi lại là ghi đè. Không kiểm trạng thái cuộc họp (đang ghi hay đã kết thúc đều nhận).
 
 | Mã | HTTP | Khi nào |
 |----|------|---------|
+| `VALIDATION_ERROR` | 400 | Body sai (rỗng, toàn khoảng trắng, quá dài, ngôn ngữ ngoài `vi-VN`/`en-US`), cuộc họp không bật dịch, hoặc `translated_to` khác `translate_to` của cuộc họp |
 | `MEETING_NOT_FOUND` | 404 | Cuộc họp không tồn tại hoặc không thuộc sở hữu |
-| `NOT_FOUND` | 404 | Không có đoạn `seq` đó, hoặc `seq` không phải số nguyên 0–2147483647 |
-| `VALIDATION_ERROR` | 400 | Cuộc họp chưa bật dịch (hoặc bị tắt giữa chừng) |
-| `QUOTA_EXCEEDED` | 429 | Vượt hạn mức token tháng |
-| `AI_SERVICE_UNAVAILABLE` | 503 | Gemini lỗi hoặc không trả được bản dịch dùng được |
+| `NOT_FOUND` | 404 | Chưa có đoạn `seq` đó (chưa được đồng bộ lên), hoặc `seq` không phải số nguyên 0–2147483647 |
 
-Bản dịch chỉ ghi vào đoạn chưa có bản dịch (hoặc có bản cho ngôn ngữ khác) **và** chỉ khi cuộc họp vẫn đang muốn đúng ngôn ngữ đó — câu trả lời muộn không đè bản mới, không rơi vào cuộc họp đã tắt dịch. Chỉ số token ghi vào `usage_records` với `operation = 'translate'`. Nội dung đoạn và bản dịch không vào log ([NFR-04](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)).
+Điện thoại chỉ gửi sau khi đoạn đã được ack; 404 được thử lại có lùi thời gian (tối đa 10 lần), 400 thì bỏ hẳn ([kiến trúc](system-architecture.md#dịch-trên-máy-phase-21)). Nội dung bản dịch không vào log ([NFR-04](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)).
 
 ### Nhận diện giọng nói trên máy chủ (Phase 18)
 
@@ -697,8 +695,6 @@ token hết hạn — refresh rồi kết nối lại), cùng cặp mã như ph�
 | Sự kiện | Payload | Ghi chú |
 |---------|---------|---------|
 | `segment_ack` | `{seq}` | Phát **sau khi** đã ghi bền vững. Client nhận được mới xóa khỏi hàng đợi local |
-| `segment_translated` | `{meeting_id, seq, translated_text, translated_to}` | Chỉ khi cuộc họp bật dịch. `meeting_id` để client dùng lại socket bỏ được sự kiện muộn của cuộc họp vừa rời |
-| `segment_translation_failed` | `{meeting_id, seq}` | Dịch đoạn này thất bại sau cả lô lẫn dịch lẻ; client hiện "Thử lại" gọi `POST /meetings/:id/segments/:seq/translate` ([mục 4](#dịch-theo-đoạn-phase-09)) |
 | `segment_error` | `{seq, code, message}` | Client giữ lại trong hàng đợi và gửi lại |
 | `processing_status` | `{meeting_id, status, step?, progress?}` | Cập nhật tiến trình pipeline ([US-28](../user_stories.md#us-28--thấy-rõ-trạng-thái-xử-lý)) |
 | `meeting_ready` | `{meeting_id}` | Phân tích hoàn tất |

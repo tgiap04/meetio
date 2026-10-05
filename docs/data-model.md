@@ -116,7 +116,7 @@ CREATE INDEX idx_meetings_title_trgm ON meetings
 | `meeting_id` | UUID | FK, ON DELETE CASCADE |
 | `seq` | INT | Do client cấp, tăng đơn điệu |
 | `text` | TEXT | Văn bản đã chốt |
-| `translated_text` | TEXT | NULL nếu tắt dịch hoặc chưa dịch được ([US-19](../user_stories.md#us-19--xem-lại-bản-dịch-sau-cuộc-họp)). Chỉ `TranslationStore.saveTranslation` ghi: vào đoạn chưa có bản dịch (hoặc có bản cho ngôn ngữ khác) **và** khi `meetings.translate_to` vẫn đúng ngôn ngữ đó và cuộc họp chưa bị xóa; `PATCH /segments/:id` đặt lại NULL cùng `translated_to` |
+| `translated_text` | TEXT | NULL nếu tắt dịch hoặc chưa dịch được ([US-19](../user_stories.md#us-19--xem-lại-bản-dịch-sau-cuộc-họp)). Do điện thoại dịch trên máy (ML Kit) và ghi qua `PUT /meetings/:id/segments/:seq/translation` (`SegmentTranslationService`): chỉ khi `meetings.translate_to` khớp `translated_to` gửi lên và đoạn đã tồn tại; gửi lại là ghi đè; `PATCH /segments/:id` đặt lại NULL cùng `translated_to` |
 | `translated_to` | TEXT | Mã ngôn ngữ của bản dịch (`vi-VN`/`en-US`); so với `meetings.translate_to` để biết bản dịch còn mới hay đã lỗi thời |
 | `started_at_ms` / `ended_at_ms` | INT | Tính từ mốc bắt đầu cuộc họp |
 | `is_edited` | BOOLEAN | Đánh dấu người dùng đã sửa tay |
@@ -377,7 +377,7 @@ Ràng buộc duy nhất trên `(meeting_id, step)` là thứ khiến việc ch�
 
 ### `usage_records`
 `id` UUID PK · `user_id` FK · `meeting_id` FK NULL · `operation` TEXT · `model` TEXT ·
-`input_tokens` INT · `output_tokens` INT · `created_at` — `operation` mới của Phase 09/18/19: `'translate'` (dịch đoạn), `'stt'` (nhận diện đoạn 10 giây, Phase 18), `'stt-live'` (nhận diện dạng luồng, Phase 19: mỗi phút một dòng + một dòng phần dư lúc kết thúc, `input_tokens` = giây × 32, `output_tokens` = 0, `model` = model Live) — phục vụ theo dõi hạn mức ở [NFR-07](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr).
+`input_tokens` INT · `output_tokens` INT · `created_at` — `operation` mới của Phase 18/19 (`'translate'` của Phase 09 đã bỏ ở Phase 21 — dịch chạy trên máy): `'stt'` (nhận diện đoạn 10 giây, Phase 18), `'stt-live'` (nhận diện dạng luồng, Phase 19: mỗi phút một dòng + một dòng phần dư lúc kết thúc, `input_tokens` = giây × 32, `output_tokens` = 0, `model` = model Live) — phục vụ theo dõi hạn mức ở [NFR-07](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr).
 
 ---
 
