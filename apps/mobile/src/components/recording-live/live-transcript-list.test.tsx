@@ -132,13 +132,14 @@ describe('LiveTranscriptList', () => {
       // Simulate user scrolling up (away from bottom)
       const list = renderer.root.findByType(FlatList);
       act(() => {
-        list.props.onScrollBeginDrag({
+        list.props.onScrollBeginDrag();
+        list.props.onScrollEndDrag({
           nativeEvent: {
             contentOffset: { y: 0, x: 0 },
             contentSize: { height: 500, width: 0 },
             layoutMeasurement: { height: 400, width: 0 },
           },
-        } as Parameters<typeof list.props.onScrollBeginDrag>[0]);
+        });
       });
 
       // Add new lines while scrolled up
@@ -157,7 +158,8 @@ describe('LiveTranscriptList', () => {
       // Scroll up
       const list = renderer.root.findByType(FlatList);
       act(() => {
-        list.props.onScrollBeginDrag({
+        list.props.onScrollBeginDrag();
+        list.props.onScrollEndDrag({
           nativeEvent: {
             contentOffset: { y: 0, x: 0 },
             contentSize: { height: 500, width: 0 },
@@ -258,8 +260,13 @@ describe('LiveTranscriptList', () => {
       });
       const scrollToEnd = jest.spyOn(r.root.findByType(FlatList).instance as FlatList<LiveLine>, 'scrollToEnd').mockImplementation(() => undefined);
 
-      act(() => r.root.findByType(FlatList).props.onScrollEndDrag(scrolledTo(200))); // reading far above the end
+      const list = () => r.root.findByType(FlatList);
+      act(() => {
+        list().props.onScrollBeginDrag();
+        list().props.onScrollEndDrag(scrolledTo(200)); // reading far above the end
+      });
       act(() => r.update(<LiveTranscriptList lines={[line(1), line(2), line(3)]} partial="đang nói" />));
+      act(() => list().props.onContentSizeChange(0, 2400));
 
       expect(scrollToEnd).not.toHaveBeenCalled(); // never yanked down while reading
       const label = r.root.findByProps({ testID: 'jump-to-newest' }).findByType(Text).props.children;
@@ -269,7 +276,78 @@ describe('LiveTranscriptList', () => {
       expect(scrollToEnd).toHaveBeenCalled();
       scrollToEnd.mockClear();
       act(() => r.update(<LiveTranscriptList lines={[line(1), line(2), line(3), line(4)]} partial={null} />));
+      act(() => list().props.onContentSizeChange(0, 2600));
       expect(scrollToEnd).toHaveBeenCalled(); // following again
+    });
+
+    it('follows after the new content is laid out — new lines, a growing partial and a translation landing under a line', () => {
+      let r!: TestRenderer.ReactTestRenderer;
+      act(() => {
+        r = TestRenderer.create(<LiveTranscriptList lines={[line(1)]} partial={null} />);
+      });
+      mounted.push(r);
+      const list = () => r.root.findByType(FlatList);
+      const scrollToEnd = jest.spyOn(list().instance as FlatList<LiveLine>, 'scrollToEnd').mockImplementation(() => undefined);
+
+      act(() => list().props.onContentSizeChange(0, 900)); // e.g. a translation made line 1 taller
+      expect(scrollToEnd).toHaveBeenCalledTimes(1);
+      act(() => r.update(<LiveTranscriptList lines={[line(1), line(2)]} partial={null} />));
+      expect(scrollToEnd).toHaveBeenCalledTimes(1); // not before layout…
+      act(() => list().props.onContentSizeChange(0, 1100));
+      expect(scrollToEnd).toHaveBeenCalledTimes(2); // …but once the new line has a size
+    });
+
+    it('a drag released without a fling is over — a later programmatic momentum end cannot stop following', () => {
+      let r!: TestRenderer.ReactTestRenderer;
+      act(() => {
+        r = TestRenderer.create(<LiveTranscriptList lines={[line(1)]} partial={null} />);
+      });
+      mounted.push(r);
+      const list = () => r.root.findByType(FlatList);
+      const scrollToEnd = jest.spyOn(list().instance as FlatList<LiveLine>, 'scrollToEnd').mockImplementation(() => undefined);
+      const atEnd = { nativeEvent: { contentOffset: { x: 0, y: 1600 }, contentSize: { width: 0, height: 2000 }, layoutMeasurement: { width: 0, height: 400 }, velocity: { x: 0, y: 0 } } };
+
+      act(() => {
+        list().props.onScrollBeginDrag();
+        list().props.onScrollEndDrag(atEnd); // nudged at the end and let go, no fling
+      });
+      act(() => list().props.onMomentumScrollEnd(scrolledTo(200))); // momentum of a programmatic scroll
+      act(() => r.update(<LiveTranscriptList lines={[line(1), line(2)]} partial={null} />));
+      act(() => list().props.onContentSizeChange(0, 2200));
+      expect(scrollToEnd).toHaveBeenCalled();
+    });
+
+    it('glides to a new line but snaps while only the partial grows', () => {
+      let r!: TestRenderer.ReactTestRenderer;
+      act(() => {
+        r = TestRenderer.create(<LiveTranscriptList lines={[line(1)]} partial="đang" />);
+      });
+      mounted.push(r);
+      const list = () => r.root.findByType(FlatList);
+      const scrollToEnd = jest.spyOn(list().instance as FlatList<LiveLine>, 'scrollToEnd').mockImplementation(() => undefined);
+
+      act(() => r.update(<LiveTranscriptList lines={[line(1)]} partial="đang nói tiếp" />));
+      act(() => list().props.onContentSizeChange(0, 900));
+      expect(scrollToEnd).toHaveBeenLastCalledWith({ animated: false });
+      act(() => r.update(<LiveTranscriptList lines={[line(1), line(2)]} partial={null} />));
+      act(() => list().props.onContentSizeChange(0, 1100));
+      expect(scrollToEnd).toHaveBeenLastCalledWith({ animated: true });
+    });
+
+    it('keeps following when a scroll it started itself settles mid-way — only a user drag stops it', () => {
+      let r!: TestRenderer.ReactTestRenderer;
+      act(() => {
+        r = TestRenderer.create(<LiveTranscriptList lines={[line(1)]} partial={null} />);
+      });
+      mounted.push(r);
+      const list = () => r.root.findByType(FlatList);
+      const scrollToEnd = jest.spyOn(list().instance as FlatList<LiveLine>, 'scrollToEnd').mockImplementation(() => undefined);
+
+      act(() => list().props.onMomentumScrollEnd(scrolledTo(200))); // programmatic momentum, no drag
+      act(() => r.update(<LiveTranscriptList lines={[line(1), line(2)]} partial={null} />));
+      act(() => list().props.onContentSizeChange(0, 2200));
+      expect(scrollToEnd).toHaveBeenCalled();
+      expect(r.root.findAllByProps({ testID: 'jump-to-newest' })).toHaveLength(0);
     });
   });
 });

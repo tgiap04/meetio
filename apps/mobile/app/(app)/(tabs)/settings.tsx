@@ -129,7 +129,7 @@ export default function SettingsScreen() {
   }
 
   return (
-    <ScreenSurface>
+    <ScreenSurface edges={['top']}>
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Cài đặt</Text>
 

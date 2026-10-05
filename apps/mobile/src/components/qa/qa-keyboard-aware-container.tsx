@@ -58,7 +58,7 @@ export interface QaKeyboardAwareContainerProps {
  * it pads by the bottom safe-area inset (gesture bar); with it shown it pads
  * by the keyboard height instead — the keyboard already covers that inset, so
  * the two are never added together. The container must end at the screen's
- * bottom edge (the screen surface only insets the top).
+ * bottom edge (the Q&A screens opt their surface out of the bottom inset).
  */
 export function QaKeyboardAwareContainer({ children }: QaKeyboardAwareContainerProps) {
   const keyboardHeight = useKeyboardHeight();

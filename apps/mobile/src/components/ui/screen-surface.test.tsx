@@ -12,22 +12,22 @@ function render(element: React.ReactElement) {
 }
 
 describe('ScreenSurface', () => {
-  it('insets the top edge by default — that is the status bar / Dynamic Island', () => {
+  it('insets top and bottom by default — status bar / Dynamic Island and gesture bar / home indicator', () => {
     const renderer = render(
       <ScreenSurface>
         <Text>nội dung</Text>
       </ScreenSurface>,
     );
-    expect(renderer.root.findByType(SafeAreaView).props.edges).toEqual(['top']);
+    expect(renderer.root.findByType(SafeAreaView).props.edges).toEqual(['top', 'bottom']);
   });
 
   it('passes through explicit edges', () => {
     const renderer = render(
-      <ScreenSurface edges={['top', 'bottom']}>
+      <ScreenSurface edges={['top']}>
         <Text>nội dung</Text>
       </ScreenSurface>,
     );
-    expect(renderer.root.findByType(SafeAreaView).props.edges).toEqual(['top', 'bottom']);
+    expect(renderer.root.findByType(SafeAreaView).props.edges).toEqual(['top']);
   });
 
   it('renders its children', () => {

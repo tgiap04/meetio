@@ -83,7 +83,7 @@ export default function AskScreen() {
   }
 
   return (
-    <ScreenSurface>
+    <ScreenSurface edges={['top']}>
       <ScreenHeader
         onBack={() => router.back()}
         title="Hỏi AI"

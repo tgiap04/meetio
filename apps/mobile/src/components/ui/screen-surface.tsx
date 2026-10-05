@@ -6,10 +6,11 @@ import { colors } from '../../theme/colors';
 export interface ScreenSurfaceProps {
   children: ReactNode;
   /**
-   * Which sides get inset padding. Defaults to the top alone, which is what
-   * almost every screen needs: the status bar, the notch and the Dynamic
-   * Island all live up there, and the bottom is already handled — tab screens
-   * by `BottomTabBar`, stacked screens by their own scroll padding.
+   * Which sides get inset padding. Defaults to top AND bottom, so no screen's
+   * last line or button sits under the gesture bar / home indicator. Screens
+   * that already own their bottom edge opt out with `edges={['top']}`: the tab
+   * screens (`BottomTabBar` pads the inset) and the Q&A screens (the keyboard
+   * container pads it) — otherwise the inset would be added twice.
    */
   edges?: readonly Edge[];
   style?: StyleProp<ViewStyle>;
@@ -30,7 +31,7 @@ export interface ScreenSurfaceProps {
  * container: they are supposed to run edge to edge and behind the status bar.
  * Only content gets inset.
  */
-export function ScreenSurface({ children, edges = ['top'], style, testID }: ScreenSurfaceProps) {
+export function ScreenSurface({ children, edges = ['top', 'bottom'], style, testID }: ScreenSurfaceProps) {
   return (
     <SafeAreaView edges={edges} style={[styles.surface, style]} testID={testID}>
       {children}

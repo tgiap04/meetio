@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlatList, Pressable, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import type { LiveLine, LiveTranslation } from '../../recording/recording.store';
 import { TranslatedSegment } from '../translated-segment';
@@ -10,7 +9,7 @@ import { typography } from '../../theme/typography';
 /** Within this many points of the end counts as "reading the newest line". */
 export const FOLLOW_THRESHOLD = 48;
 
-/** Space under the last line, on top of the device's bottom inset, so long text never hugs the screen edge. */
+/** Space under the last line so long text never hugs the screen edge (the screen surface adds the device's bottom inset). */
 export const LIVE_LIST_BOTTOM_PADDING = 48;
 
 export function isNearBottom({ contentOffset, contentSize, layoutMeasurement }: NativeScrollEvent): boolean {
@@ -32,32 +31,68 @@ export interface LiveTranscriptListProps {
 /**
  * The live transcript (US-08). Follows the newest line — until the user scrolls up to read, then
  * it stays put and offers "Xuống dòng mới nhất" with the count of lines that arrived meanwhile.
+ * Following scrolls on `onContentSizeChange`, i.e. after the new line (or a growing partial, or a
+ * translation landing under a line) has been laid out — scrolling from an effect would run before
+ * layout and stop one line short. Only the user's own drag can stop following: momentum from a
+ * programmatic scroll must not read as "the user scrolled up".
  * Every interruption shows as a gap marker, never silently joined (US-10). Virtualised FlatList,
  * like the Phase 10 transcript, so a 60-minute meeting stays smooth.
  */
 export function LiveTranscriptList({ lines, partial, translations, onRetryTranslation, retryingTranslations, translationErrors }: LiveTranscriptListProps) {
   const list = useRef<FlatList<LiveLine>>(null);
-  const insets = useSafeAreaInsets();
   const [following, setFollowing] = useState(true);
+  const followingRef = useRef(true);
+  const dragging = useRef(false);
   const [unread, setUnread] = useState(0);
   const seen = useRef(lines.length);
+  // Lines count at the last follow-scroll: a new line glides into view, a growing partial snaps
+  // (restarting an animation several times a second makes the list judder on Android).
+  const scrolledAtLength = useRef(lines.length);
+
+  const follow = (value: boolean) => {
+    followingRef.current = value;
+    setFollowing(value);
+  };
 
   useEffect(() => {
     const added = lines.length - seen.current;
     seen.current = lines.length;
-    if (following) list.current?.scrollToEnd({ animated: true });
-    else if (added > 0) setUnread((n) => n + added);
-  }, [lines.length, partial, following]);
+    if (!followingRef.current && added > 0) setUnread((n) => n + added);
+  }, [lines.length]);
 
-  function handleScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
+  function handleContentSizeChange() {
+    if (!followingRef.current) return;
+    const animated = lines.length !== scrolledAtLength.current;
+    scrolledAtLength.current = lines.length;
+    list.current?.scrollToEnd({ animated });
+  }
+
+  function handleDragStart() {
+    dragging.current = true;
+  }
+
+  function handleScrollSettled(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (!dragging.current) return;
     const atBottom = isNearBottom(event.nativeEvent);
-    setFollowing(atBottom);
+    follow(atBottom);
     if (atBottom) setUnread(0);
+  }
+
+  function handleDragEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    handleScrollSettled(event);
+    // Released without a fling: no momentum end will follow, so the drag is over now — otherwise a
+    // later programmatic scroll's momentum end would still be judged as the user's.
+    if (Math.abs(event.nativeEvent.velocity?.y ?? 0) < 0.01) dragging.current = false;
+  }
+
+  function handleMomentumEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    handleScrollSettled(event);
+    dragging.current = false;
   }
 
   function jumpToNewest() {
     setUnread(0);
-    setFollowing(true);
+    follow(true);
     list.current?.scrollToEnd({ animated: true });
   }
 
@@ -65,15 +100,16 @@ export function LiveTranscriptList({ lines, partial, translations, onRetryTransl
     <View style={styles.wrap}>
       <FlatList
         ref={list}
-        contentContainerStyle={[styles.content, { paddingBottom: styles.content.padding + LIVE_LIST_BOTTOM_PADDING + insets.bottom }]}
+        contentContainerStyle={[styles.content, { paddingBottom: styles.content.padding + LIVE_LIST_BOTTOM_PADDING }]}
         data={lines}
         extraData={{ translations, retryingTranslations, translationErrors }}
         keyExtractor={(line) => String(line.seq)}
         ListEmptyComponent={partial ? null : <Text style={styles.empty}>Hãy bắt đầu nói — chữ sẽ hiện ở đây.</Text>}
         ListFooterComponent={partial ? <Text style={styles.partial} testID="live-partial">{partial}</Text> : null}
-        onScrollBeginDrag={handleScroll}
-        onMomentumScrollEnd={handleScroll}
-        onScrollEndDrag={handleScroll}
+        onContentSizeChange={handleContentSizeChange}
+        onMomentumScrollEnd={handleMomentumEnd}
+        onScrollBeginDrag={handleDragStart}
+        onScrollEndDrag={handleDragEnd}
         renderItem={({ item }) => {
           const translation = translations?.[item.seq];
           return (

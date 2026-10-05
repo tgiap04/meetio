@@ -21,14 +21,14 @@ function contentPaddingBottom(): number {
 }
 
 describe('LiveTranscriptList bottom spacing', () => {
-  it('leaves comfortable room under the last line (padding + base inset)', () => {
+  it('leaves comfortable room under the last line', () => {
     mockBottomInset = 0;
     expect(contentPaddingBottom()).toBe(16 + LIVE_LIST_BOTTOM_PADDING);
   });
 
-  it('adds the device bottom inset (gesture bar / rounded corners) on top', () => {
+  it('does not add the device inset itself — the screen surface owns it, so it is never counted twice', () => {
     mockBottomInset = 34;
-    expect(contentPaddingBottom()).toBe(16 + LIVE_LIST_BOTTOM_PADDING + 34);
+    expect(contentPaddingBottom()).toBe(16 + LIVE_LIST_BOTTOM_PADDING);
   });
 
   it('keeps the side and top padding of the list unchanged', () => {

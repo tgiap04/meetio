@@ -69,7 +69,7 @@ export default function MeetingChatScreen() {
   }
 
   return (
-    <ScreenSurface>
+    <ScreenSurface edges={['top']}>
       <ScreenHeader
         onBack={() => router.back()}
         title="Hỏi AI"
