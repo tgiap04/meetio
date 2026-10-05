@@ -1,4 +1,4 @@
-import { ActivityIndicator, FlatList, StyleSheet } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 import type { QaCitation, QaMessage } from '@meetio/shared';
 import { QaUserBubble } from './qa-user-bubble';
 import { QaAssistantBubble } from './qa-assistant-bubble';
@@ -41,8 +41,20 @@ export function QaThreadList({
 }: QaThreadListProps) {
   const rows: Row[] = [...items].reverse().map((message) => ({ kind: 'message', message }));
   if (pending) {
-    rows.unshift({ kind: 'pending-status' });
+    // Inverted list: index 0 is the visual bottom. The status bubble goes in
+    // first so it ends up below the pending question it answers.
     rows.unshift({ kind: 'pending-question', text: pending.question });
+    rows.unshift({ kind: 'pending-status' });
+  }
+
+  // `ListEmptyComponent` inside an inverted list is flipped upside-down, so the
+  // empty state is rendered outside the list instead.
+  if (rows.length === 0) {
+    return (
+      <View style={styles.empty} testID="qa-thread-empty">
+        <EmptyState title="Chưa có câu hỏi nào" />
+      </View>
+    );
   }
 
   return (
@@ -51,7 +63,6 @@ export function QaThreadList({
       data={rows}
       inverted
       keyExtractor={(row, index) => (row.kind === 'message' ? row.message.id : `${row.kind}-${index}`)}
-      ListEmptyComponent={<EmptyState title="Chưa có câu hỏi nào" />}
       ListFooterComponent={
         loadingOlder ? (
           <ActivityIndicator color={colors.primary} style={styles.footer} testID="qa-history-load-more-spinner" />
@@ -84,5 +95,6 @@ export function QaThreadList({
 const styles = StyleSheet.create({
   list: { flex: 1, backgroundColor: colors.surface },
   content: { padding: 16, gap: 12 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   footer: { paddingVertical: 12 },
 });

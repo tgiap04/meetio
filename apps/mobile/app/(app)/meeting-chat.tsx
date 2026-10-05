@@ -1,4 +1,4 @@
-import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet } from 'react-native';
+import { Alert, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import type { AskMeetingRequest, QaCitation } from '@meetio/shared';
 import { ScreenSurface } from '../../src/components/ui/screen-surface';
@@ -8,6 +8,7 @@ import { LoadingState } from '../../src/components/loading-state';
 import { AppIcon } from '../../src/components/icons/app-icon';
 import { QaThreadList } from '../../src/components/qa/qa-thread-list';
 import { QaComposer } from '../../src/components/qa/qa-composer';
+import { QaKeyboardAwareContainer } from '../../src/components/qa/qa-keyboard-aware-container';
 import { QaNotReadyNotice } from '../../src/components/qa/qa-not-ready-notice';
 import { flattenQaHistoryPages, useMeetingQaHistoryQuery } from '../../src/hooks/use-qa-history-query';
 import { useAskMeetingQuestionMutation, useDeleteMeetingQaHistoryMutation } from '../../src/hooks/use-qa-mutations';
@@ -88,7 +89,7 @@ export default function MeetingChatScreen() {
       ) : historyQuery.isError ? (
         <ErrorState message={getErrorMessage(historyQuery.error)} onRetry={() => historyQuery.refetch()} />
       ) : (
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
+        <QaKeyboardAwareContainer>
           <QaThreadList
             hasOlder={history.hasNextPage}
             items={thread.items}
@@ -107,12 +108,8 @@ export default function MeetingChatScreen() {
               sending={thread.isSending}
             />
           )}
-        </KeyboardAvoidingView>
+        </QaKeyboardAwareContainer>
       )}
     </ScreenSurface>
   );
 }
-
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-});
