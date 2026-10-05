@@ -4,7 +4,8 @@ import {
   WsServerEvent,
   type MeetingReadyPayload,
   type ProcessingStatusPayload,
-  type SegmentTranslatedPayload,
+  type SegmentTranslation,
+  type SegmentTranslationFailedPayload,
 } from '@meetio/shared';
 
 export const meetingRoom = (meetingId: string) => `meeting:${meetingId}`;
@@ -31,7 +32,12 @@ export class MeetingRoomNotifier {
     this.namespace?.to(meetingRoom(payload.meeting_id)).emit(WsServerEvent.MEETING_READY, payload);
   }
 
-  segmentTranslated(meetingId: string, payload: SegmentTranslatedPayload): void {
-    this.namespace?.to(meetingRoom(meetingId)).emit(WsServerEvent.SEGMENT_TRANSLATED, payload);
+  segmentTranslated(meetingId: string, payload: SegmentTranslation): void {
+    this.namespace?.to(meetingRoom(meetingId)).emit(WsServerEvent.SEGMENT_TRANSLATED, { ...payload, meeting_id: meetingId });
+  }
+
+  /** Translation of one segment gave up; the client offers a manual retry. */
+  segmentTranslationFailed(meetingId: string, payload: Omit<SegmentTranslationFailedPayload, 'meeting_id'>): void {
+    this.namespace?.to(meetingRoom(meetingId)).emit(WsServerEvent.SEGMENT_TRANSLATION_FAILED, { ...payload, meeting_id: meetingId });
   }
 }

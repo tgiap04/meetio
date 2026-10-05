@@ -137,10 +137,10 @@ maybeDescribe('meeting list, detail and rename (e2e)', () => {
     const id = await create(owner.token, 'Tên cũ');
     const res = await e2e.http('PATCH', `/meetings/${id}`, owner.token, {
       title: '  Tên mới  ',
-      translate_to: 'en',
+      translate_to: 'en-US',
     });
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ title: 'Tên mới', translate_to: 'en' });
+    expect(res.body).toMatchObject({ title: 'Tên mới', translate_to: 'en-US' });
     const off = await e2e.http('PATCH', `/meetings/${id}`, owner.token, { translate_to: null });
     expect(off.body.translate_to).toBeNull();
     expect(

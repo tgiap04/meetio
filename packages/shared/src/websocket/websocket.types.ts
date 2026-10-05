@@ -21,6 +21,7 @@ export const WsClientEvent = {
 export const WsServerEvent = {
   SEGMENT_ACK: 'segment_ack',
   SEGMENT_TRANSLATED: 'segment_translated',
+  SEGMENT_TRANSLATION_FAILED: 'segment_translation_failed',
   SEGMENT_ERROR: 'segment_error',
   PROCESSING_STATUS: 'processing_status',
   MEETING_READY: 'meeting_ready',
@@ -59,11 +60,28 @@ export interface SegmentAckPayload {
   seq: number;
 }
 
-/** Emitted only when translation is enabled for the meeting. */
-export interface SegmentTranslatedPayload {
+/** One segment's translation — also the body of `POST /meetings/:id/segments/:seq/translate`. */
+export interface SegmentTranslation {
   seq: number;
   translated_text: string;
   translated_to: string;
+}
+
+/**
+ * Emitted only when translation is enabled for the meeting. `meeting_id` lets a client on a reused
+ * socket drop a late event that belongs to the meeting it just left.
+ */
+export interface SegmentTranslatedPayload extends SegmentTranslation {
+  meeting_id: string;
+}
+
+/**
+ * Translation of this segment failed after the batch and the single-segment retry.
+ * The client offers a manual retry (`POST /meetings/:id/segments/:seq/translate`).
+ */
+export interface SegmentTranslationFailedPayload {
+  meeting_id: string;
+  seq: number;
 }
 
 /** Client keeps the segment queued locally and retries on receipt. */

@@ -9,6 +9,7 @@ import { SegmentUpsertRepository } from '../segments/segment-upsert.repository.j
 import { SegmentRejectedError } from '../segments/segment-rejected.error.js';
 import { segmentRuleViolation } from '../segments/segment-rules.js';
 import { BulkSegmentsDto, BulkSegmentsResponseDto } from '../segments/dto/bulk-segments.dto.js';
+import { TranslationService } from '../translation/translation.service.js';
 import { MeetingsRepository } from './meetings.repository.js';
 
 /**
@@ -23,6 +24,7 @@ export class MeetingSegmentsController {
   constructor(
     private readonly meetings: MeetingsRepository,
     private readonly segments: SegmentUpsertRepository,
+    private readonly translation: TranslationService,
   ) {}
 
   @Post('bulk')
@@ -48,7 +50,10 @@ export class MeetingSegmentsController {
     } catch (error) {
       throw toHttpError(error);
     }
-    return { acked_seqs: [...new Set(dto.segments.map((s) => s.seq))].sort((a, b) => a - b) };
+    const ackedSeqs = [...new Set(dto.segments.map((s) => s.seq))].sort((a, b) => a - b);
+    // Phase 09: rows are committed; translating them is fire-and-forget and skips already-translated resends.
+    this.translation.enqueue(id, ackedSeqs);
+    return { acked_seqs: ackedSeqs };
   }
 }
 

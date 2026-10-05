@@ -9,3 +9,4 @@ export * from './search';
 export * from './graph';
 export * from './actions';
 export * from './qa';
+export * from './stt';

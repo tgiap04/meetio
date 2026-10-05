@@ -4,6 +4,7 @@ import { SegmentIngestHandler } from './segment-ingest.handler.js';
 import { SegmentRejectedError } from '../segments/segment-rejected.error.js';
 import type { SegmentBatchWriter } from '../segments/segment-batch-writer.service.js';
 import type { SegmentRateLimiter } from './segment-rate-limiter.js';
+import type { TranslationService } from '../translation/translation.service.js';
 import type { MeetingSocketData } from './ws-auth.middleware.js';
 
 const NOW = 1_800_000_000_000;
@@ -12,9 +13,14 @@ const valid = { seq: 7, text: 'xin chào', started_at_ms: 1000, ended_at_ms: 200
 function setup() {
   const write = jest.fn(async (): Promise<void> => undefined);
   const allow = jest.fn(async (): Promise<boolean> => true);
-  const handler = new SegmentIngestHandler({ write } as unknown as SegmentBatchWriter, { allow } as unknown as SegmentRateLimiter);
+  const enqueue = jest.fn<(meetingId: string, seqs: number[]) => void>();
+  const handler = new SegmentIngestHandler(
+    { write } as unknown as SegmentBatchWriter,
+    { allow } as unknown as SegmentRateLimiter,
+    { enqueue } as unknown as TranslationService,
+  );
   const socket: MeetingSocketData = { userId: 'u1', tokenExp: NOW / 1000 + 600, meetingId: 'm1' };
-  return { handler, write, allow, socket };
+  return { handler, write, allow, enqueue, socket };
 }
 
 describe('SegmentIngestHandler', () => {
@@ -30,6 +36,25 @@ describe('SegmentIngestHandler', () => {
     await pending;
     expect(outcome).toEqual({ kind: 'ack', seq: 7 });
     expect(t.write).toHaveBeenCalledWith('m1', { ...valid, gap_before_ms: undefined });
+  });
+
+  it('hands the seq to translation only after the write is committed', async () => {
+    const t = setup();
+    let release!: () => void;
+    t.write.mockImplementation(() => new Promise<void>((r) => (release = r)));
+    const pending = t.handler.handle(t.socket, valid, NOW);
+    await new Promise((r) => setImmediate(r));
+    expect(t.enqueue).not.toHaveBeenCalled();
+    release();
+    await pending;
+    expect(t.enqueue).toHaveBeenCalledWith('m1', [7]);
+  });
+
+  it('does not translate a segment that was not written', async () => {
+    const t = setup();
+    t.write.mockRejectedValue(new Error('connection reset'));
+    await t.handler.handle(t.socket, valid, NOW);
+    expect(t.enqueue).not.toHaveBeenCalled();
   });
 
   it('turns a write failure into segment_error, never an ack', async () => {

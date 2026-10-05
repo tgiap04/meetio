@@ -57,13 +57,13 @@ maybeDescribe('meeting lifecycle gaps coverage (e2e)', () => {
     const id = await create();
     const res = await e2e.http('PATCH', `/meetings/${id}`, owner.token, {
       title: 'Tên mới',
-      translate_to: 'en',
+      translate_to: 'en-US',
       recording_quality: 'high', // Unknown field, should be ignored
       status: 'ended', // Unknown field, should be ignored
     });
     expect(res.status).toBe(200);
     expect(res.body.title).toBe('Tên mới');
-    expect(res.body.translate_to).toBe('en');
+    expect(res.body.translate_to).toBe('en-US');
 
     const detail = await e2e.http('GET', `/meetings/${id}`, owner.token);
     expect(detail.body.recording_quality).toBe('standard'); // Unchanged

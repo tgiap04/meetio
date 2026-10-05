@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { ApiErrorCode } from '@meetio/shared';
 import { consentRequired, CURRENT_CONSENT_VERSION } from '../users/consent.js';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -11,6 +11,8 @@ import { MeetingsRepository } from './meetings.repository.js';
 import { transition } from './meeting-state-machine.js';
 import { clampInstant, closePause, MAX_OFFLINE_START_MS, openPause, recordedDurationSec } from './meeting-timing.js';
 import { defaultMeetingTitle } from './default-meeting-title.js';
+import { translateToViolation } from './translate-target.js';
+import { TranslationService } from '../translation/translation.service.js';
 import { MeetingPipelineTrigger } from './meeting-pipeline.trigger.js';
 import { SegmentsPendingException } from './segments-pending.exception.js';
 import { toMeetingStateResponse } from './meeting-state-response.js';
@@ -20,6 +22,13 @@ import type { UpdateMeetingDto } from './dto/update-meeting.dto.js';
 import type { CreateMeetingResponseDto, MeetingStateResponseDto } from './dto/meeting-responses.dto.js';
 
 const MISSING_SEQS_REPORTED = 100;
+
+function assertTranslateTo(translateTo: string | null | undefined, sourceLanguage: string): void {
+  const reason = translateToViolation(translateTo, sourceLanguage);
+  if (reason) {
+    throw new BadRequestException({ code: ApiErrorCode.VALIDATION_ERROR, message: reason, details: { translate_to: reason } });
+  }
+}
 
 /**
  * Lifecycle writes: create, pause, resume, end, rename. Every status change
@@ -34,6 +43,7 @@ export class MeetingsService {
     private readonly segmentWriter: SegmentBatchWriter,
     private readonly segments: SegmentUpsertRepository,
     private readonly pipeline: MeetingPipelineTrigger,
+    private readonly translation: TranslationService,
   ) {}
 
   /** US-07: the row exists — and its id is returned — before the client opens the mic. */
@@ -48,6 +58,7 @@ export class MeetingsService {
         details: { consent_version: CURRENT_CONSENT_VERSION },
       });
     }
+    assertTranslateTo(dto.translate_to, dto.source_language);
     const now = new Date();
     // US-07 offline start: the client dates the meeting from when recording began, not from the replay.
     const startedAt = clampInstant(dto.started_at, new Date(now.getTime() - MAX_OFFLINE_START_MS), now);
@@ -131,9 +142,15 @@ export class MeetingsService {
       patch.title = title || defaultMeetingTitle((await this.meetings.findOneOrFail(id, userId)).started_at ?? new Date());
     }
     if (dto.translate_to !== undefined) {
+      if (dto.translate_to !== null) {
+        assertTranslateTo(dto.translate_to, (await this.meetings.findOneOrFail(id, userId)).source_language);
+      }
       patch.translate_to = dto.translate_to;
     }
-    return this.meetings.updateOwned(id, userId, patch);
+    const updated = await this.meetings.updateOwned(id, userId, patch);
+    // Ingestion caches a meeting's translate_to briefly; a change must apply to the very next segment.
+    if (dto.translate_to !== undefined) this.translation.forget(id);
+    return updated;
   }
 
   private async changeState(

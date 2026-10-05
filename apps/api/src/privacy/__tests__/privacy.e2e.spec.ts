@@ -47,7 +47,7 @@ maybeDescribe('privacy and NFR hardening (e2e, compiled server)', () => {
     expect((await e2e.http('POST', '/meetings', fresh.token, NEW_MEETING)).status).toBe(403);
 
     const accepted = await e2e.http('POST', '/users/me/consent', fresh.token, {});
-    expect(accepted.body).toMatchObject({ consent_version: 2, recording_consent_at: expect.any(String) });
+    expect(accepted.body).toMatchObject({ consent_version: 4, recording_consent_at: expect.any(String) });
     expect((await e2e.http('GET', '/users/me', fresh.token)).body.user.consent_required).toBe(false);
     expect((await e2e.http('POST', '/meetings', fresh.token, NEW_MEETING)).status).toBe(201);
   });
