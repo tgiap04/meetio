@@ -425,7 +425,11 @@ device-ios: ## Chạy trên thiết bị ios thật
 # Giữ adb reverse SUỐT lúc chạy: Expo khởi động lại Metro, adb hay USB kết nối lại
 # đều xoá luật reverse — mất cổng 3000 là login lỗi mà API không có dòng log nào.
 # Vòng nền đặt lại mỗi 3 giây (vô hại khi đang dùng IP LAN), dừng khi lệnh kết thúc.
+# `expo prebuild` trước: `expo run:android` KHÔNG sinh lại android/ khi thư mục đã có, nên
+# config plugin mới (vd. foregroundServiceType=microphone) không vào manifest — app crash
+# ngay khi bắt đầu ghi âm. Prebuild không --clean chỉ áp lại cấu hình, nhanh.
 device-adr: ## Chạy trên thiết bị android thật (giữ adb reverse 3000/8081 suốt phiên)
+	@$(MOBILE) exec expo prebuild --platform android --no-install
 	@( while true; do $(ADB) reverse tcp:3000 tcp:3000 >/dev/null 2>&1; \
 		$(ADB) reverse tcp:8081 tcp:8081 >/dev/null 2>&1; sleep 3; done ) & \
 	keeper=$$!; trap 'kill $$keeper 2>/dev/null' EXIT INT TERM; \
