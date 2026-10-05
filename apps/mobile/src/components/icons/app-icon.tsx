@@ -45,7 +45,6 @@ const GLYPH = {
   // --- Home actions (screen 04) -----------------------------------------
   crown: 'award',
   mic: 'mic',
-  audioFile: 'file-plus',
   castDevice: 'cast',
 
   // --- Recording setup + capture (screens 05, 06) ------------------------

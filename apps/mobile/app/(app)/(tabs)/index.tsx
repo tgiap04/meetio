@@ -78,7 +78,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScreenSurface>
+    <ScreenSurface edges={['top']}>
       <ScrollView contentContainerStyle={styles.container} style={styles.scroll}>
         <HomeHeader displayName={meQuery.data.user.display_name} />
 
@@ -86,8 +86,8 @@ export default function HomeScreen() {
 
         <StartRecordingCard onPress={handleStartRecordingPress} />
 
-        {/* Neither row has a destination in the design — inert by design, not by omission. */}
-        <SecondaryActionRow icon="audioFile" label="Nhập từ file âm thanh" />
+        {/* No destination in the design — inert by design, not by omission. ("Nhập từ file âm
+            thanh" was removed on 2026-10-05: Meetio records live only.) */}
         <SecondaryActionRow icon="castDevice" label="Kết nối thiết bị khác" />
         <SecondaryActionRow
           icon="checkCircle"

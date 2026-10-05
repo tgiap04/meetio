@@ -6,13 +6,13 @@ describe('SecondaryActionRow', () => {
   it('renders the label', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<SecondaryActionRow icon="audioFile" label="Nhập từ file âm thanh" />);
+      renderer = TestRenderer.create(<SecondaryActionRow icon="castDevice" label="Kết nối thiết bị khác" />);
     });
     const texts = renderer.root
       .findAllByType(Text)
       .map((node) => node.props.children)
       .filter((children) => typeof children === 'string');
-    expect(texts).toEqual(['Nhập từ file âm thanh']);
+    expect(texts).toEqual(['Kết nối thiết bị khác']);
   });
 
   it('is not a Pressable — and has no accessibilityRole — when onPress is omitted', () => {
@@ -27,7 +27,7 @@ describe('SecondaryActionRow', () => {
     const onPress = jest.fn();
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<SecondaryActionRow icon="audioFile" label="x" onPress={onPress} />);
+      renderer = TestRenderer.create(<SecondaryActionRow icon="castDevice" label="x" onPress={onPress} />);
     });
     act(() => {
       renderer.root.findByProps({ accessibilityRole: 'button' }).props.onPress();

@@ -8,7 +8,7 @@ export interface SecondaryActionRowProps {
   label: string;
   /**
    * Omitted for a row that has no destination in the design (screen-04's
-   * "Nhập từ file âm thanh" / "Kết nối thiết bị khác"). Without it the row
+   * "Kết nối thiết bị khác"). Without it the row
    * renders as a plain `View`, not a `Pressable` — visibly present, but
    * genuinely inert rather than a dead tap target.
    */
