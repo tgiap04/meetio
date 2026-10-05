@@ -88,3 +88,7 @@
 - Q: Gói ngôn ngữ ML Kit (~30 MB) tải khi nào? → A: Khi bật "Dịch sang" ở màn cài đặt ghi âm; hiện tiến trình, cảnh báo khi dùng dữ liệu di động; chưa tải xong thì chưa bắt đầu ghi có dịch
 - Q: Bấm Kết thúc khi câu cuối chưa dịch xong? → A: Chờ đến khi dịch xong, không giới hạn thời gian (câu ML Kit báo lỗi thì đánh dấu chưa dịch rồi kết thúc tiếp, dịch lại được ở màn transcript)
 - Q: Lỗi giao diện được báo → A: Sửa: chữ đang ghi sát mép dưới; Hỏi AI bàn phím che ô nhập/nút gửi (Android), chữ "Chưa có câu hỏi nào" bị lộn ngược, chỉ báo "đang trả lời" sai vị trí
+
+## Session 2026-10-05 (gỡ nhập file âm thanh)
+- Q: Tính năng "Nhập từ file âm thanh" ở Trang chủ? → A: Gỡ bỏ — chỉ là dòng trơ (không có đích, không có API); Meetio chỉ ghi âm trực tiếp
+- Q: Đổi tên cuộc họp cũ — từ đâu? → A: Cả Thư viện (vuốt trái hiện "Đổi tên" + "Xóa") lẫn màn chi tiết (biểu tượng bút cạnh tiêu đề); chung một hộp thoại đổi tên (đếm /200, để trống = tên mặc định, Lưu/Hủy), cập nhật ngay, lỗi thì báo và trả tên cũ; API PATCH /meetings/:id đã có
