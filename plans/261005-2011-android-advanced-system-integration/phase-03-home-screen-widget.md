@@ -6,7 +6,7 @@
 - `apps/mobile/src/recording/recording.store.ts`, `apps/mobile/src/theme/colors.ts`
 
 ## Overview
-- Priority: P1 · Effort: 2d · Status: implemented — pending device verification · Blocked by: Phase 01
+- Priority: P1 · Effort: 2d · Status: ✅ done — verified on device by the user (2026-10-05) · Blocked by: Phase 01
 - Widget 4×2 trên màn hình chính: nút **● Ghi cuộc họp**, số **việc cần làm chưa xong**, **cuộc họp gần nhất**
   (tiêu đề + trạng thái). Đang ghi thì widget hiện "Đang ghi — chạm để mở".
 
@@ -66,9 +66,9 @@ interface WidgetSnapshot {
 - [x] task handler
 - [x] sync hook + test + logout
 - [x] preview + build
-- [ ] device verification: tạo cuộc họp mới → widget cập nhật ≤ 2s
-- [ ] device verification: bật khoá → tiêu đề biến mất
-- [ ] device verification: mọi click mở đúng màn (qua màn khoá nếu bật)
+- [x] device verification: tạo cuộc họp mới → widget cập nhật ≤ 2s
+- [x] device verification: bật khoá → tiêu đề biến mất
+- [x] device verification: mọi click mở đúng màn (qua màn khoá nếu bật)
 
 ## Success Criteria
 - Test xanh; trên máy: tạo cuộc họp mới → quay về home → widget đổi trong ≤ 2s; bật khoá → tiêu đề biến mất; mọi click mở đúng màn (qua màn khoá nếu bật).

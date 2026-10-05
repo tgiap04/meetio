@@ -5,7 +5,7 @@
 - `apps/mobile/app.config.ts`, `apps/mobile/package.json`
 
 ## Overview
-- Priority: P1 · Effort: 0.5d · Status: implemented — device check pending
+- Priority: P1 · Effort: 0.5d · Status: ✅ done — verified on device by the user (2026-10-05)
 - Cài 3 thư viện mới, prebuild, build ra máy thật **ngày đầu tiên** để biết sớm thư viện nào gãy trên
   Expo 57 / RN 0.86.3 / New Arch, trước khi viết logic.
 
@@ -38,9 +38,9 @@
 - [x] Cài deps, chạy `yarn workspace @meetio/mobile typecheck`
 - [x] Prebuild + build máy thật
 - [x] Widget provider đăng ký với launcher (`dumpsys appwidget` thấy `MeetioWidget`)
-- [ ] Widget hiện + bấm được trên màn hình chính (chưa kiểm — máy khoá màn hình)
-- [ ] Shortcut hiện khi nhấn giữ icon (chưa kiểm trên máy)
-- [ ] Prompt vân tay hiện (chưa kiểm trên máy)
+- [x] Widget hiện + bấm được trên màn hình chính
+- [x] Shortcut hiện khi nhấn giữ icon
+- [x] Prompt vân tay hiện
 - [x] Toàn bộ test mobile hiện có vẫn xanh (`yarn workspace @meetio/mobile test`)
 
 ## Success Criteria
@@ -66,4 +66,4 @@
 - `expo-quick-actions@6.0.2`: ✅ builds on Expo 57 / RN 0.86.3
 - `npx expo prebuild --platform android --clean` + `expo run:android`: ✅ `gradlew assembleDebug` exit 0
 - Device check (Xiaomi): widget provider registered (dumpsys appwidget showed MeetioWidget); suite mobile trước thay đổi 244 suites / 1.634 tests xanh; sau thay đổi 1.828/1.828 xanh
-- **Kết luận:** không cần phương án dự phòng; toàn bộ 3 thư viện mở khoá Phase 02–05. Runtime checks on device pending.
+- **Kết luận:** không cần phương án dự phòng; toàn bộ 3 thư viện mở khoá Phase 02–05. Runtime checks on device: done (verified on device by the user (2026-10-05)).

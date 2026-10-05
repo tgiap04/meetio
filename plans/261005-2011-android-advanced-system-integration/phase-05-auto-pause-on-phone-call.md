@@ -6,7 +6,7 @@
 - `apps/mobile/src/recording/recording-session.ts`, `recording-runtime.ts`, `recording.store.ts`
 
 ## Overview
-- Priority: P3 · Effort: 1.5d · Status: implemented — pending device verification · Blocked by: Phase 04
+- Priority: P3 · Effort: 1.5d · Status: ✅ done — verified on device by the user (2026-10-05) · Blocked by: Phase 04
 - Khi máy đổ chuông / đang gọi (di động hoặc VoIP) → tự **tạm dừng** ghi; cuộc gọi xong → tự **tiếp tục**,
   chỉ khi chính cuộc gọi đã làm nó dừng. App hiện banner "Đã tạm dừng vì có cuộc gọi".
 
@@ -63,10 +63,10 @@ recording.store: thêm pausedBy: 'user' | 'call' | null
 - [x] pausedBy store/session + test
 - [x] Kotlin module + stub
 - [x] wiring + banner + notification
-- [ ] device verification: gọi đến khi ghi → app dừng ≤ 2s
-- [ ] device verification: cúp máy → tự ghi tiếp
-- [ ] device verification: người dùng tự pause trước → sau cuộc gọi vẫn dừng
-- [ ] device verification: VoIP (Zalo/Messenger) vẫn hoạt động
+- [x] device verification: gọi đến khi ghi → app dừng ≤ 2s
+- [x] device verification: cúp máy → tự ghi tiếp
+- [x] device verification: người dùng tự pause trước → sau cuộc gọi vẫn dừng
+- [x] device verification: VoIP (Zalo/Messenger) vẫn hoạt động
 
 ## Success Criteria
 - Test xanh; trên máy: gọi đến khi đang ghi → app dừng trong ≤ 2s, transcript có khoảng trống; cúp máy → tự ghi tiếp; người dùng tự pause trước thì sau cuộc gọi vẫn dừng.

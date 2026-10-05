@@ -5,7 +5,7 @@
 - [Biên bản brainstorm](../reports/brainstorm-2026-10-05-android-advanced-features-for-final-grade.md)
 
 ## Overview
-- Priority: P1 · Effort: 2d · Status: pending · Blocked by: Phase 02, 03, 04 (và 05 nếu không cắt)
+- Priority: P1 · Effort: 2d · Status: 🟡 in progress — luồng chính + 4 tính năng đã kiểm trên máy; còn kịch bản demo + video dự phòng · Blocked by: Phase 02, 03, 04 (và 05 nếu không cắt)
 - **Còn lại cho người dùng:** kiểm trên máy thật, kịch bản demo, video dự phòng.
 - **Xong:** `docs/android-integration.md` (bảng tính năng → thành phần Android → file).
 - Rủi ro lớn nhất của buổi bảo vệ là luồng ghi chính lỗi khi demo live. Phase này kiểm luồng chính
@@ -35,12 +35,12 @@
 7. Cập nhật `docs/project-changelog.md` nếu có, trạng thái plan.
 
 ## Todo List
-- [ ] build lên máy demo + chỉnh pin/autostart
-- [ ] luồng chính ×3
-- [ ] checklist 4 tính năng
+- [x] build lên máy demo + chỉnh pin/autostart
+- [x] luồng chính ×3 (verified on device by the user, 2026-10-05)
+- [x] checklist 4 tính năng (verified on device by the user (2026-10-05))
 - [x] docs/android-integration.md
 - [ ] kịch bản demo + video dự phòng
-- [ ] cập nhật trạng thái plan
+- [x] cập nhật trạng thái plan
 
 ## Success Criteria
 - Luồng chính đạt 3/3; mọi mục checklist đạt (mục trượt có ghi chú + đã cắt khỏi kịch bản); có bảng ánh xạ và video dự phòng.

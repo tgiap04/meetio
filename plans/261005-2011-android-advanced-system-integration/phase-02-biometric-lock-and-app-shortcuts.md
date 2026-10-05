@@ -6,7 +6,7 @@
 - US-03 (bảo vệ dữ liệu), US-02 AC (phiên ghi không bị gián đoạn)
 
 ## Overview
-- Priority: P1 · Effort: 1.5d · Status: implemented — pending device verification · Blocked by: Phase 01
+- Priority: P1 · Effort: 1.5d · Status: ✅ done — verified on device by the user (2026-10-05) · Blocked by: Phase 01
 - (a) Bật trong Cài đặt → mở app hoặc quay lại sau ≥ 30s ở nền thì phải xác thực (BiometricPrompt,
   fallback PIN/pattern thiết bị). (b) Nhấn giữ icon app → 3 shortcut: **Ghi cuộc họp mới**, **Hỏi AI**,
   **Việc cần làm**.
@@ -79,9 +79,9 @@ AppLockGate ── useAppLock(): { locked, unlock() }
 - [x] settings section + test
 - [x] shortcuts + routing + test
 - [x] typecheck + suite xanh
-- [ ] device verification: bật khoá → đóng app → mở lại → prompt vân tay
-- [ ] device verification: huỷ prompt → kẹt ở màn khoá; ghi âm không dừng
-- [ ] device verification: 3 shortcut mở đúng màn
+- [x] device verification: bật khoá → đóng app → mở lại → prompt vân tay
+- [x] device verification: huỷ prompt → kẹt ở màn khoá; ghi âm không dừng
+- [x] device verification: 3 shortcut mở đúng màn
 
 ## Success Criteria
 - Test mới xanh; trên máy: bật khoá → đóng app → mở lại → prompt vân tay; huỷ → kẹt ở màn khoá; ghi âm đang chạy thì khoá không làm dừng ghi; 3 shortcut mở đúng màn.

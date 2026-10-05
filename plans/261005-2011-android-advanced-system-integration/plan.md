@@ -31,12 +31,12 @@ Chủ đề báo cáo: **"Meetio tích hợp sâu vào hệ điều hành Androi
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | [Kiểm tra tương thích native (cổng chặn)](./phase-01-native-compat-spike.md) | Implemented — pending device verification |
-| 2 | [Khoá sinh trắc + App Shortcuts](./phase-02-biometric-lock-and-app-shortcuts.md) | Implemented — pending device verification |
-| 3 | [Home-screen widget](./phase-03-home-screen-widget.md) | Implemented — pending device verification |
-| 4 | [Nút điều khiển trên notification ghi âm](./phase-04-recording-notification-actions.md) | Implemented — pending device verification |
-| 5 | [Tự dừng ghi khi có cuộc gọi](./phase-05-auto-pause-on-phone-call.md) | Implemented — pending device verification |
-| 6 | [Kiểm chứng máy thật + kịch bản demo + bảng báo cáo](./phase-06-device-verification-and-demo.md) | Pending |
+| 1 | [Kiểm tra tương thích native (cổng chặn)](./phase-01-native-compat-spike.md) | ✅ Done — verified on device |
+| 2 | [Khoá sinh trắc + App Shortcuts](./phase-02-biometric-lock-and-app-shortcuts.md) | ✅ Done — verified on device |
+| 3 | [Home-screen widget](./phase-03-home-screen-widget.md) | ✅ Done — verified on device |
+| 4 | [Nút điều khiển trên notification ghi âm](./phase-04-recording-notification-actions.md) | ✅ Done — verified on device |
+| 5 | [Tự dừng ghi khi có cuộc gọi](./phase-05-auto-pause-on-phone-call.md) | ✅ Done — verified on device |
+| 6 | [Kiểm chứng máy thật + kịch bản demo + bảng báo cáo](./phase-06-device-verification-and-demo.md) | 🟡 Main flow + features verified on device — demo script/video pending |
 
 ## Thứ tự & phụ thuộc
 

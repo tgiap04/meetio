@@ -7,7 +7,7 @@
 - US-09 (pause/resume), US-10 (ghi nền)
 
 ## Overview
-- Priority: P2 · Effort: 1d · Status: implemented — pending device verification · Blocked by: Phase 01
+- Priority: P2 · Effort: 1d · Status: ✅ done — verified on device by the user (2026-10-05) · Blocked by: Phase 01
 - Notification foreground service đang ghi có nút **Tạm dừng / Tiếp tục** và **Kết thúc**; nhãn đổi theo trạng thái;
   thời gian ghi hiển thị bằng chronometer.
 
@@ -64,9 +64,9 @@ JS:
 - [x] actionsForPhase + test
 - [x] listener + chống bấm trùng + test
 - [x] update nhãn theo phase
-- [ ] device verification: pause từ notification → transcript ngừng, resume → chạy lại
-- [ ] device verification: end → app tới màn kết thúc khi reopened
-- [ ] device verification: offline vẫn hoạt động (op ghi vào queue)
+- [x] device verification: pause từ notification → transcript ngừng, resume → chạy lại
+- [x] device verification: end → app tới màn kết thúc khi reopened
+- [x] device verification: offline vẫn hoạt động (op ghi vào queue)
 
 ## Success Criteria
 - Test xanh; trên máy: pause từ notification → đồng hồ trong app dừng, transcript ngừng; resume → chạy lại; end → app tới màn kết thúc; offline vẫn hoạt động (op ghi vào queue như bấm trong app).
