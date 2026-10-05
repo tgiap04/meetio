@@ -24,6 +24,15 @@ jest.mock('../../recording/server-stt-native', () => ({ requestServerRecordingPe
 const mockReachable = jest.fn(async () => true);
 jest.mock('../../api/stt', () => ({ isServerReachable: () => mockReachable() }));
 
+// ML Kit language packs: scripted per test (`packsOnPhone` is the set of languages already downloaded).
+let mockPacksOnPhone = new Set<string>();
+const mockDownloadModel = jest.fn(async (language: string, _options?: unknown) => void mockPacksOnPhone.add(language));
+jest.mock('../../../modules/mlkit-translate', () => ({
+  isTranslationAvailable: () => true,
+  isModelDownloaded: async (language: string) => mockPacksOnPhone.has(language),
+  downloadModel: (language: string, options?: unknown) => mockDownloadModel(language, options),
+}));
+
 import RecordingSetupScreen from '../../../app/(app)/recording-setup';
 import { fakeSpeech } from '../../recording/test-support/fake-speech-module';
 import { readRecordingPreferences, writeRecordingPreferences } from '../../recording/recording-preferences';
@@ -49,6 +58,7 @@ const press = (r: TestRenderer.ReactTestRenderer, label: string) => act(async ()
 describe('(app)/recording-setup screen', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPacksOnPhone = new Set();
     mockReachable.mockResolvedValue(true);
     mockServerPermission.mockResolvedValue({ granted: true, canAskAgain: true });
     fakeSpeech.reset();
@@ -167,24 +177,68 @@ describe('(app)/recording-setup screen', () => {
     expect(mockReplace).toHaveBeenCalledWith(RECORDING_LIVE_ROUTE);
   });
 
-  describe('translation (Phase 09)', () => {
-    it('is off by default: no cost note, and recording starts with no translate_to', async () => {
-      const r = await render();
-      expect(r.root.findAllByProps({ testID: 'translation-cost-note' })).toHaveLength(0);
-      await press(r, 'Bắt đầu');
-      expect(mockStart).toHaveBeenCalledWith(expect.objectContaining({ translateTo: null }));
-    });
-
-    it('choosing the other language shows the cost note, is remembered, and goes into the session start', async () => {
-      const r = await render();
+  describe('translation (Phase 21, on the device)', () => {
+    const chooseEnglishTarget = async (r: TestRenderer.ReactTestRenderer) => {
       await act(async () => radio(r, 'Tiếng Việt').props.onPress());
       // The translation card repeats the language names; the one for the OTHER language sits last.
       const target = r.root.findAll((n) => n.type === RadioRow && n.props.label === 'Tiếng Anh').at(-1)!;
       await act(async () => target.props.onPress());
-      expect(texts(r)).toContain('Dịch dùng thêm AI cho mỗi câu — tốn chi phí hơn.');
+    };
+    const startButton = (r: TestRenderer.ReactTestRenderer) => r.root.findByProps({ label: 'Bắt đầu' });
+
+    it('is off by default: no note, no pack check, and recording starts with no translate_to', async () => {
+      const r = await render();
+      expect(r.root.findAllByProps({ testID: 'translation-on-device-note' })).toHaveLength(0);
+      expect(r.root.findAllByProps({ testID: 'translation-packs' })).toHaveLength(0);
+      await press(r, 'Bắt đầu');
+      expect(mockStart).toHaveBeenCalledWith(expect.objectContaining({ translateTo: null }));
+    });
+
+    it('with both packs on the phone: the choice is remembered and goes into the session start', async () => {
+      mockPacksOnPhone = new Set(['vi-VN', 'en-US']);
+      const r = await render();
+      await chooseEnglishTarget(r);
+      expect(texts(r)).toContain('Gói dịch đã sẵn sàng.');
       expect((await readRecordingPreferences()).translateTo).toBe('en-US');
       await press(r, 'Bắt đầu');
       expect(mockStart).toHaveBeenCalledWith(expect.objectContaining({ language: 'vi-VN', translateTo: 'en-US' }));
+    });
+
+    it('missing pack: Start is disabled and does nothing until the download finishes', async () => {
+      mockPacksOnPhone = new Set(['vi-VN']);
+      const r = await render();
+      await chooseEnglishTarget(r);
+      expect(texts(r)).toContain('Tải gói dịch ~30 MB');
+      expect(startButton(r).props.disabled).toBe(true);
+      await act(async () => startButton(r).props.onPress?.());
+      expect(mockStart).not.toHaveBeenCalled();
+
+      await press(r, 'Tải gói dịch ~30 MB');
+      expect(mockDownloadModel).toHaveBeenCalledWith('en-US', { wifiOnly: false });
+      expect(texts(r)).toContain('Gói dịch đã sẵn sàng.');
+      expect(startButton(r).props.disabled).toBe(false);
+      await press(r, 'Bắt đầu');
+      expect(mockStart).toHaveBeenCalledWith(expect.objectContaining({ translateTo: 'en-US' }));
+    });
+
+    it('a failed download keeps Start disabled, says why and offers "Thử lại"', async () => {
+      mockPacksOnPhone = new Set(['vi-VN']);
+      mockDownloadModel.mockRejectedValueOnce(new Error('offline'));
+      const r = await render();
+      await chooseEnglishTarget(r);
+      await press(r, 'Tải gói dịch ~30 MB');
+      expect(texts(r)).toContain('Không tải được gói dịch. Kiểm tra mạng rồi thử lại.');
+      expect(startButton(r).props.disabled).toBe(true);
+      await press(r, 'Thử lại');
+      expect(startButton(r).props.disabled).toBe(false);
+    });
+
+    it('switching translation back off re-enables Start without any pack', async () => {
+      const r = await render();
+      await chooseEnglishTarget(r);
+      expect(startButton(r).props.disabled).toBe(true);
+      await act(async () => radio(r, 'Không dịch').props.onPress());
+      expect(startButton(r).props.disabled).toBe(false);
     });
   });
 

@@ -10,6 +10,8 @@ import type { SqlDb } from './queue-db';
 import { deleteLocalMeeting, listLocalMeetings, markBlocked, markServerCreated, type LocalMeeting } from './local-meetings';
 import { nextOp, removeOp, type PendingOp } from './lifecycle-ops';
 import { ackSegments, countPending, countPendingForOwner, pendingSegments } from './segment-queue';
+import { countUnsyncedTranslations, countUnsyncedTranslationsForOwner } from './translation-queue';
+import { syncTranslations } from './translation-sync';
 import { apiErrorCode, classifySyncError } from './sync-errors';
 import type { RealtimeHandlers, RealtimePort } from './meeting-socket';
 
@@ -27,7 +29,8 @@ export interface SyncWorkerDeps {
 
 /**
  * Drains the on-disk queue to the server, oldest meeting first: create (idempotent on the client
- * id) → replay pause/resume in order → segments → `end` once nothing is pending. Segments leave
+ * id) → replay pause/resume in order → segments → their on-device translations → `end` once nothing is
+ * pending (segments AND translations). Segments leave
  * the disk only on the server's ack. Every failure keeps the data and retries with backoff.
  */
 export function createSyncWorker(deps: SyncWorkerDeps) {
@@ -118,8 +121,10 @@ export function createSyncWorker(deps: SyncWorkerDeps) {
     }
     if (m.id === liveId) realtime?.open(m.id);
     await sendSegments(m.id, m.ownerId);
+    await syncTranslations(db, api, m);
     const head = await nextOp(db, m.id);
-    if (head?.op === 'end' && (await countPending(db, m.id)) === 0) {
+    // `end` goes out last: every segment acked and every translation stored (or given up on).
+    if (head?.op === 'end' && (await countPending(db, m.id)) === 0 && (await countUnsyncedTranslations(db, m.id)) === 0) {
       await replay(head, m.ownerId);
       await deleteLocalMeeting(db, m.id);
       if (m.id === liveId) setLive(null);
@@ -158,7 +163,7 @@ export function createSyncWorker(deps: SyncWorkerDeps) {
       later(backoff);
       backoff = Math.min(RETRY_MAX_MS, backoff * 2);
     } else backoff = RETRY_MIN_MS;
-    deps.onStatus?.({ pending: await countPendingForOwner(db, ownerId), online });
+    deps.onStatus?.({ pending: (await countPendingForOwner(db, ownerId)) + (await countUnsyncedTranslationsForOwner(db, ownerId)), online });
   }
 
   function kick() {

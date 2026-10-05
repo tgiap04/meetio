@@ -11,14 +11,25 @@ export interface TranslatedSegmentProps {
   onRetry?: () => void;
   /** Why the last manual retry did not work. */
   error?: string | null;
+  /**
+   * `failed` (default): translation was tried and did not work — "Chưa dịch được" / "Thử lại".
+   * `missing`: the line has no translation (never made, or its text was edited) — "Chưa có bản dịch" / "Dịch".
+   */
+  variant?: 'failed' | 'missing';
 }
+
+const COPY = {
+  failed: { message: 'Chưa dịch được', action: 'Thử lại', accessibility: 'Thử lại dịch đoạn này' },
+  missing: { message: 'Chưa có bản dịch', action: 'Dịch', accessibility: 'Dịch đoạn này' },
+} as const;
 
 /**
  * A line's translation (Phase 09), drawn apart from the original: pale-blue card, italic text.
- * A line whose translation failed shows "Chưa dịch được" with a small "Thử lại"; a line that is
+ * A line with no translation shows "Chưa dịch được" with a small "Thử lại"; a line that is
  * merely still waiting shows nothing.
  */
-export function TranslatedSegment({ text, failed = false, retrying = false, onRetry, error }: TranslatedSegmentProps) {
+export function TranslatedSegment({ text, failed = false, retrying = false, onRetry, error, variant = 'failed' }: TranslatedSegmentProps) {
+  const copy = COPY[variant];
   if (text) {
     return (
       <View style={styles.card} testID="translated-segment">
@@ -29,13 +40,13 @@ export function TranslatedSegment({ text, failed = false, retrying = false, onRe
   if (!failed) return null;
   return (
     <View style={styles.card} testID="translation-failed">
-      <Text style={styles.failed}>Chưa dịch được</Text>
+      <Text style={styles.failed}>{copy.message}</Text>
       {error ? <Text style={styles.failed}>{error}</Text> : null}
       {retrying ? (
         <Text style={styles.failed}>Đang dịch…</Text>
       ) : onRetry ? (
-        <Pressable accessibilityLabel="Thử lại dịch đoạn này" accessibilityRole="button" hitSlop={8} onPress={onRetry}>
-          <Text style={styles.retry}>Thử lại</Text>
+        <Pressable accessibilityLabel={copy.accessibility} accessibilityRole="button" hitSlop={8} onPress={onRetry}>
+          <Text style={styles.retry}>{copy.action}</Text>
         </Pressable>
       ) : null}
     </View>

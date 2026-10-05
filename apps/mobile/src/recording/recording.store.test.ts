@@ -15,11 +15,13 @@ describe('live translations', () => {
     expect(useRecordingStore.getState().translations).toEqual({});
   });
 
-  it('a later translation replaces an earlier failure, but a failure never replaces a translation', () => {
+  it('walks a line from pending to done, and a retry takes a failed line back to pending', () => {
     useRecordingStore.setState({ meetingId: 'm1' });
+    setLiveTranslation('m1', 1, { status: 'pending' });
     setLiveTranslation('m1', 1, { status: 'failed' });
+    setLiveTranslation('m1', 1, { status: 'pending' });
+    expect(useRecordingStore.getState().translations[1]).toEqual({ status: 'pending' });
     setLiveTranslation('m1', 1, { status: 'done', text: 'ok', to: 'en-US' });
-    setLiveTranslation('m1', 1, { status: 'failed' });
     expect(useRecordingStore.getState().translations[1]).toEqual({ status: 'done', text: 'ok', to: 'en-US' });
   });
 

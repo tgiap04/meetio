@@ -1,5 +1,5 @@
 import { AxiosError, AxiosHeaders } from 'axios';
-import type { CreateMeetingRequest, EndMeetingRequest, TranscriptSegmentPayload } from '@meetio/shared';
+import type { CreateMeetingRequest, EndMeetingRequest, PutSegmentTranslationRequest, TranscriptSegmentPayload } from '@meetio/shared';
 import { OwnerMismatchError } from '../../api/axios-client';
 import type { SyncApi } from '../sync-worker';
 
@@ -19,6 +19,7 @@ interface ServerMeeting {
   userBody: CreateMeetingRequest;
   status: 'recording' | 'paused' | 'queued';
   segments: Map<number, string>;
+  translations: Map<number, PutSegmentTranslationRequest>;
   transitions: { op: string; at?: string; last_seq?: number }[];
 }
 
@@ -64,7 +65,7 @@ export class FakeSyncServer implements SyncApi {
     await this.gate('createMeeting', ownerId);
     const id = body.id!;
     if (!this.meetings.has(id)) {
-      this.meetings.set(id, { userBody: body, status: 'recording', segments: new Map(), transitions: [] });
+      this.meetings.set(id, { userBody: body, status: 'recording', segments: new Map(), translations: new Map(), transitions: [] });
       this.ownerOf.set(id, this.signedIn);
     }
     return { id, status: this.find(id).status, started_at: body.started_at! };
@@ -88,6 +89,15 @@ export class FakeSyncServer implements SyncApi {
     const m = this.find(id);
     for (const s of segments) if (!m.segments.has(s.seq)) m.segments.set(s.seq, s.text);
     return segments.map((s) => s.seq);
+  }
+
+  /** Mirrors the PUT: 404 while the segment is not on the server, 400 when the language is not the meeting's. */
+  async putSegmentTranslation(ownerId: string, id: string, seq: number, body: PutSegmentTranslationRequest) {
+    await this.gate('putSegmentTranslation', ownerId);
+    const m = this.find(id);
+    if (!m.segments.has(seq)) throw axiosFailure(404, 'SEGMENT_NOT_FOUND');
+    if (m.userBody.translate_to !== body.translated_to) throw axiosFailure(400, 'VALIDATION_FAILED');
+    m.translations.set(seq, body);
   }
 
   /** What a socket `transcript_segment` does server-side before the ack is emitted. */

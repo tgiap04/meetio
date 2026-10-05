@@ -18,6 +18,7 @@ import { useUpdateSegmentMutation } from '../../hooks/use-segment-mutations';
 import { useReindexMeetingMutation } from '../../hooks/use-meeting-mutations';
 import { useMeetingQuery } from '../../hooks/use-meeting-detail-query';
 import { useRetrySegmentTranslation } from '../../hooks/use-retry-segment-translation';
+import { useTranslateSegment } from '../../hooks/use-translate-segment';
 import { useFetchAllPagesForSearch } from '../../hooks/use-fetch-all-pages-for-search';
 import { useScrollToInitialSeq } from '../../hooks/use-scroll-to-initial-seq';
 import { getErrorMessage } from '../../api/error-messages';
@@ -47,7 +48,8 @@ function matchesQuery(segment: TranscriptSegmentItem, query: string, viewMode: T
  * smooth without holding every row's view tree at once.
  *
  * A meeting recorded with translation (Phase 09) gets a Gốc / Dịch / Song song switch, and a
- * "Thử lại" on every segment the server could not translate.
+ * "Dịch" (on the device) on every segment that has no translation — one that failed while
+ * recording, or whose text was edited.
  *
  * After an edit is saved, the user is asked whether to re-run the AI pipeline
  * (US-24) — the cost/time warning is stated plainly rather than assumed
@@ -63,7 +65,6 @@ export function RealTranscriptScreen({ meetingId, onBack, initialSeq }: RealTran
   const updateSegmentMutation = useUpdateSegmentMutation(meetingId);
   const reindexMutation = useReindexMeetingMutation(meetingId);
   const meeting = useMeetingQuery(meetingId);
-  const translationRetry = useRetrySegmentTranslation(meetingId);
 
   useEffect(() => {
     readLastReadSeq(meetingId).then(setLastReadSeq);
@@ -73,6 +74,13 @@ export function RealTranscriptScreen({ meetingId, onBack, initialSeq }: RealTran
     () => segmentsQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [segmentsQuery.data],
   );
+
+  // "Dịch": translate the segment on the device and store it with the meeting (Phase 21).
+  const translateSegment = useTranslateSegment(meetingId, meeting.data);
+  const translationRetry = useRetrySegmentTranslation(async (seq) => {
+    const segment = segments.find((item) => item.seq === seq);
+    if (segment) await translateSegment(segment);
+  });
 
   // Translation is in play when the meeting asked for it — or it already holds translations (translate_to switched off later).
   const translationEnabled = Boolean(meeting.data?.translate_to) || segments.some((segment) => segment.translated_text);

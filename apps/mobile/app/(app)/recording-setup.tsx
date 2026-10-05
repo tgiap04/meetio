@@ -12,6 +12,7 @@ import { PrimaryButton } from '../../src/components/primary-button';
 import { SecondaryButton } from '../../src/components/ui/secondary-button';
 import { AUDIO_SOURCE_OPTIONS, BLUETOOTH_HINT, QUALITY_OPTIONS } from '../../src/content/recording-options';
 import { useRecordingSetup } from '../../src/hooks/use-recording-setup';
+import { useTranslationPacks } from '../../src/hooks/use-translation-packs';
 import { useRecordingActions } from '../../src/hooks/use-recording-actions';
 import { useMeQuery } from '../../src/hooks/use-me-query';
 import { isServerReachable } from '../../src/api/stt';
@@ -32,23 +33,28 @@ const SERVER_OFFLINE_MESSAGE = 'Chế độ máy chủ cần kết nối mạng.
  * (the server copy follows, so this works offline too) and opens the mic. A phone that cannot
  * recognise speech offline (Phase 18) sends audio chunks to the server instead: the screen says so,
  * only asks for the microphone, and refuses to start without a network. "Dịch sang" (Phase 09)
- * is off unless chosen, and says it costs more when it is on.
+ * is off unless chosen; turning it on checks the two language packs, offers the download and keeps
+ * Start disabled until they are on the phone (Phase 21).
  */
 export default function RecordingSetupScreen() {
   const phase = useRecordingStore((s) => s.phase);
   const me = useMeQuery();
   const { loading, mode, checkFailed, retryCheck, languages, preferences, update } = useRecordingSetup();
+  const packs = useTranslationPacks(preferences.language, preferences.translateTo);
   const { run, busy, error } = useRecordingActions();
   const [permission, setPermission] = useState<PermissionProblem>(null);
   const [offline, setOffline] = useState(false);
   const [checking, setChecking] = useState(false);
+
+  // With translation on, recording only starts once both language packs are on the phone.
+  const translationReady = packs.status === 'off' || packs.status === 'ready';
 
   if (phase !== 'idle') return <Redirect href={RECORDING_LIVE_ROUTE} />;
 
   async function handleStart() {
     const ownerId = me.data?.user.id;
     const language = preferences.language;
-    if (!ownerId || !language || !mode) return;
+    if (!ownerId || !language || !mode || !translationReady) return;
     setOffline(false);
     if (mode === 'server') {
       setChecking(true);
@@ -96,7 +102,7 @@ export default function RecordingSetupScreen() {
         </View>
 
         <View style={styles.section}>
-          <TranslationSection language={preferences.language} onChange={(translateTo) => update({ translateTo })} translateTo={preferences.translateTo} />
+          <TranslationSection language={preferences.language} onChange={(translateTo) => update({ translateTo })} packs={packs} translateTo={preferences.translateTo} />
         </View>
 
         <View style={styles.section}>
@@ -118,7 +124,7 @@ export default function RecordingSetupScreen() {
       </ScrollView>
       <View style={styles.footer}>
         <PrimaryButton
-          disabled={loading || !mode || !preferences.language || !me.data}
+          disabled={loading || !mode || !preferences.language || !me.data || !translationReady}
           label="Bắt đầu"
           loading={busy || checking}
           onPress={() => void handleStart()}

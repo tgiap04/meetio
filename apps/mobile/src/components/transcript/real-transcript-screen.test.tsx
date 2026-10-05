@@ -25,8 +25,16 @@ jest.mock('../../hooks/use-meeting-detail-query', () => ({
 const mockRetryTranslation = jest.fn();
 let mockRetrying = new Set<number>();
 let mockRetryErrors: Record<number, string> = {};
+let mockRunTranslation: ((seq: number) => Promise<void>) | null = null;
 jest.mock('../../hooks/use-retry-segment-translation', () => ({
-  useRetrySegmentTranslation: () => ({ retry: mockRetryTranslation, retrying: mockRetrying, errors: mockRetryErrors }),
+  useRetrySegmentTranslation: (run: (seq: number) => Promise<void>) => {
+    mockRunTranslation = run;
+    return { retry: mockRetryTranslation, retrying: mockRetrying, errors: mockRetryErrors };
+  },
+}));
+const mockTranslateSegment = jest.fn();
+jest.mock('../../hooks/use-translate-segment', () => ({
+  useTranslateSegment: () => mockTranslateSegment,
 }));
 
 jest.mock('../../storage/transcript-read-position', () => ({
@@ -296,14 +304,26 @@ describe('RealTranscriptScreen', () => {
       expect(texts(r)).not.toContain('Xin chào');
     });
 
-    it('offers "Thử lại" for an untranslated segment only and retries THAT seq', () => {
+    it('offers "Dịch" for an untranslated segment only and translates THAT seq', () => {
       translatedMeeting();
       mockSuccess(items());
       const r = render();
-      const retry = r.root.findAll((n) => n.props.accessibilityLabel === 'Thử lại dịch đoạn này' && typeof n.props.onPress === 'function');
+      const retry = r.root.findAll((n) => n.props.accessibilityLabel === 'Dịch đoạn này' && typeof n.props.onPress === 'function');
       expect(retry).toHaveLength(1);
       act(() => retry[0].props.onPress());
       expect(mockRetryTranslation).toHaveBeenCalledWith(2);
+    });
+
+    it('"Dịch" translates that segment\'s text on the device and stores it (the hook does the work)', async () => {
+      translatedMeeting();
+      mockSuccess(items());
+      render();
+      await mockRunTranslation!(2);
+      expect(mockTranslateSegment).toHaveBeenCalledTimes(1);
+      expect(mockTranslateSegment).toHaveBeenCalledWith(expect.objectContaining({ seq: 2, text: 'Tạm biệt' }));
+      mockTranslateSegment.mockClear();
+      await mockRunTranslation!(99); // a seq that is no longer listed does nothing
+      expect(mockTranslateSegment).not.toHaveBeenCalled();
     });
 
     it('a search also finds text in the translation while it is shown', () => {

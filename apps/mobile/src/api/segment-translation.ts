@@ -1,14 +1,17 @@
-import type { SegmentTranslation } from '@meetio/shared';
+import type { PutSegmentTranslationRequest } from '@meetio/shared';
 import { apiClient } from './axios-client';
 
 /**
- * `POST /meetings/:id/segments/:seq/translate` — translates one segment again after an automatic
- * failure (Phase 09). Idempotent on the server: an already-translated segment just returns its text.
+ * `PUT /meetings/:id/segments/:seq/translation` — stores the phone's on-device translation with the
+ * segment (204, idempotent). 404: the segment is not on the server yet (or not yours) — retry later;
+ * 400: the language does not match the meeting's `translate_to`, or translation is off.
+ * `ownerId`: when given, the request is refused if another user is signed in (queued data).
  */
-export async function retrySegmentTranslation(meetingId: string, seq: number): Promise<SegmentTranslation> {
-  const { data } = await apiClient.post<SegmentTranslation>(`/meetings/${meetingId}/segments/${seq}/translate`);
-  if (data?.seq !== seq || typeof data.translated_text !== 'string' || typeof data.translated_to !== 'string') {
-    throw new Error('Unexpected translation response');
-  }
-  return data;
+export async function putSegmentTranslation(
+  ownerId: string | undefined,
+  meetingId: string,
+  seq: number,
+  body: PutSegmentTranslationRequest,
+): Promise<void> {
+  await apiClient.put(`/meetings/${meetingId}/segments/${seq}/translation`, body, { expectedOwnerId: ownerId });
 }

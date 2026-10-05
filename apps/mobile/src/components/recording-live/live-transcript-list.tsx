@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlatList, Pressable, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import type { LiveLine, LiveTranslation } from '../../recording/recording.store';
 import { TranslatedSegment } from '../translated-segment';
@@ -9,6 +10,9 @@ import { typography } from '../../theme/typography';
 /** Within this many points of the end counts as "reading the newest line". */
 export const FOLLOW_THRESHOLD = 48;
 
+/** Space under the last line, on top of the device's bottom inset, so long text never hugs the screen edge. */
+export const LIVE_LIST_BOTTOM_PADDING = 48;
+
 export function isNearBottom({ contentOffset, contentSize, layoutMeasurement }: NativeScrollEvent): boolean {
   return contentSize.height - (contentOffset.y + layoutMeasurement.height) <= FOLLOW_THRESHOLD;
 }
@@ -17,7 +21,7 @@ export interface LiveTranscriptListProps {
   lines: readonly LiveLine[];
   /** The utterance still being recognised — drawn in a different colour (US-08). */
   partial: string | null;
-  /** Phase 09: translations by seq, drawn under their line. Absent = translation is not in play. */
+  /** Phase 21: on-device translations by seq, drawn under their line. Absent = translation is not in play. */
   translations?: Readonly<Record<number, LiveTranslation>>;
   onRetryTranslation?: (seq: number) => void;
   /** Seqs whose manual retry is running, and why the last one failed. */
@@ -33,6 +37,7 @@ export interface LiveTranscriptListProps {
  */
 export function LiveTranscriptList({ lines, partial, translations, onRetryTranslation, retryingTranslations, translationErrors }: LiveTranscriptListProps) {
   const list = useRef<FlatList<LiveLine>>(null);
+  const insets = useSafeAreaInsets();
   const [following, setFollowing] = useState(true);
   const [unread, setUnread] = useState(0);
   const seen = useRef(lines.length);
@@ -60,7 +65,7 @@ export function LiveTranscriptList({ lines, partial, translations, onRetryTransl
     <View style={styles.wrap}>
       <FlatList
         ref={list}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: styles.content.padding + LIVE_LIST_BOTTOM_PADDING + insets.bottom }]}
         data={lines}
         extraData={{ translations, retryingTranslations, translationErrors }}
         keyExtractor={(line) => String(line.seq)}
@@ -79,7 +84,7 @@ export function LiveTranscriptList({ lines, partial, translations, onRetryTransl
               {translation ? (
                 <TranslatedSegment
                   error={translationErrors?.[item.seq]}
-                  failed={translation.status === 'failed'}
+                  failed={translation.status === 'failed' || Boolean(retryingTranslations?.has(item.seq))}
                   onRetry={onRetryTranslation ? () => onRetryTranslation(item.seq) : undefined}
                   retrying={retryingTranslations?.has(item.seq)}
                   text={translation.status === 'done' ? translation.text : null}

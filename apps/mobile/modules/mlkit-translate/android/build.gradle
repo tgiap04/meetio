@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.mlkittranslate'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.mlkittranslate"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}
+
+dependencies {
+  // On-device translation (Phase 21): models are downloaded once, text never leaves the phone.
+  implementation 'com.google.mlkit:translate:17.0.3'
+}

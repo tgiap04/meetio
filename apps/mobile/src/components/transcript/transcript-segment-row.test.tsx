@@ -102,7 +102,7 @@ describe('TranscriptSegmentRow', () => {
     const translated = () => segment({ translated_text: 'Hello everyone', translated_to: 'en-US' });
     const shown = (r: TestRenderer.ReactTestRenderer) => r.root.findAllByType(Text).map((n) => n.props.children);
     const retryButton = (r: TestRenderer.ReactTestRenderer) =>
-      r.root.findAll((n) => n.props.accessibilityLabel === 'Thử lại dịch đoạn này' && typeof n.props.onPress === 'function');
+      r.root.findAll((n) => n.props.accessibilityLabel === 'Dịch đoạn này' && typeof n.props.onPress === 'function');
 
     it('original: only the original text, even when a translation exists', () => {
       const { renderer } = render({ segment: translated(), viewMode: 'original', translationEnabled: true });
@@ -122,12 +122,12 @@ describe('TranscriptSegmentRow', () => {
       expect(all.indexOf('Hello everyone')).toBe(all.indexOf('Xin chào mọi người') + 1);
     });
 
-    it('an untranslated segment of a translated meeting offers "Thử lại" in translated and both modes, never in original', () => {
+    it('an untranslated segment of a translated meeting offers "Dịch" in translated and both modes, never in original', () => {
       const onRetryTranslation = jest.fn();
       for (const viewMode of ['translated', 'both'] as const) {
         const { renderer } = render({ viewMode, translationEnabled: true, onRetryTranslation });
         expect(shown(renderer)).toContain('Xin chào mọi người'); // never a blank row
-        expect(shown(renderer)).toContain('Chưa dịch được');
+        expect(shown(renderer)).toContain('Chưa có bản dịch');
         act(() => retryButton(renderer)[0].props.onPress());
       }
       expect(onRetryTranslation).toHaveBeenCalledTimes(2);
@@ -137,7 +137,7 @@ describe('TranscriptSegmentRow', () => {
 
     it('a meeting without translation shows no translation UI at all', () => {
       const { renderer } = render({ viewMode: 'both', translationEnabled: false });
-      expect(shown(renderer)).not.toContain('Chưa dịch được');
+      expect(shown(renderer)).not.toContain('Chưa có bản dịch');
     });
 
     it('shows retry progress and error for that segment', () => {

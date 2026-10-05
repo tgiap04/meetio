@@ -42,8 +42,10 @@ export default function ConsentScreen() {
         thanh được gửi liên tục tới máy chủ Meetio và Google Gemini để chuyển thành chữ; Meetio không lưu
         âm thanh. Hiện Meetio dùng gói miễn phí của Gemini API, nên Google có thể dùng nội dung gửi tới
         (văn bản và âm thanh) để cải thiện sản phẩm của họ. Bản chép lời (văn bản) được gửi về máy chủ Meetio và Google Gemini để tạo tóm tắt, rút
-        thực thể, dịch (nếu bạn bật dịch), phục vụ tìm kiếm và trả lời câu hỏi của bạn. Dữ liệu được giữ theo hạn lưu trữ bạn
-        chọn trong Cài đặt và có thể xóa bất cứ lúc nào.
+        thực thể, phục vụ tìm kiếm và trả lời câu hỏi của bạn. Việc dịch (nếu bạn bật dịch) chạy ngay trên điện thoại bằng
+        Google ML Kit: điện thoại tải gói ngôn ngữ của Google, văn bản không được gửi tới Google để dịch, và bản dịch được
+        lưu cùng cuộc họp trên máy chủ Meetio. Dữ liệu được giữ theo hạn lưu trữ bạn chọn trong Cài đặt và có thể xóa bất
+        cứ lúc nào.
       </Text>
 
       <Pressable accessibilityRole="link" onPress={() => router.push(PRIVACY_POLICY_ROUTE)}>

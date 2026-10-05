@@ -55,3 +55,14 @@ describe('TranslatedSegment', () => {
     expect(texts(r)).toEqual(expect.arrayContaining(['Dịch vụ tạm thời không dùng được', 'Thử lại']));
   });
 });
+
+describe('TranslatedSegment, a line that was never translated (transcript)', () => {
+  it('says there is no translation and offers "Dịch", which calls back', () => {
+    const onRetry = jest.fn();
+    const r = render({ text: null, failed: true, variant: 'missing', onRetry });
+    expect(texts(r)).toEqual(expect.arrayContaining(['Chưa có bản dịch', 'Dịch']));
+    expect(texts(r)).not.toContain('Thử lại');
+    act(() => buttons(r)[0].props.onPress());
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+});

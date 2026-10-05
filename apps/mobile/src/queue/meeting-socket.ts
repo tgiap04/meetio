@@ -6,14 +6,11 @@ import {
   WsServerEvent,
   type SegmentAckPayload,
   type SegmentErrorPayload,
-  type SegmentTranslatedPayload,
-  type SegmentTranslationFailedPayload,
   type TranscriptSegmentPayload,
   type WsJoinAck,
 } from '@meetio/shared';
 import { refreshAccessToken } from '../api/axios-client';
 import { useSessionStore } from '../store/session.store';
-import { setLiveTranslation } from '../recording/recording.store';
 
 /**
  * The realtime channel for the meeting being recorded right now (api-spec §8). Segments sent here
@@ -79,18 +76,6 @@ export function createMeetingSocket(handlers: RealtimeHandlers): RealtimePort {
       if (!meetingId) return;
       // An expired token comes with a server disconnect, handled above.
       handlers.onSegmentError(meetingId, p.seq, p.code);
-    });
-    // Phase 09: translations for the recording on screen. Wire data is checked, not trusted.
-    s.on(WsServerEvent.SEGMENT_TRANSLATED, (p: unknown) => {
-      const { meeting_id: id, seq, translated_text: text, translated_to: to } = (p ?? {}) as Partial<SegmentTranslatedPayload>;
-      // A late event from the meeting this socket just left must not land in the current one.
-      if (meetingId && id === meetingId && typeof seq === 'number' && typeof text === 'string' && typeof to === 'string') {
-        setLiveTranslation(meetingId, seq, { status: 'done', text, to });
-      }
-    });
-    s.on(WsServerEvent.SEGMENT_TRANSLATION_FAILED, (p: unknown) => {
-      const { meeting_id: id, seq } = (p ?? {}) as Partial<SegmentTranslationFailedPayload>;
-      if (meetingId && id === meetingId && typeof seq === 'number') setLiveTranslation(meetingId, seq, { status: 'failed' });
     });
     return s;
   };

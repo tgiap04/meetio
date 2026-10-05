@@ -25,3 +25,7 @@ export function classifySyncError(error: unknown): SyncFailure {
 export function apiErrorCode(error: unknown): string | undefined {
   return isAxiosError<ApiErrorEnvelope>(error) ? error.response?.data?.error?.code : undefined;
 }
+
+export function httpStatus(error: unknown): number | undefined {
+  return isAxiosError(error) ? error.response?.status : undefined;
+}

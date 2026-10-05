@@ -78,13 +78,18 @@ export const PRIVACY_POLICY_CONTENT: readonly PrivacyPolicyBlock[] = [
     rows: [
       {
         recipient: 'Máy chủ Meetio',
-        data: 'Bản chép lời, tài khoản, kết quả AI, lịch sử hỏi đáp',
+        data: 'Bản chép lời, bản dịch (nếu bạn bật dịch), tài khoản, kết quả AI, lịch sử hỏi đáp',
         purpose: 'Lưu trữ, đồng bộ giữa các thiết bị, tìm kiếm',
       },
       {
         recipient: 'Google (Gemini API)',
         data: 'Văn bản bản chép lời, câu hỏi của bạn',
-        purpose: 'Chia đoạn và tạo vector tìm kiếm, rút thực thể, tóm tắt, dịch bản chép lời (nếu bạn bật dịch), trả lời câu hỏi; gói miễn phí nên Google có thể dùng nội dung này để cải thiện sản phẩm',
+        purpose: 'Chia đoạn và tạo vector tìm kiếm, rút thực thể, tóm tắt, trả lời câu hỏi; gói miễn phí nên Google có thể dùng nội dung này để cải thiện sản phẩm',
+      },
+      {
+        recipient: 'Google ML Kit (chạy trên điện thoại)',
+        data: 'Gói ngôn ngữ dịch do điện thoại tải từ Google; bản chép lời không được gửi cho Google để dịch',
+        purpose: 'Dịch bản chép lời ngay trên điện thoại (nếu bạn bật dịch); bản dịch được lưu cùng cuộc họp trên máy chủ Meetio',
       },
       {
         recipient: 'Máy chủ Meetio và Google (Gemini API)',
@@ -102,6 +107,10 @@ export const PRIVACY_POLICY_CONTENT: readonly PrivacyPolicyBlock[] = [
   {
     type: 'paragraph',
     text: 'Hiện Meetio dùng gói miễn phí của Gemini API. Theo điều khoản của Google cho gói này, Google có thể dùng nội dung được gửi tới (văn bản bản chép lời và câu hỏi của bạn; cùng âm thanh nếu bạn dùng chế độ nhận diện qua máy chủ) để cải thiện sản phẩm của họ, và người của Google có thể xem lại nội dung đó. Máy chủ Meetio vẫn không lưu âm thanh.',
+  },
+  {
+    type: 'paragraph',
+    text: 'Việc dịch (nếu bạn bật dịch) chạy trên điện thoại của bạn bằng Google ML Kit, không qua máy chủ Meetio hay Gemini API. Lần đầu dùng một ngôn ngữ, điện thoại tải gói ngôn ngữ của Google về máy; văn bản bản chép lời không được gửi tới Google để dịch. Bản dịch sau đó được gửi về máy chủ Meetio và lưu cùng cuộc họp.',
   },
   {
     type: 'paragraph',

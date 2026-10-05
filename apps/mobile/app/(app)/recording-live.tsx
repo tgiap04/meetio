@@ -1,5 +1,5 @@
 import { Redirect, router } from 'expo-router';
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { ScreenSurface } from '../../src/components/ui/screen-surface';
 import { RecordingControls } from '../../src/components/recording-live/recording-controls';
@@ -8,11 +8,11 @@ import { LiveTranscriptList } from '../../src/components/recording-live/live-tra
 import { SyncIndicator } from '../../src/components/recording-live/sync-indicator';
 import { EndingPanel } from '../../src/components/recording-live/ending-panel';
 import { Waveform } from '../../src/components/recording-live/waveform';
-import type { SegmentTranslation } from '@meetio/shared';
-import { setLiveTranslation, useRecordingStore } from '../../src/recording/recording.store';
+import { useRecordingStore } from '../../src/recording/recording.store';
 import { useRetrySegmentTranslation } from '../../src/hooks/use-retry-segment-translation';
 import { useElapsedClock } from '../../src/hooks/use-elapsed-clock';
 import { useRecordingActions } from '../../src/hooks/use-recording-actions';
+import { getRecordingRuntime } from '../../src/recording/recording-runtime';
 import { RECORDING_DONE_ROUTE } from '../../src/navigation/app-routes';
 import { APP_HOME_ROUTE } from '../../src/navigation/route-guards';
 import { colors } from '../../src/theme/colors';
@@ -26,7 +26,6 @@ import { typography } from '../../src/theme/typography';
  */
 export default function RecordingLiveScreen() {
   const phase = useRecordingStore((s) => s.phase);
-  const meetingId = useRecordingStore((s) => s.meetingId);
   const lines = useRecordingStore((s) => s.lines);
   const translations = useRecordingStore((s) => s.translations);
   const partial = useRecordingStore((s) => s.partial);
@@ -37,15 +36,9 @@ export default function RecordingLiveScreen() {
   const endedMeetingId = useRecordingStore((s) => s.endedMeetingId);
   const elapsed = useElapsedClock();
   const { run, busy, error } = useRecordingActions();
-  const translationRetry = useRetrySegmentTranslation(
-    meetingId ?? '',
-    useCallback(
-      (t: SegmentTranslation) => {
-        if (meetingId) setLiveTranslation(meetingId, t.seq, { status: 'done', text: t.translated_text, to: t.translated_to });
-      },
-      [meetingId],
-    ),
-  );
+  // "Thử lại" translates the line again on the device (Phase 21).
+  const translationRetry = useRetrySegmentTranslation(async (seq) => (await getRecordingRuntime()).session.retryTranslation(seq));
+  const translating = Object.values(translations).some((t) => t.status === 'pending');
   // Once we have moved on to screen 07, the store is idle — that must not ALSO redirect Home.
   const movedOn = useRef(false);
 
@@ -79,7 +72,7 @@ export default function RecordingLiveScreen() {
       ) : null}
 
       {phase === 'ending' ? (
-        <EndingPanel onLeave={leave} online={sync.online} pending={sync.pending} />
+        <EndingPanel onLeave={leave} online={sync.online} pending={sync.pending} translating={translating} />
       ) : (
         <>
           <View style={styles.waveformWrap}>

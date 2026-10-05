@@ -16,8 +16,11 @@ export interface LiveLine {
   gapBeforeMs: number | null;
 }
 
-/** What the server said about one line's translation (Phase 09); a line with no entry is simply not translated (yet). */
-export type LiveTranslation = { status: 'done'; text: string; to: string } | { status: 'failed' };
+/**
+ * One line's on-device translation (Phase 21). `pending`: queued or running — it counts when ending,
+ * which waits for it. A line with no entry is not being translated (translation off).
+ */
+export type LiveTranslation = { status: 'pending' } | { status: 'done'; text: string; to: string } | { status: 'failed' };
 
 export interface RecordingState {
   phase: RecordingPhase;
@@ -27,7 +30,7 @@ export interface RecordingState {
   pausedMs: number;
   pausedAt: number | null;
   lines: LiveLine[];
-  /** Translations by seq, filled from `segment_translated` / `segment_translation_failed` on the recording socket. */
+  /** Translations by seq, filled by the recording session's on-device translator. */
   translations: Record<number, LiveTranslation>;
   partial: string | null;
   volume: number;
@@ -58,11 +61,10 @@ export const useRecordingStore = create<RecordingState>(() => INITIAL);
 
 export const resetRecordingStore = () => useRecordingStore.setState(INITIAL);
 
-/** Applies a server translation event — only to the meeting being recorded, and a failure never undoes a success. */
+/** Records a line's translation state — only for the meeting being recorded (a late result of a previous one is ignored). */
 export function setLiveTranslation(meetingId: string, seq: number, value: LiveTranslation): void {
   useRecordingStore.setState((s) => {
     if (s.meetingId !== meetingId) return s;
-    if (value.status === 'failed' && s.translations[seq]?.status === 'done') return s;
     return { translations: { ...s.translations, [seq]: value } };
   });
 }

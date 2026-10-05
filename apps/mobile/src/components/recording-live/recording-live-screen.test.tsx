@@ -11,7 +11,12 @@ jest.mock('expo-router', () => ({
   Redirect: (props: { href: string }) => mockRedirect(props),
 }));
 
-const mockSession = { pause: jest.fn(async () => undefined), resume: jest.fn(async () => undefined), end: jest.fn(async () => undefined) };
+const mockSession = {
+  pause: jest.fn(async () => undefined),
+  resume: jest.fn(async () => undefined),
+  end: jest.fn(async () => undefined),
+  retryTranslation: jest.fn(async (_seq: number) => undefined),
+};
 jest.mock('../../recording/recording-runtime', () => ({
   getRecordingRuntime: async () => ({ session: mockSession, worker: { kick: jest.fn() } }),
 }));
@@ -25,9 +30,6 @@ import { Waveform } from './waveform';
 // Every screen subscribes to the shared store — unmount after each test so an old one cannot react.
 const mounted: TestRenderer.ReactTestRenderer[] = [];
 afterEach(() => act(() => mounted.splice(0).forEach((r) => r.unmount())));
-
-const mockRetryTranslation = jest.fn();
-jest.mock('../../api/segment-translation', () => ({ retrySegmentTranslation: (...a: unknown[]) => mockRetryTranslation(...a) }));
 
 const clients: QueryClient[] = [];
 afterEach(() => clients.splice(0).forEach((c) => c.clear()));
@@ -140,10 +142,10 @@ describe('(app)/recording-live screen', () => {
     expect(texts(render())).toContain('Máy chưa tải gói nhận diện offline cho ngôn ngữ này.');
   });
 
-  describe('translations (Phase 09)', () => {
+  describe('translations (Phase 21, on the device)', () => {
     const line = (seq: number, text: string) => ({ seq, text, startedAtMs: seq * 1_000, endedAtMs: seq * 1_000 + 500, gapBeforeMs: null });
 
-    it('shows a translation under its line as soon as the socket delivers it', () => {
+    it('shows a translation under its line as soon as it is translated', () => {
       useRecordingStore.setState({ lines: [line(1, 'xin chào')] });
       const r = render();
       expect(texts(r)).not.toContain('hello');
@@ -152,25 +154,34 @@ describe('(app)/recording-live screen', () => {
       expect(all.indexOf('hello')).toBe(all.indexOf('xin chào') + 1);
     });
 
-    it('"Thử lại" on a failed line retries it and shows the translation that comes back', async () => {
-      mockRetryTranslation.mockResolvedValue({ seq: 1, translated_text: 'hello', translated_to: 'en-US' });
+    it('a pending translation shows nothing yet; the ending panel says it is translating the last line', () => {
+      useRecordingStore.setState({ phase: 'ending', lines: [line(1, 'xin chào')], translations: { 1: { status: 'pending' } } });
+      const all = texts(render());
+      expect(all).toContain('Đang dịch nốt câu cuối…');
+      expect(all.filter((t) => t === 'Chưa dịch được')).toEqual([]);
+    });
+
+    it('once nothing is pending the ending panel goes back to the sync message', () => {
+      useRecordingStore.setState({ phase: 'ending', lines: [line(1, 'xin chào')], translations: { 1: { status: 'failed' } }, sync: { pending: 0, online: true } });
+      expect(texts(render())).not.toContain('Đang dịch nốt câu cuối…');
+    });
+
+    it('"Thử lại" on a failed line translates it again on the device', async () => {
       useRecordingStore.setState({ lines: [line(1, 'xin chào')], translations: { 1: { status: 'failed' } } });
       const r = render();
       expect(texts(r)).toContain('Chưa dịch được');
       const retry = r.root.findAll((n) => n.props.accessibilityLabel === 'Thử lại dịch đoạn này' && typeof n.props.onPress === 'function')[0];
       await act(async () => retry.props.onPress());
-      expect(mockRetryTranslation).toHaveBeenCalledWith('m-1', 1);
-      expect(useRecordingStore.getState().translations[1]).toEqual({ status: 'done', text: 'hello', to: 'en-US' });
-      expect(texts(r)).toContain('hello');
+      expect(mockSession.retryTranslation).toHaveBeenCalledWith(1);
     });
 
-    it('keeps "Thử lại" and says why when the retry fails', async () => {
-      mockRetryTranslation.mockRejectedValue(new Error('boom'));
+    it('says why when the retry itself blows up, and keeps "Thử lại"', async () => {
+      mockSession.retryTranslation.mockRejectedValueOnce(new Error('boom'));
       useRecordingStore.setState({ lines: [line(1, 'xin chào')], translations: { 1: { status: 'failed' } } });
       const r = render();
       const retry = r.root.findAll((n) => n.props.accessibilityLabel === 'Thử lại dịch đoạn này' && typeof n.props.onPress === 'function')[0];
       await act(async () => retry.props.onPress());
-      expect(useRecordingStore.getState().translations[1]).toEqual({ status: 'failed' });
+      expect(texts(r).join(' ')).toContain('Chưa dịch được trên máy');
       expect(texts(r)).toContain('Thử lại');
     });
   });

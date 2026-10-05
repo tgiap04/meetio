@@ -12,7 +12,7 @@ export interface TranscriptSegmentRowProps {
   onSave: (text: string) => void;
   /** Phase 09: which of original / translation to show. Defaults to the original alone. */
   viewMode?: TranscriptViewMode;
-  /** The meeting translates its lines, so a line with no translation is a failure worth a retry. */
+  /** The meeting translates its lines, so a line with no translation offers "Dịch" (on the device). */
   translationEnabled?: boolean;
   onRetryTranslation?: () => void;
   retryingTranslation?: boolean;
@@ -88,6 +88,7 @@ export function TranscriptSegmentRow({
           <TranslatedSegment
             error={translationError}
             failed={!translation}
+            variant="missing"
             onRetry={onRetryTranslation}
             retrying={retryingTranslation}
             text={translation}

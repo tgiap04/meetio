@@ -52,7 +52,21 @@ CREATE TABLE IF NOT EXISTS pending_segments (
   gap_before_ms INTEGER,
   PRIMARY KEY (meeting_id, seq)
 );
+CREATE TABLE IF NOT EXISTS pending_translations (
+  meeting_id TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  translated_to TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'pending',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (meeting_id, seq)
+);
 `;
+
+/*
+ * Phase 21 added `pending_translations`: `CREATE TABLE IF NOT EXISTS` above creates it in an existing
+ * database on open, so it needs no step in `migrateQueueSchema`.
+ */
 
 /**
  * Databases created before Phase 18 have no `recognition_mode` column. Every meeting in them was

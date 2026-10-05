@@ -207,3 +207,38 @@ describe('EndingPanel', () => {
     });
   });
 });
+
+describe('EndingPanel while a translation is still running (Phase 21)', () => {
+  function renderTranslating(props: Partial<Parameters<typeof EndingPanel>[0]> = {}) {
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<EndingPanel onLeave={jest.fn()} online pending={3} translating {...props} />);
+    });
+    return renderer;
+  }
+  const texts = (r: TestRenderer.ReactTestRenderer) => r.root.findAllByType(Text).map((n) => n.props.children);
+
+  it('says it is translating the last line, ahead of the sync count', () => {
+    const r = renderTranslating();
+    expect(texts(r)).toContain('Đang dịch nốt câu cuối…');
+    expect(texts(r).join(' ')).not.toContain('Đang đồng bộ');
+    act(() => r.unmount());
+  });
+
+  it('keeps a spinner and no "go home" button even when offline — the wait is local and needs no network', () => {
+    const r = renderTranslating({ online: false });
+    expect(r.root.findAllByType(ActivityIndicator).length).toBeGreaterThan(0);
+    expect(texts(r)).toContain('Đang hoàn tất cuộc họp');
+    expect(texts(r)).not.toContain('Về trang chủ');
+    act(() => r.unmount());
+  });
+
+  it('goes back to the sync message once translating is over', () => {
+    let r!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      r = TestRenderer.create(<EndingPanel onLeave={jest.fn()} online pending={3} translating={false} />);
+    });
+    expect(texts(r).join(' ')).toContain('Đang đồng bộ 3 đoạn');
+    act(() => r.unmount());
+  });
+});

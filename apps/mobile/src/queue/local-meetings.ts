@@ -108,6 +108,7 @@ export async function raiseLastSeq(db: SqlDb, id: string, seq: number): Promise<
 export async function deleteLocalMeeting(db: SqlDb, id: string): Promise<void> {
   await db.withExclusiveTransactionAsync(async (txn) => {
     await txn.runAsync('DELETE FROM pending_segments WHERE meeting_id = ?', [id]);
+    await txn.runAsync('DELETE FROM pending_translations WHERE meeting_id = ?', [id]);
     await txn.runAsync('DELETE FROM pending_ops WHERE meeting_id = ?', [id]);
     await txn.runAsync('DELETE FROM local_meetings WHERE id = ?', [id]);
   });

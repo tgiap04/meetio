@@ -1,6 +1,8 @@
 import { ApiErrorCode } from '@meetio/shared';
 import { bulkUpsertSegments, createMeeting, transitionMeeting } from '../api/recording';
 import { listSegments } from '../api/meetings';
+import { putSegmentTranslation } from '../api/segment-translation';
+import { translate, type TranslationLanguage } from '../../modules/mlkit-translate';
 import { queryClient } from '../query/query-client';
 import { MEETINGS_QUERY_KEY } from '../hooks/use-meetings-query';
 import { openQueueDb } from '../queue/queue-db';
@@ -48,7 +50,7 @@ export function getRecordingRuntime(): Promise<RecordingRuntime> {
     let session: RecordingSession | null = null;
     const worker = createSyncWorker({
       db,
-      api: { createMeeting, transitionMeeting, bulkUpsertSegments },
+      api: { createMeeting, transitionMeeting, bulkUpsertSegments, putSegmentTranslation },
       now: Date.now,
       schedule,
       makeRealtime: createMeetingSocket,
@@ -77,6 +79,8 @@ export function getRecordingRuntime(): Promise<RecordingRuntime> {
       now: Date.now,
       schedule,
       newId: newClientId,
+      // ML Kit on the device; an unsupported language pair is rejected inside the wrapper.
+      translate: (text, from, to) => translate(text, from as TranslationLanguage, to as TranslationLanguage),
     });
     return { worker, session };
   });

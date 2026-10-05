@@ -3,17 +3,19 @@ import type { SqlDb } from '../queue/queue-db';
 import { getLocalMeeting, insertLocalMeeting, raiseLastSeq } from '../queue/local-meetings';
 import { recordOp } from '../queue/lifecycle-ops';
 import { enqueueSegment, pendingSegments, type NewSegment } from '../queue/segment-queue';
+import { listUnsyncedTranslations } from '../queue/translation-queue';
 import type { Scheduler } from './restart-loop';
 import type { RecognitionMode, SttEngine } from './stt-engine';
 import { createRecognitionPipeline, type PipelineSettings, type RecognitionPipeline } from './recognition-pipeline';
 import { resetRecordingStore, useRecordingStore, type LiveTranslation } from './recording.store';
 import { mergeSavedLines, toLine } from './saved-lines';
+import { createTranslationRunner, type TranslateText } from './translation-runner';
 
 export interface RecordingSettings extends PipelineSettings {
   ownerId: string;
   /** Decided at setup (screen 05); stored with the local meeting and reused on resume. */
   mode: RecognitionMode;
-  /** Phase 09: translate each line into this language on the server (vi-VN / en-US); omitted or null = no translation. */
+  /** Phase 21: translate each line into this language on the device (vi-VN / en-US); omitted or null = no translation. */
   translateTo?: string | null;
 }
 
@@ -29,6 +31,15 @@ export interface RecordingSessionDeps {
   now: () => number;
   schedule: Scheduler;
   newId: () => string;
+  /** On-device translator (ML Kit). Absent = this session never translates. */
+  translate?: TranslateText;
+}
+
+const TRANSLATION_LANGUAGES = ['vi-VN', 'en-US'];
+
+/** The pair a meeting translates between, or `null` when it does not translate. */
+function translationPair(from: string, to: string | null | undefined): { from: string; to: string } | null {
+  return to && to !== from && TRANSLATION_LANGUAGES.includes(from) && TRANSLATION_LANGUAGES.includes(to) ? { from, to } : null;
 }
 
 /**
@@ -44,6 +55,13 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
   const SAVE_PROBLEM = 'Chưa lưu được đoạn vừa nhận diện vào bộ nhớ máy — Meetio sẽ thử lại.';
   let writes: Promise<void> = Promise.resolve();
   const unsaved: { meetingId: string; segment: NewSegment }[] = [];
+  const translator = deps.translate ? createTranslationRunner({ translate: deps.translate, db: deps.db, worker: deps.worker }) : null;
+  // Set while a meeting that translates is on screen; every saved line goes through it (both STT modes).
+  let pair: { from: string; to: string } | null = null;
+
+  function translateLine(meetingId: string, seq: number, text: string) {
+    if (translator && pair) void translator.translateLine(meetingId, seq, text, pair.from, pair.to);
+  }
 
   function persist(meetingId: string, segment: NewSegment) {
     unsaved.push({ meetingId, segment });
@@ -63,6 +81,7 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
             problem: s.problem === SAVE_PROBLEM ? null : s.problem,
           }));
           deps.worker.kick();
+          translateLine(next.meetingId, seq, next.segment.text);
         } catch {
           store.setState({ problem: SAVE_PROBLEM });
           return;
@@ -120,6 +139,7 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
         createBody: { source_language: settings.language, translate_to: settings.translateTo ?? null, audio_source: settings.audioSource, recording_quality: settings.quality },
         recognitionMode: settings.mode,
       });
+      pair = translationPair(settings.language, settings.translateTo);
       resetRecordingStore();
       store.setState({ phase: 'recording', meetingId: id, startedAt, quality: settings.quality });
       deps.worker.setLive(id);
@@ -149,7 +169,11 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
       await listen();
     },
 
-    /** US-16: local end is instant; the sync worker sends `end` once every segment is acked. */
+    /**
+     * US-16: local end is instant; the sync worker sends `end` once every segment is acked. Phase 21:
+     * the `end` op is recorded only after every line has its translation done or failed (no timeout),
+     * so the worker finds all translations on disk and syncs them before it sends `end`.
+     */
     async end() {
       const { phase, meetingId, pausedAt, pausedMs } = store.getState();
       if ((phase !== 'recording' && phase !== 'paused') || !meetingId) return;
@@ -157,10 +181,24 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
       await silence();
       pipeline?.dispose();
       pipeline = null;
-      await recordOp(await deps.db(), meetingId, 'end', at);
       store.setState({ phase: 'ending', pausedAt: null, pausedMs: pausedMs + (pausedAt === null ? 0 : at - pausedAt) });
+      try {
+        await translator?.settled();
+        await recordOp(await deps.db(), meetingId, 'end', at);
+      } catch (error) {
+        store.setState({ phase, pausedAt, pausedMs });
+        throw error;
+      }
       deps.worker.kick();
       await deps.keepalive.stop().catch(() => undefined);
+    },
+
+    /** "Thử lại" on a line whose translation failed — translates it again on the device. */
+    async retryTranslation(seq: number) {
+      const { meetingId, lines } = store.getState();
+      const line = lines.find((l) => l.seq === seq);
+      if (!meetingId || !line || !translator || !pair) return;
+      await translator.translateLine(meetingId, seq, line.text, pair.from, pair.to);
     },
 
     /**
@@ -183,6 +221,12 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
         if (s.translated_text && s.translated_to) translations[s.seq] = { status: 'done', text: s.translated_text, to: s.translated_to };
       }
 
+      pair = translationPair(local.createBody.source_language, local.createBody.translate_to);
+      if (pair) {
+        // Translations made before the app died that the server does not hold yet.
+        for (const t of await listUnsyncedTranslations(db, meetingId)) translations[t.seq] = { status: 'done', text: t.text, to: t.translatedTo };
+      }
+
       resetRecordingStore();
       store.setState({
         translations,
@@ -196,7 +240,10 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
       });
       deps.worker.setLive(meetingId);
       deps.worker.kick();
+      // Lines that never got a translation (killed mid-way) are translated now.
+      // An ending meeting is past that: its end is already recorded, a new row would only be orphaned.
       if (local.status === 'ending') return;
+      for (const line of lines) if (!translations[line.seq]) translateLine(meetingId, line.seq, line.text);
 
       const settings = { language: local.createBody.source_language, audioSource: local.createBody.audio_source, quality: local.createBody.recording_quality };
       // Resume in the mode it started in: a meeting recorded on-device must never silently move to the
