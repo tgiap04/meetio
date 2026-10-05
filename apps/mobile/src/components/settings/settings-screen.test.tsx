@@ -20,6 +20,9 @@ import { Alert, Switch, Text, TextInput } from 'react-native';
  * restyle that drops a working control silently.
  */
 const mockPush = jest.fn();
+// The biometric-lock section reads the device asynchronously and has its own tests; rendering it
+// here would only add a switch to the positional lookups below and a late state update.
+jest.mock('./settings-security-section', () => ({ SettingsSecuritySection: () => null }));
 jest.mock('expo-router', () => ({
   router: { push: (...args: unknown[]) => mockPush(...args) },
 }));

@@ -17,6 +17,7 @@ import { SettingsMockRows } from '../../../src/components/settings/settings-mock
 import { SettingsAboutSection } from '../../../src/components/settings/settings-about-section';
 import { SettingsAccountSection } from '../../../src/components/settings/settings-account-section';
 import { SettingsUsageSection } from '../../../src/components/settings/settings-usage-section';
+import { SettingsSecuritySection } from '../../../src/components/settings/settings-security-section';
 import { SETTINGS_ENTRIES, ABOUT_MEETIO_ENTRIES } from '../../../src/mocks';
 import { PRIVACY_POLICY_ROUTE, RECORDING_SETUP_ROUTE } from '../../../src/navigation/app-routes';
 import { colors } from '../../../src/theme/colors';
@@ -144,6 +145,8 @@ export default function SettingsScreen() {
             required on `GetMeResponse`, but a partial/older server payload
             must not take the whole screen down on a property read. */}
         {meQuery.data.usage ? <SettingsUsageSection usage={meQuery.data.usage} /> : null}
+
+        <SettingsSecuritySection />
 
         <SettingsAboutSection entries={ABOUT_MEETIO_ENTRIES} onPrivacyPolicyPress={handlePrivacyPolicyPress} />
 
