@@ -1,7 +1,7 @@
 # Meetio — Đặc tả API
 
 **Base URL:** `/api` · **Xác thực:** Bearer JWT trên mọi endpoint trừ mục 1  
-**Cập nhật:** 2026-09-27  
+**Cập nhật:** 2026-10-05  
 **Liên quan:** [User Stories](../user_stories.md) · [Kiến trúc](system-architecture.md) · [Mô hình dữ liệu](data-model.md)
 
 ---
@@ -60,7 +60,7 @@ tháng hiện tại, `budget` là hạn mức (`null` = không giới hạn), `p
 không có hạn mức, `warning` là `true` khi đã dùng từ 80% hạn mức trở lên
 ([NFR-07](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)). `user.consent_required` (trong
 `PublicUser`) là `true` khi người gọi chưa đồng ý với nội dung đồng ý **hiện hành** — phiên bản hiện
-tại là **2** — dù đã từng đồng ý một bản cũ hơn.
+tại là **4** — dù đã từng đồng ý một bản cũ hơn. Bản 4 (2026-10-05) thêm hai điều: chế độ nhận diện trên máy chủ (đoạn ~10 giây hoặc luồng `/stt-stream`) gửi âm thanh tới máy chủ Meetio và Google Gemini, không lưu; và khóa Gemini đang ở gói miễn phí nên Google có thể dùng nội dung gửi lên để cải thiện sản phẩm của họ.
 
 `POST /users/me/consent` ghi `recording_consent_at = now()` và `consent_version` = phiên bản hiện
 hành, rồi trả lại cả hai (`{recording_consent_at, consent_version}`).
@@ -108,6 +108,8 @@ thời điểm kết thúc, khiến sự kiện `join_room` không có id để 
 `POST /meetings` trả **403** `CONSENT_REQUIRED` (`details: {consent_version}`) khi người gọi chưa
 đồng ý với nội dung đồng ý hiện hành — kiểm tra ở tầng nghiệp vụ, không chỉ ở màn hình app
 ([NFR-01](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)).
+
+`translate_to` (khi tạo và khi `PATCH`): `null` hoặc bỏ qua = tắt dịch; chỉ nhận `vi-VN` hoặc `en-US` và phải **khác** `source_language`, sai thì **400** `VALIDATION_ERROR` với `details.translate_to` là lý do (`translate-target.ts`). `PATCH` đổi `translate_to` có hiệu lực ngay từ đoạn kế tiếp (server bỏ bộ nhớ đệm cài đặt dịch của cuộc họp). Cách dịch xem [mục 4](#dịch-theo-đoạn-phase-09).
 
 `id` (UUID do client tự sinh) và `started_at` phục vụ việc bắt đầu ghi khi mất mạng, phát lại khi
 có mạng trở lại ([US-15](../user_stories.md#us-15--phục-hồi-cuộc-họp-sau-khi-app-đóng-đột-ngột)):
@@ -182,6 +184,59 @@ luôn giá trị đó cho `?from_seq=` của trang kế tiếp.
 `INVALID_STATE_TRANSITION`. Sửa xong chỉ đặt `is_edited = true` và `edited_at` — **không** tự chạy
 lại pipeline; client tự hỏi người dùng rồi gọi `POST /meetings/:id/reindex` khi muốn cập nhật lại
 tóm tắt ([US-24](../user_stories.md#us-24--sửa-nội-dung-nhận-diện-sai)).
+
+Sửa `text` cũng **xóa bản dịch cũ** của đoạn (`translated_text` và `translated_to` về NULL) vì bản dịch mô tả câu cũ; nếu cuộc họp đang bật dịch thì đoạn được dịch lại ngầm và đẩy qua `segment_translated` như mọi đoạn khác.
+
+### Dịch theo đoạn (Phase 09)
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| POST | `/meetings/:id/segments/:seq/translate` | Dịch lại **một đoạn** sau khi dịch tự động thất bại. Không có body. Chỉ chủ cuộc họp |
+
+Dịch tự động chạy nền sau khi đoạn đã ghi bền vững (qua socket hoặc `/segments/bulk`) và **không bao giờ làm chậm hay làm lỗi `segment_ack`**. Các đoạn của một cuộc họp có `translate_to` được gom trong ~4 giây hoặc tối đa 8 đoạn rồi dịch bằng **một** lượt gọi Gemini (`TRANSLATION_BATCH_WINDOW_MS`, `TRANSLATION_BATCH_MAX` — đọc trong `translation.service.ts`, chưa có trong `.env.example`). Lô trả về thiếu hoặc không đọc được thì dịch lẻ từng đoạn còn thiếu; lỗi nhà cung cấp/hạn mức thì không tách lô mà báo thất bại cả lô. Kết quả đến client qua `segment_translated` / `segment_translation_failed` ([mục 8](#8-websocket)).
+
+Phản hồi **200** (idempotent: đoạn đã có bản dịch đúng ngôn ngữ đích hiện tại thì trả luôn bản đã lưu, không gọi Gemini): `{seq, translated_text, translated_to}`. Bản dịch cho ngôn ngữ đích cũ bị coi là lỗi thời và được dịch lại.
+
+| Mã | HTTP | Khi nào |
+|----|------|---------|
+| `MEETING_NOT_FOUND` | 404 | Cuộc họp không tồn tại hoặc không thuộc sở hữu |
+| `NOT_FOUND` | 404 | Không có đoạn `seq` đó, hoặc `seq` không phải số nguyên 0–2147483647 |
+| `VALIDATION_ERROR` | 400 | Cuộc họp chưa bật dịch (hoặc bị tắt giữa chừng) |
+| `QUOTA_EXCEEDED` | 429 | Vượt hạn mức token tháng |
+| `AI_SERVICE_UNAVAILABLE` | 503 | Gemini lỗi hoặc không trả được bản dịch dùng được |
+
+Bản dịch chỉ ghi vào đoạn chưa có bản dịch (hoặc có bản cho ngôn ngữ khác) **và** chỉ khi cuộc họp vẫn đang muốn đúng ngôn ngữ đó — câu trả lời muộn không đè bản mới, không rơi vào cuộc họp đã tắt dịch. Chỉ số token ghi vào `usage_records` với `operation = 'translate'`. Nội dung đoạn và bản dịch không vào log ([NFR-04](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)).
+
+### Nhận diện giọng nói trên máy chủ (Phase 18)
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| POST | `/stt/transcribe` | Chuyển **một đoạn âm thanh ngắn** (~10 giây) thành chữ bằng Gemini. Chỉ dùng khi điện thoại không nhận diện được trên máy ([kiến trúc §2](system-architecture.md#2-luồng-1--ghi-và-nhận-diện-thời-gian-thực)) |
+
+Nội dung yêu cầu là `multipart/form-data`:
+
+| Trường | Bắt buộc | Mô tả |
+|--------|----------|-------|
+| `audio` | có | Tệp một đoạn, tối đa **1.000.000 byte** (`STT_MAX_AUDIO_BYTES`). Loại chấp nhận: `audio/mp4`, `audio/m4a`, `audio/x-m4a`, `audio/aac`, `audio/mpeg`, `audio/wav`, `audio/webm` (phần `; codecs=…` được bỏ qua khi so) |
+| `language` | có | `vi-VN` hoặc `en-US` |
+| `meeting_id` | không | UUID. Chỉ để gán lượng token cho cuộc họp trong `usage_records`; không phải cuộc họp của chính mình (hoặc không tồn tại) thì bị bỏ qua lặng lẽ, vẫn trả 200 |
+
+Phản hồi **200**: `{ "text": "..." }` — chữ nguyên văn của đoạn; `""` khi đoạn không có tiếng nói.
+
+| Mã | HTTP | Khi nào |
+|----|------|---------|
+| `VALIDATION_ERROR` | 400 | Thiếu hoặc rỗng `audio`, loại âm thanh không hỗ trợ, `language` sai/thiếu, `meeting_id` không phải UUID |
+| `UNAUTHORIZED` | 401 | Thiếu hoặc sai token |
+| `CONSENT_REQUIRED` | 403 | Chưa đồng ý nội dung hiện hành (phiên bản 4). `details.consent_version`. Kiểm trước khi gọi Gemini |
+| `VALIDATION_ERROR` | 413 | Đoạn vượt 1.000.000 byte (không có mã riêng cho 413) |
+| `RATE_LIMITED` | 429 | Quá 12 lần / phút / người dùng ([§10](#10-giới-hạn-tần-suất)) |
+| `QUOTA_EXCEEDED` | 429 | Vượt hạn mức token tháng — chặn trước khi gọi Gemini |
+| `AI_SERVICE_UNAVAILABLE` | 503 | Gemini chưa cấu hình hoặc đang lỗi |
+
+**Quyền riêng tư ([NFR-02](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr), [NFR-04](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)):**
+tệp chỉ nằm trong bộ nhớ của request (multer không có `storage`/`dest`) rồi gửi Gemini dạng
+`inlineData`; **không ghi đĩa, không ghi log** âm thanh lẫn chữ nhận được. Chỉ số token được ghi vào
+`usage_records` với `operation = 'stt'`. Đường luồng thời gian thực (mục tiêu trễ ~1–2 giây thay vì ~10–15 giây; chưa đo trên máy thật) ở [mục 8b](#8b-socket-stt-stream-phase-19); đoạn 10 giây này là dự phòng của nó.
 
 ---
 
@@ -642,7 +697,8 @@ token hết hạn — refresh rồi kết nối lại), cùng cặp mã như ph�
 | Sự kiện | Payload | Ghi chú |
 |---------|---------|---------|
 | `segment_ack` | `{seq}` | Phát **sau khi** đã ghi bền vững. Client nhận được mới xóa khỏi hàng đợi local |
-| `segment_translated` | `{seq, translated_text, translated_to}` | Chỉ khi bật dịch |
+| `segment_translated` | `{meeting_id, seq, translated_text, translated_to}` | Chỉ khi cuộc họp bật dịch. `meeting_id` để client dùng lại socket bỏ được sự kiện muộn của cuộc họp vừa rời |
+| `segment_translation_failed` | `{meeting_id, seq}` | Dịch đoạn này thất bại sau cả lô lẫn dịch lẻ; client hiện "Thử lại" gọi `POST /meetings/:id/segments/:seq/translate` ([mục 4](#dịch-theo-đoạn-phase-09)) |
 | `segment_error` | `{seq, code, message}` | Client giữ lại trong hàng đợi và gửi lại |
 | `processing_status` | `{meeting_id, status, step?, progress?}` | Cập nhật tiến trình pipeline ([US-28](../user_stories.md#us-28--thấy-rõ-trạng-thái-xử-lý)) |
 | `meeting_ready` | `{meeting_id}` | Phân tích hoàn tất |
@@ -659,6 +715,34 @@ bị xóa), `TOKEN_EXPIRED` (server chủ động ngắt kết nối, kèm cờ 
 
 ---
 
+## 8b. Socket `/stt-stream` (Phase 19)
+
+Nhận diện **dạng luồng** ở chế độ máy chủ: app đẩy PCM thô qua socket.io, server chuyển tiếp tới một
+phiên Gemini Live cho mỗi socket và trả chữ về ngay. Chỉ dùng khi điện thoại không nhận diện được trên
+máy; luồng hỏng thì app tự lùi về `POST /stt/transcribe` ([mục 4](#nhận-diện-giọng-nói-trên-máy-chủ-phase-18)).
+Hằng số và kiểu dùng chung ở `packages/shared/src/stt/stt-stream.types.ts`. **Mã lỗi, giới hạn, xoay phiên, biến môi trường `STT_LIVE_*` và cách ghi usage (`operation = 'stt-live'`): [api-spec-stt-stream.md](api-spec-stt-stream.md).**
+
+**Namespace:** `/stt-stream` · Xác thực lúc bắt tay y hệt `/meeting-room` (cùng cặp lỗi `UNAUTHORIZED` /
+`TOKEN_EXPIRED`). Một socket giữ tối đa một luồng, đóng cùng socket.
+
+### Client → Server
+
+| Sự kiện | Payload | Ghi chú |
+|---------|---------|---------|
+| `stt_start` | `{language, meeting_id?}` | `language` = `vi-VN` \| `en-US`; `meeting_id` (UUID) chỉ để gán `usage_records`, không phải cuộc họp của mình thì bị bỏ qua lặng lẽ. Ack `{ok:true}` hoặc `{ok:false,error:{code,message}}` |
+| `stt_audio` | khung nhị phân | PCM16 little-endian, **16 kHz, mono** (`audio/pcm;rate=16000`). App gom 100–200 ms (3,2–6,4 KB; mobile mặc định 150 ms). Không có ack |
+| `stt_stop` | — | Ack `{ok:true}` sau khi những chữ cuối đã được đẩy xuống (chờ có giới hạn `STT_LIVE_FLUSH_MS`); chưa `stt_start` thì ack `STREAM_NOT_STARTED` |
+
+### Server → Client
+
+| Sự kiện | Payload | Ghi chú |
+|---------|---------|---------|
+| `stt_partial` | `{text}` | Chữ tạm của đoạn đang nói, **thay** partial trước |
+| `stt_final` | `{text}` | Một đoạn đã chốt |
+| `stt_error` | `{code, message}` | Luồng **đã kết thúc**; app lùi về chế độ đoạn 10 giây (trừ `TOKEN_EXPIRED`: làm mới token, kết nối lại, bắt đầu lại) |
+
+---
+
 ## 9. Mã lỗi
 
 | Mã | HTTP | Khi nào |
@@ -668,7 +752,7 @@ bị xóa), `TOKEN_EXPIRED` (server chủ động ngắt kết nối, kèm cờ 
 | `TOKEN_EXPIRED` | 401 | Access token hết hạn — client tự refresh |
 | `GOOGLE_TOKEN_INVALID` | 401 | ID token Google sai chữ ký / `iss` / `aud` / `exp` / thiếu `sub` |
 | `GOOGLE_EMAIL_UNVERIFIED` | 401 | Email trong ID token Google chưa được Google xác minh (`email_verified !== true`) |
-| `CONSENT_REQUIRED` | 403 | `POST /meetings` khi chưa đồng ý nội dung đồng ý hiện hành. `details.consent_version` |
+| `CONSENT_REQUIRED` | 403 | `POST /meetings` và `POST /stt/transcribe` khi chưa đồng ý nội dung đồng ý hiện hành (phiên bản 4). `details.consent_version`. Với `/stt-stream` mã này đi trong ack/`stt_error` ([mục 8b](#8b-socket-stt-stream-phase-19)) |
 | `MEETING_NOT_FOUND` | 404 | Cuộc họp không tồn tại **hoặc** không thuộc sở hữu |
 | `NOT_FOUND` | 404 | Tài nguyên khác không tồn tại, hoặc route không khớp. **Mặc định cho mọi 404 chưa phân loại** |
 | `INVALID_STATE_TRANSITION` | 409 | Ví dụ gọi `end` trên cuộc họp đã `ended` |
@@ -699,5 +783,7 @@ bao giờ ra response.
 | `/auth/*` | 10 lần / phút / IP |
 | Hỏi đáp — chỉ `POST /qa`, `POST /meetings/:id/qa` (không tính `GET`/`DELETE`, thuộc nhóm "Còn lại") | 30 lần / giờ / người dùng |
 | `/search` | 60 lần / phút / người dùng |
+| `POST /stt/transcribe` | 12 lần / phút / người dùng |
+| Socket `/stt-stream` — `stt_start` | 5 lần / phút / người dùng; khung `stt_audio` ≤ 65.536 byte, tối đa 1,5× thời gian thực ([mục 8b](#8b-socket-stt-stream-phase-19)) |
 | WebSocket `transcript_segment` | 120 sự kiện / phút / cuộc họp |
 | Còn lại | 300 lần / phút / người dùng |

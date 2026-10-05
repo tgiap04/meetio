@@ -1,6 +1,6 @@
 # Chính sách quyền riêng tư của Meetio
 
-Phiên bản đồng ý: 2 · Cập nhật: 27/09/2026
+Phiên bản đồng ý: 4 · Cập nhật: 05/10/2026
 
 > **Cần bổ sung trước khi phát hành:** tên pháp lý của bên kiểm soát dữ liệu, địa chỉ, email liên hệ về dữ liệu cá
 > nhân, và nơi đặt máy chủ. Các mục này để trống có chủ đích — không được điền thông tin phỏng đoán.
@@ -15,26 +15,36 @@ nhân.
 
 - **Tài khoản:** email, tên hiển thị, mật khẩu (chỉ lưu dạng băm) hoặc định danh tài khoản Google nếu bạn đăng nhập
   bằng Google.
-- **Nội dung cuộc họp:** bản chép lời (văn bản) do điện thoại của bạn tạo ra, tiêu đề, thời gian và thời lượng cuộc họp,
-  những chỉnh sửa bạn làm trên bản chép lời.
+- **Nội dung cuộc họp:** bản chép lời (văn bản) do điện thoại của bạn tạo ra — hoặc do máy chủ chuyển từ âm thanh
+  thành chữ khi điện thoại không nhận diện offline được —, bản dịch (nếu bạn bật dịch), tiêu đề, thời gian và thời
+  lượng cuộc họp, những chỉnh sửa bạn làm trên bản chép lời.
 - **Kết quả AI:** tóm tắt, việc cần làm, các thực thể và quan hệ (người, dự án, chủ đề…) rút ra từ cuộc họp, lịch sử
   hỏi đáp của bạn.
 - **Thiết bị:** mã nhận thông báo đẩy (push token) nếu bạn cho phép thông báo.
 - **Mức sử dụng:** số token AI mỗi lượt xử lý, để tính hạn mức và chi phí.
 
-## 2. Âm thanh không rời khỏi điện thoại
+## 2. Âm thanh khi nhận diện giọng nói
 
-Việc nhận diện giọng nói chạy **trên điện thoại** của bạn. Meetio không ghi lại và không gửi tệp âm thanh lên máy chủ;
-chỉ văn bản đã chép lời được gửi đi. Nếu sau này Meetio chuyển sang nhận diện trên máy chủ, đó là thay đổi lớn về
-chính sách và Meetio sẽ xin bạn đồng ý lại trước.
+Thông thường việc nhận diện giọng nói chạy ngay **trên điện thoại** của bạn. Khi đó Meetio không ghi lại và không gửi
+tệp âm thanh lên máy chủ; chỉ văn bản đã chép lời được gửi đi. Riêng điện thoại không nhận diện giọng nói offline được
+(Meetio báo rõ ở màn hình cài đặt ghi âm), ứng dụng thu âm và gửi âm thanh liên tục lên máy chủ Meetio, nơi Google
+(Gemini API) chuyển âm thanh đó thành chữ; khi cách gửi liên tục không dùng được, ứng dụng dự phòng bằng cách gửi từng
+đoạn âm thanh ngắn khoảng 10 giây. Máy chủ Meetio không lưu âm thanh: âm thanh chỉ nằm trong bộ nhớ lúc xử lý và bị bỏ
+ngay khi trả chữ về. Khi dùng đoạn âm thanh ngắn, tệp âm thanh tạm trên điện thoại được xóa ngay sau khi gửi, hoặc khi
+mở lại ứng dụng nếu ứng dụng bị tắt giữa chừng. Chế độ này cần kết nối mạng.
 
 ## 3. Dữ liệu được gửi đi đâu
 
 | Nơi nhận | Dữ liệu | Để làm gì |
 |---|---|---|
 | Máy chủ Meetio | Bản chép lời, tài khoản, kết quả AI, lịch sử hỏi đáp | Lưu trữ, đồng bộ giữa các thiết bị, tìm kiếm |
-| Google (Gemini API) | Văn bản bản chép lời, câu hỏi của bạn | Chia đoạn và tạo vector tìm kiếm, rút thực thể, tóm tắt, trả lời câu hỏi |
+| Google (Gemini API) | Văn bản bản chép lời, câu hỏi của bạn | Chia đoạn và tạo vector tìm kiếm, rút thực thể, tóm tắt, dịch bản chép lời (nếu bạn bật dịch), trả lời câu hỏi; gói miễn phí nên Google có thể dùng nội dung này để cải thiện sản phẩm |
+| Máy chủ Meetio và Google (Gemini API) | Âm thanh gửi liên tục (hoặc từng đoạn khoảng 10 giây khi dự phòng) — chỉ khi điện thoại không nhận diện giọng nói offline được | Chuyển thành chữ; Meetio không lưu âm thanh, còn Google có thể dùng âm thanh để cải thiện sản phẩm và người của Google có thể xem lại, theo điều khoản gói miễn phí của Gemini API |
 | Expo (dịch vụ thông báo đẩy) | Mã thiết bị và một thông báo chung chung | Báo khi cuộc họp xử lý xong hoặc sắp bị xóa theo hạn lưu trữ. Thông báo không chứa tiêu đề hay nội dung cuộc họp |
+
+Hiện Meetio dùng gói miễn phí của Gemini API. Theo điều khoản của Google cho gói này, Google có thể dùng nội dung được
+gửi tới (văn bản bản chép lời và câu hỏi của bạn; cùng âm thanh nếu bạn dùng chế độ nhận diện qua máy chủ) để cải
+thiện sản phẩm của họ, và người của Google có thể xem lại nội dung đó. Máy chủ Meetio vẫn không lưu âm thanh.
 
 Meetio không bán dữ liệu của bạn và không dùng nội dung cuộc họp để quảng cáo.
 

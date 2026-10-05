@@ -1,7 +1,7 @@
 # Meetio — Mô hình dữ liệu
 
 **Cơ sở dữ liệu:** PostgreSQL 15+ với extension `pgvector` và `unaccent`  
-**Cập nhật:** 2026-09-27  
+**Cập nhật:** 2026-10-05  
 **Liên quan:** [User Stories](../user_stories.md) · [Kiến trúc](system-architecture.md) · [API](api-spec.md)
 
 ---
@@ -34,7 +34,7 @@
 | `display_name` | TEXT | |
 | `retention_days` | INT | NULL = giữ vĩnh viễn ([US-06](../user_stories.md#us-06--xem-và-đặt-chính-sách-lưu-trữ)) |
 | `recording_consent_at` | TIMESTAMPTZ | Mốc xác nhận đã thông báo cho người tham dự ([US-04](../user_stories.md#us-04--thông-báo-và-ghi-nhận-sự-đồng-ý-ghi-âm)) |
-| `consent_version` | INT | Phiên bản nội dung đồng ý đã chấp nhận; NULL = chưa từng đồng ý. Cột thêm ở phase 16 — người đã đồng ý trước đó được backfill thành `1`; phiên bản hiện hành là `2`. Thấp hơn phiên bản hiện hành thì `PublicUser.consent_required` trả `true` và `POST /meetings` từ chối bằng `CONSENT_REQUIRED` |
+| `consent_version` | INT | Phiên bản nội dung đồng ý đã chấp nhận; NULL = chưa từng đồng ý. Cột thêm ở phase 16 — người đã đồng ý trước đó được backfill thành `1`; phiên bản hiện hành là `4` (v4, 2026-10-05: máy không nhận diện được trên máy thì âm thanh gửi tới máy chủ Meetio và Google Gemini để chuyển thành chữ, không được lưu; và khóa Gemini đang ở gói miễn phí nên Google có thể dùng nội dung gửi lên để cải thiện sản phẩm. v3 chưa từng phát hành, đã gộp vào v4). Thấp hơn phiên bản hiện hành thì `PublicUser.consent_required` trả `true` và `POST /meetings` từ chối bằng `CONSENT_REQUIRED` |
 | `monthly_token_budget` | BIGINT | [NFR-07](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr) |
 | `notification_settings` | JSONB | Mặc định `{}`. Bản đặc tả cũ cho `PATCH /users/me` sửa "cài đặt thông báo" nhưng không có cột nào lưu — client ghi được mà không đọc lại được |
 | `created_at` / `updated_at` / `deleted_at` | TIMESTAMPTZ | `deleted_at` phục vụ xóa mềm 30 ngày ([US-05](../user_stories.md#us-05--xóa-tài-khoản-và-toàn-bộ-dữ-liệu)) |
@@ -78,7 +78,7 @@ hẳn quyền sở hữu — tài khoản trước đó ngừng nhận push trê
 | `title` | TEXT | Mặc định sinh theo thời gian |
 | `status` | meeting_status | enum: `recording`/`paused`/`ended`/`queued`/`processing`/`ready`/`failed` |
 | `source_language` | TEXT | Mã BCP-47, ví dụ `vi-VN` |
-| `translate_to` | TEXT | NULL = tắt dịch |
+| `translate_to` | TEXT | NULL = tắt dịch; nếu có thì `vi-VN` hoặc `en-US` và khác `source_language` (kiểm ở tầng dịch vụ, không phải ràng buộc DB) |
 | `audio_source` | audio_source | enum: `device_mic` / `external_bluetooth` ([US-42](../user_stories.md#us-42--chọn-nguồn-âm-thanh)) |
 | `recording_quality` | recording_quality | enum: `standard` / `high` ([US-43](../user_stories.md#us-43--chọn-chế-độ-ghi-âm)) |
 | `summary` | TEXT | Do AI sinh |
@@ -116,8 +116,8 @@ CREATE INDEX idx_meetings_title_trgm ON meetings
 | `meeting_id` | UUID | FK, ON DELETE CASCADE |
 | `seq` | INT | Do client cấp, tăng đơn điệu |
 | `text` | TEXT | Văn bản đã chốt |
-| `translated_text` | TEXT | NULL nếu tắt dịch ([US-19](../user_stories.md#us-19--xem-lại-bản-dịch-sau-cuộc-họp)) |
-| `translated_to` | TEXT | Mã ngôn ngữ của bản dịch |
+| `translated_text` | TEXT | NULL nếu tắt dịch hoặc chưa dịch được ([US-19](../user_stories.md#us-19--xem-lại-bản-dịch-sau-cuộc-họp)). Chỉ `TranslationStore.saveTranslation` ghi: vào đoạn chưa có bản dịch (hoặc có bản cho ngôn ngữ khác) **và** khi `meetings.translate_to` vẫn đúng ngôn ngữ đó và cuộc họp chưa bị xóa; `PATCH /segments/:id` đặt lại NULL cùng `translated_to` |
+| `translated_to` | TEXT | Mã ngôn ngữ của bản dịch (`vi-VN`/`en-US`); so với `meetings.translate_to` để biết bản dịch còn mới hay đã lỗi thời |
 | `started_at_ms` / `ended_at_ms` | INT | Tính từ mốc bắt đầu cuộc họp |
 | `is_edited` | BOOLEAN | Đánh dấu người dùng đã sửa tay |
 | `edited_at` | TIMESTAMPTZ | NULL nếu chưa từng sửa. `is_edited` nói *có sửa hay không*, cột này nói *từ lượt chạy pipeline nào* — dùng để lượt `reindex scope=changed` biết đoạn nào cần xử lý lại ([US-24](../user_stories.md#us-24--sửa-nội-dung-nhận-diện-sai)) |
@@ -377,7 +377,7 @@ Ràng buộc duy nhất trên `(meeting_id, step)` là thứ khiến việc ch�
 
 ### `usage_records`
 `id` UUID PK · `user_id` FK · `meeting_id` FK NULL · `operation` TEXT · `model` TEXT ·
-`input_tokens` INT · `output_tokens` INT · `created_at` — phục vụ theo dõi hạn mức ở [NFR-07](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr).
+`input_tokens` INT · `output_tokens` INT · `created_at` — `operation` mới của Phase 09/18/19: `'translate'` (dịch đoạn), `'stt'` (nhận diện đoạn 10 giây, Phase 18), `'stt-live'` (nhận diện dạng luồng, Phase 19: mỗi phút một dòng + một dòng phần dư lúc kết thúc, `input_tokens` = giây × 32, `output_tokens` = 0, `model` = model Live) — phục vụ theo dõi hạn mức ở [NFR-07](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr).
 
 ---
 

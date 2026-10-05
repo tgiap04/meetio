@@ -10,16 +10,20 @@
 
 | Tầng | Công nghệ | Trách nhiệm |
 |------|-----------|-------------|
-| Mobile | Expo / React Native | Ghi âm, nhận diện giọng nói trên thiết bị, hàng đợi ngoại tuyến, toàn bộ giao diện |
+| Mobile | Expo / React Native | Ghi âm, nhận diện giọng nói (trên thiết bị; chế độ máy chủ khi máy không hỗ trợ), hàng đợi ngoại tuyến, toàn bộ giao diện |
 | API | NestJS (Node.js) | REST, WebSocket, xác thực, phân quyền theo chủ sở hữu |
 | Hàng đợi | BullMQ trên Redis | Tác vụ nền: cắt đoạn, nhúng vector, trích xuất đồ thị, tóm tắt |
 | Dữ liệu | PostgreSQL + pgvector | Bản ghi cuộc họp, transcript, vector, đồ thị tri thức |
 | Bộ nhớ đệm | Redis | Bộ đệm phiên ghi đang chạy, khử trùng lặp, giới hạn tần suất |
 | AI | Google Gemini API | Nhúng vector, dịch, trích xuất thực thể, tóm tắt, sinh câu trả lời |
 
-**Nguyên tắc bất biến:** audio không bao giờ rời khỏi thiết bị. Backend chỉ nhận văn bản. Đây là
-cam kết ở [NFR-02](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr) và là ranh giới quyết định
-toàn bộ thiết kế bên dưới.
+**Nguyên tắc mặc định:** audio không rời khỏi thiết bị; backend chỉ nhận văn bản. Đây là cam kết ở
+[NFR-02](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr) và là ranh giới quyết định toàn bộ thiết kế
+bên dưới. **Ngoại lệ duy nhất (Phase 18–19):** điện thoại không có bộ nhận diện trên máy thì âm thanh
+được gửi lên máy chủ để Gemini chuyển thành chữ — ưu tiên dạng luồng qua socket `/stt-stream` (Phase 19),
+dự phòng là từng đoạn ~10 giây tới `POST /stt/transcribe` (Phase 18). Người dùng được báo trước, phải
+đồng ý nội dung phiên bản 4 (có nêu gói miễn phí của Gemini), và Meetio không lưu âm thanh
+([chế độ nhận diện](#chế-độ-nhận-diện-phase-18)).
 
 ---
 
@@ -127,11 +131,11 @@ Engine trên thiết bị sẽ tự ngắt. Client phải bật lại ngay và g
 
 **Cài đặt thật trên thiết bị (Phase 07/08)**
 
-- **Chỉ nhận diện trên máy:** `expo-stt-engine.ts` luôn đặt `requiresOnDeviceRecognition: true` —
-  không có nhánh nào tắt cờ này. Bản `expo-speech-recognition` gốc trên iOS âm thầm rơi về nhận
+- **Engine trên máy (chế độ `on_device`):** `expo-stt-engine.ts` luôn đặt `requiresOnDeviceRecognition: true` —
+  không có nhánh nào tắt cờ này; máy không hỗ trợ thì dùng chế độ `server` (xem dưới) chứ không rơi về đám mây của hệ điều hành. Bản `expo-speech-recognition` gốc trên iOS âm thầm rơi về nhận
   diện đám mây khi máy không hỗ trợ trên-máy; Meetio patch thư viện đó
   (`.yarn/patches/expo-speech-recognition-npm-57.1.0-50fb306965.patch`) để thất bại rõ ràng thay vì
-  lặng lẽ vi phạm cam kết "audio không rời thiết bị" ở mục 0.
+  lặng lẽ vi phạm cam kết "audio không rời thiết bị" ở mục 0 (đường duy nhất đưa âm thanh lên máy chủ là chế độ `server`, có báo trước và đồng ý riêng).
 - **Vòng lặp tự khởi động lại** (`restart-loop.ts`, cổng ra từ spike Phase 00): engine chết là
   chuyện bình thường (im lặng, hết phiên, hệ điều hành ngắt) — bật lại sau 100ms, lùi theo cấp số
   nhân ×2 tới tối đa 5s nếu khởi động liên tục thất bại. Khoảng thời gian không nhận diện được đo
@@ -166,6 +170,98 @@ Engine trên thiết bị sẽ tự ngắt. Client phải bật lại ngay và g
   chừng nào audio session còn chạy.
 - **Nguồn âm Bluetooth** do hệ điều hành định tuyến (route âm thanh hệ thống); Meetio không tự chọn
   hay ép thiết bị vào ở tầng ứng dụng.
+
+#### Chế độ nhận diện (Phase 18)
+
+Mỗi cuộc họp chạy ở một trong hai chế độ (`RecognitionMode` trong `stt-engine.ts`):
+
+| Chế độ | Khi nào | Âm thanh |
+|--------|---------|----------|
+| `on_device` | Máy nhận diện được ít nhất một ngôn ngữ Meetio hỗ trợ (`vi-VN`, `en-US`) ngoại tuyến | Không rời máy |
+| `server` | Danh sách ngôn ngữ trên-máy **trả về thành công nhưng rỗng**, hoặc Android dưới 13 (API < 33) | Luồng PCM qua `/stt-stream` (Phase 19); lùi về từng đoạn gửi `POST /stt/transcribe` (Phase 18) khi luồng không dùng được |
+
+- **Quy tắc chọn** (`resolveRecognitionMode`, `getOnDeviceLocales` trong `expo-stt-engine.ts`): chỉ
+  kết quả rỗng *thành công* mới chuyển sang `server`. Nếu native không trả lời được
+  (`OnDeviceCheckError`), `use-recording-setup.ts` đặt `checkFailed` — màn cài đặt ghi âm hiện thẻ
+  "kiểm tra thất bại" kèm nút thử lại và **không bao giờ** mặc định chọn `server`, để lỗi native không
+  âm thầm đẩy âm thanh lên máy chủ (NFR-02). Chế độ `server` liệt kê đủ cả hai ngôn ngữ
+  (`pickServerRecordingLanguages`); `on_device` chỉ liệt kê ngôn ngữ đã cài.
+- **Màn cài đặt ghi âm** (`app/(app)/recording-setup.tsx`): chế độ `server` hiện `ServerModeNotice`
+  nói rõ âm thanh sẽ được gửi đi; bấm Bắt đầu thì gọi `isServerReachable()` (`GET /users/me`) —
+  không có phản hồi nào thì báo cần mạng và không bắt đầu; chỉ xin quyền micro (không xin quyền nhận
+  diện giọng nói).
+- **Lưu theo cuộc họp:** cột `recognition_mode` của `local_meetings` (SQLite, `queue-db.ts`). Khi
+  mở lại cuộc họp (`recording-session.ts`) dùng đúng chế độ đã lưu — cuộc họp ghi trên máy không bao
+  giờ chuyển sang máy chủ. Chỉ khi chưa lưu chế độ (cuộc họp nhận từ máy chủ) mới gọi lại
+  `resolveMode`. Cơ sở dữ liệu cũ được `migrateQueueSchema` thêm cột và điền `on_device`.
+- **Đường luồng (Phase 19)** — thử trước ở chế độ `server`. Mobile: `server-stream-stt-engine.ts` (lõi
+  thuần) lấy PCM từ micro (`server-stream-stt-mic.ts`, `server-stream-stt-native.ts` nối `expo-audio`),
+  đổi về PCM16 16 kHz mono (`server-stream-stt-pcm.ts`), gom khung 150 ms (`server-stream-stt-uplink.ts`)
+  và gửi qua socket `/stt-stream` (`server-stream-stt-channel.ts`); `stt_partial` chỉ hiện khi chất lượng
+  `high` (`interim`), `stt_final` vào bộ ghép đoạn như kết quả của engine khác. Mất kết nối giữa chừng:
+  thử lại sau 1, 2, 4 giây (kiểm chủ sở hữu mỗi lần), âm thanh đệm khi offline tối đa 4 giây, phần quá
+  mức bị bỏ và báo thành khoảng gián đoạn; hết hạn token (`TOKEN_EXPIRED`) thì làm mới token rồi nối
+  lại. Dừng thì gửi nốt phần đuôi và đợi (tối đa 4 giây) server chốt chữ cuối. API:
+  `SttStreamGateway` (xác thực lúc bắt tay như `/meeting-room`) → `SttStreamService` (một luồng
+  / người dùng, kiểm đồng ý → cấu hình → hạn mức trước khi mở) → `SttStream` (kiểm khung, giới hạn
+  tốc độ, đồng hồ usage) → `SttLiveSession` (một phiên Gemini Live, xoay phiên trước mốc 10 phút,
+  khử lặp ở mối nối). Âm thanh chỉ nằm trong RAM; không ghi đĩa, không ghi log. Đặc tả socket, mã lỗi
+  và biến môi trường: [api-spec-stt-stream.md](api-spec-stt-stream.md).
+- **Dự phòng về đoạn 10 giây** (`server-stream-stt-fallback.ts`): luồng báo `stream-failed` (không mở
+  được socket/micro, hết lần nối lại, `stt_error` khác `TOKEN_EXPIRED`) thì engine dự phòng khởi động engine
+  đoạn với cùng tùy chọn nên pipeline thấy một lần ghi liền mạch; khoảng thời gian không engine nào chạy
+  (≥ 500 ms) hiện thành "Gián đoạn". Chỉ lùi **một lần** mỗi lần ghi — sau đó chạy engine đoạn tới khi
+  dừng, không lật qua lại. Lỗi chủ sở hữu (`owner-changed`) không lùi mà dừng hẳn.
+- **Engine đoạn 10 giây** (`server-stt-engine.ts`, lõi thuần; `server-stt-native.ts` nối `expo-audio`):
+  ghi từng đoạn `STT_CHUNK_MS` = 10 giây (`.m4a`), **tải lên tuần tự** để chữ về đúng thứ tự, mỗi
+  kết quả là một `final` (không có `partial`, nên chữ trễ một đoạn + thời gian tải lên). Bấm dừng
+  thì chốt đoạn đang ghi, đợi mọi lượt tải xong rồi mới phát `onEnd`; `silence()` của pipeline chờ
+  tối đa 40 giây. Đoạn không chuyển được (mất mạng, 429, 503, chưa đồng ý…) bị bỏ và báo qua
+  `onGap(độ dài đoạn)` → hiện "— Gián đoạn N giây —" đúng thứ tự; cũng là gián đoạn khi recorder
+  không đóng được đoạn, hoặc khi đã có 6 đoạn chờ tải (`maxPendingChunks`, chặn dùng đĩa khi
+  offline). Đoạn ngắn hơn 300ms không tải lên. `recognition-pipeline.ts` ở chế độ này không dùng
+  vòng lặp khởi động lại; kết quả đi thẳng vào bộ ghép đoạn.
+- **Xóa tệp âm thanh:** tệp đoạn bị xóa ngay sau lượt tải, thành công hay thất bại. Tệp sót khi app
+  bị kill (`<cache>/Audio` trên Android, `<cache>/ExpoAudio` trên iOS, tên `recording-*.m4a`) được
+  dọn lúc engine mở và lúc app khởi động (`server-stt-chunk-files.ts`, `purgeStaleChunks`).
+- **Chặn theo chủ sở hữu:** engine kiểm `verifyOwner` trước khi mở micro, và mỗi lượt tải mang
+  `expectedOwnerId` như worker đồng bộ (`api/stt.ts`). Người khác đăng nhập giữa chừng
+  (`OwnerMismatchError`) là lỗi **dừng hẳn** (`owner-changed`), không phải một gián đoạn — không gửi
+  thêm đoạn nào.
+- **Phía API** (`apps/api/src/stt/`): kiểm đồng ý bản hiện hành → `GeminiClient.transcribeAudio`
+  (kiểm hạn mức trước, ghi `usage_records` với `operation = 'stt'`). Âm thanh chỉ nằm trong bộ nhớ
+  request, không ghi đĩa, không ghi log ([API §4](api-spec.md#nhận-diện-giọng-nói-trên-máy-chủ-phase-18)).
+
+#### Dịch trực tiếp (Phase 09)
+
+Chọn ngôn ngữ đích ở mục "Dịch sang" của màn cài đặt ghi âm (mặc định **tắt**, bật thì hiện cảnh báo
+tốn thêm chi phí AI); đích chỉ là `vi-VN` hoặc `en-US` và khác ngôn ngữ ghi (server kiểm ở
+`translate-target.ts`). Cuộc họp lưu `meetings.translate_to`.
+
+```
+transcript_segment / bulk ─► ghi + COMMIT ─► segment_ack
+                                  └─(sau COMMIT, không chờ)─► TranslationService.enqueue
+                                        gom lô/cuộc họp ─► Gemini (JSON {seq,text}[]) ─► lưu translated_text
+                                        ─► WS segment_translated{meeting_id,seq,…}  |  segment_translation_failed
+```
+
+- **Không chặn đường ghi:** `enqueue` chạy sau COMMIT, nuốt mọi lỗi; ack không bao giờ phụ thuộc dịch.
+  Cài đặt dịch của cuộc họp được nhớ 30 giây nên cuộc họp tắt dịch không tốn truy vấn DB cho mỗi đoạn;
+  `PATCH translate_to` xóa bộ nhớ đó ngay.
+- **Gom lô** (`translation-batcher.ts`): ~4 giây kể từ đoạn đầu hoặc đủ 8 đoạn (mặc định `TranslationService`;
+  `TRANSLATION_BATCH_WINDOW_MS`, `TRANSLATION_BATCH_MAX`). Một lượt gọi trả mảng `{seq,text}` ghép lại theo
+  `seq`. Lô thiếu/không đọc được → dịch lẻ phần còn thiếu; lỗi nhà cung cấp hoặc hết hạn mức → không tách
+  lô, báo thất bại cả lô.
+- **Ghi có điều kiện** (`translation-store.ts`): chỉ ghi vào đoạn chưa có bản dịch (hoặc có bản cho ngôn
+  ngữ khác) **và** khi cuộc họp vẫn muốn đúng ngôn ngữ đó — câu trả lời muộn không đè bản mới.
+- **Sửa đoạn:** `PATCH /segments/:id` xóa `translated_text`/`translated_to` rồi dịch lại ngầm.
+- **Thử lại:** đoạn thất bại hiện "Chưa dịch được · Thử lại" → `POST /meetings/:id/segments/:seq/translate`
+  ([API §4](api-spec.md#dịch-theo-đoạn-phase-09)). Sự kiện mang `meeting_id` để client dùng lại socket bỏ
+  được sự kiện muộn của cuộc họp khác.
+- **Mobile:** khi đang họp, bản dịch hiện dưới câu gốc (`translated-segment.tsx`); màn chi tiết có bộ
+  chuyển Gốc / Dịch / Song song (`view-mode.ts`, mặc định Song song).
+- Module `TranslationModule` cố ý không phụ thuộc `MeetingsModule`/`RealtimeModule` (cả hai gọi nó) để
+  tránh vòng; chỉ đọc bảng bằng SQL thô.
 
 **Giới hạn đã biết**
 - **iOS không loại được tệp SQLite khỏi sao lưu iCloud** — `expo-sqlite` đặt file dưới `Documents`,
@@ -503,7 +599,9 @@ Mỗi cuộc họp 60 phút, ước tính khoảng 9.000 từ:
 
 | Bước | Số lần gọi | Ghi chú |
 |------|-----------|---------|
-| Dịch thời gian thực | ~180 lần (mỗi câu một lần) | Đắt nhất. Gom lô 3–5 câu để giảm còn ~50 |
+| Dịch thời gian thực | ~180 lần nếu mỗi câu một lần | Đắt nhất. Thiết kế ban đầu ước gom 3–5 câu còn ~50; mã hiện gom tối đa 8 câu / cửa sổ ~4 giây (`operation = 'translate'`), số lượt gọi thực tế chưa đo |
+| Nhận diện máy chủ — luồng | theo thời lượng ghi | Chỉ ở chế độ `server`. Tính theo thời gian phiên Live: `operation = 'stt-live'`, mỗi phút một dòng, 32 token/giây âm thanh |
+| Nhận diện máy chủ — đoạn 10 giây | ~360 đoạn / giờ | Chỉ khi luồng lùi về dự phòng; `operation = 'stt'` |
 | Nhúng chunk | ~15 | Rẻ, gom lô được |
 | Trích xuất đồ thị | ~15 | Prompt dài, phải trả về JSON |
 | Nhúng thực thể | ~30 | Gom lô |
@@ -527,7 +625,8 @@ Hạn mức theo người dùng ở [NFR-07](../user_stories.md#4-yêu-cầu-phi
 - Khóa API của dịch vụ AI chỉ nằm ở backend, không bao giờ nhúng vào app.
 - **Đồng ý ghi âm** thực thi ở tầng nghiệp vụ, không chỉ ở màn hình app: `POST /meetings` từ chối
   bằng `403 CONSENT_REQUIRED` khi người gọi chưa đồng ý với phiên bản đồng ý **hiện hành**
-  (`consent.ts`, hiện là phiên bản 2) — dù đã từng đồng ý một bản cũ hơn
+  (`consent.ts`, hiện là phiên bản 4) — áp dụng cho cả `POST /stt/transcribe` và `stt_start` của
+  `/stt-stream` (luồng đang chạy còn kiểm lại mỗi phút) — dù đã từng đồng ý một bản cũ hơn
   ([NFR-01](../user_stories.md#4-yêu-cầu-phi-chức-năng-nfr)).
 - **Tác vụ lưu trữ** (`RetentionService`, chạy **mỗi giờ** qua BullMQ job scheduler) áp dụng
   `users.retention_days`: 7 ngày trước hạn gửi **một** push chung mỗi người dùng ("N cuộc họp sẽ bị
