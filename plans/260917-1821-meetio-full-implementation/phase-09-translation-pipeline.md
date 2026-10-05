@@ -4,7 +4,7 @@
 [Mô hình chi phí](../../docs/system-architecture.md#6-mô-hình-chi-phí)
 
 ## Tổng quan
-**Ưu tiên:** Trung bình · **Trạng thái:** ⬜ pending · **Phụ thuộc:** Phase 05, 07
+**Ưu tiên:** Trung bình · **Trạng thái:** 🟡 implemented — awaiting device verification · **Phụ thuộc:** Phase 05, 07
 
 Dịch từng đoạn ngay trong lúc họp, lưu lại để đọc sau.
 
@@ -47,14 +47,28 @@ cả lô xuống.
 8. Bật dịch hiện cảnh báo chi phí; ghi lượng token vào `usage_records`.
 
 ## Todo
-- [ ] Bộ gom lô có cửa sổ cấu hình được
-- [ ] Prompt dịch giữ ánh xạ seq
-- [ ] Ghi bản dịch vào transcript_segments
-- [ ] Phát segment_translated
-- [ ] Cô lập lỗi ở mức từng đoạn + thử lại
-- [ ] Hiển thị bản dịch trên client
-- [ ] Công tắc ba chế độ xem
-- [ ] Cảnh báo chi phí + ghi nhận token
+- [x] Bộ gom lô có cửa sổ cấu hình được
+- [x] Prompt dịch giữ ánh xạ seq
+- [x] Ghi bản dịch vào transcript_segments
+- [x] Phát segment_translated
+- [x] Cô lập lỗi ở mức từng đoạn + thử lại
+- [x] Hiển thị bản dịch trên client
+- [x] Công tắc ba chế độ xem
+- [x] Cảnh báo chi phí + ghi nhận token
+
+## Kết quả
+
+**Triển khai xong (chưa commit):**
+- API `TranslationService` với batcher (4s hoặc 8 đoạn env-configurable)
+- Gemini structured output (seq → translated_text) + per-segment fallback trên parse/incomplete
+- Event `segment_translation_failed` khi lỗi; idempotent writes; settings TTL cache
+- Edit clears + re-translates; retry endpoint `POST /meetings/:id/segments/:seq/translate`
+- Mobile: "Dịch sang" option + cost note, live translations under lines với retry, transcript view Gốc/Dịch/Song song
+- Consent v4 (free-tier: Google may use content; streaming audio; translation listed)
+- Events carry `meeting_id`
+
+**Vấn đề còn mở:**
+- p95 ≤3s latency chưa đo trên Gemini thật (chỉ có env-based estimate)
 
 ## Chuẩn hoàn thành
 - Bản dịch hiện trong 3 giây ở phân vị 95.
@@ -75,3 +89,11 @@ Nội dung gửi đi dịch là dữ liệu nhạy cảm — phải nằm trong 
 
 ## Tiếp theo
 Không chặn phase nào. Chạy song song với nhánh AI (11–15).
+
+## Quyết định 2026-10-05
+- Làm ngay, dịch trực tiếp. Chọn ngôn ngữ đích ở màn cài đặt ghi âm (Không dịch / ngôn ngữ còn lại trong vi–en),
+  mặc định tắt, bật hiện cảnh báo chi phí. Gửi `translate_to` khi tạo cuộc họp.
+- Đã có sẵn: cột `translated_text/translated_to`, `meetings.translate_to`, `SegmentTranslatedPayload`, `MeetingRoomNotifier.segmentTranslated`.
+- Móc dịch sau khi đoạn được ghi (cả WS lẫn `/segments/bulk`), batcher theo meeting (2s hoặc 5 đoạn).
+- Màn đang ghi nghe `segment_translated` trên socket ghi âm; màn transcript có công tắc gốc/dịch/song song; nút thử lại câu lỗi
+  (`POST /meetings/:id/segments/:seq/translate`).

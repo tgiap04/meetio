@@ -67,3 +67,18 @@
 - Q: Phạm vi hàng đợi gửi đoạn? → A: Làm luôn Phase 08 — hàng đợi SQLite bền, bắt đầu được khi mất mạng, banner cuộc họp dang dở khi mở lại app
 - Q: Hai mức chế độ ghi (US-43)? → A: Chất lượng cao = chữ hiện từng từ + sóng âm; Tiết kiệm pin = chữ hiện khi dứt câu, không sóng âm
 - Q: Nguồn thiết bị ngoài Bluetooth (US-42)? → A: Để hệ điều hành định tuyến (iOS allowBluetooth, Android mic mặc định); không viết module native, không tự phát hiện thiết bị
+
+## Session 2026-10-05 (Phase 18 — nhận diện trên máy chủ)
+- Q: Máy không nhận diện offline được (vd. Xiaomi ROM Trung Quốc không có dịch vụ on-device) — làm gì? → A: Chuyển sang nhận diện trên máy chủ khi máy không offline được (thay quyết định "không dùng engine mạng" của Phase 07 cho riêng trường hợp này)
+- Q: "Máy chủ" là máy chủ nào? → A: Máy chủ Meetio + Gemini — app ghi từng đoạn âm thanh ~10s, gửi lên API, API nhờ Gemini nhận diện rồi trả chữ
+- Q: Chữ hiện lúc đang họp ở chế độ máy chủ? → A: Theo từng đoạn ~10s (trễ ~10–15s), không có chữ từng từ
+- Q: Mất mạng khi đang ở chế độ máy chủ? → A: Không cho bắt đầu ghi khi mất mạng; mất mạng giữa chừng thì đoạn đó mất và hiện thành khoảng gián đoạn
+- Q: Quyền riêng tư của âm thanh gửi lên máy chủ? → A: Máy chủ không lưu âm thanh (xóa ngay sau khi Gemini trả chữ); màn cài đặt ghi rõ máy này gửi âm thanh lên máy chủ; sửa chính sách + màn Đồng ý và tăng phiên bản đồng ý (người dùng cũ phải đồng ý lại)
+
+## Session 2026-10-05 (sau thử máy thật: chữ chậm, dịch, xóa ở Thư viện)
+- Q: Chữ ở chế độ máy chủ trễ 10–15s — rút đoạn còn bao nhiêu? → A: Người dùng hỏi làm kiểu stream được không — đang nghiên cứu (Gemini Live API / Cloud STT streaming + module PCM native) trước khi chốt
+- Q: Dịch (Phase 09 chưa làm) — phạm vi? → A: Dịch trực tiếp theo Phase 09: chọn ngôn ngữ đích ở màn cài đặt ghi âm (mặc định tắt, cảnh báo chi phí), máy chủ gom 3–5 câu dịch bằng Gemini, hiện dưới câu gốc khi đang họp và lưu lại, màn chi tiết có 3 chế độ xem gốc/dịch/song song, câu lỗi thử lại được
+- Q: Danh sách cuộc họp ở Thư viện cần nút gì? → A: Vuốt sang trái để hiện nút Xóa (giữ xác nhận + 10s hoàn tác hiện có)
+- Q: Stream chữ? → A: Làm Phase 19 — expo-audio useAudioStream → socket.io → Gemini Live `gemini-3.5-transcribe-live`; giữ cách chia đoạn 10s làm dự phòng
+- Q: Key Gemini đang ở gói miễn phí (Google có thể dùng dữ liệu để cải thiện sản phẩm)? → A: Chấp nhận và ghi rõ vào chính sách + màn Đồng ý; tăng phiên bản đồng ý lên 4
+- Q: Duyệt 3 việc (stream, dịch trực tiếp, vuốt xóa)? → A: Duyệt cả 3, làm song song
