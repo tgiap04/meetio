@@ -57,6 +57,15 @@ describe('ConsentScreen (NFR-01, consent v3)', () => {
     );
   });
 
+  it('says translation runs on the phone with Google ML Kit and is stored with the meeting, not sent to Gemini', () => {
+    const renderer = render();
+    const bodyText = renderer.root.findAllByType(Text).map((node) => node.props.children).join(' ').replace(/\s+/g, ' ');
+    expect(bodyText).toContain('Việc dịch (nếu bạn bật dịch) chạy ngay trên điện thoại bằng Google ML Kit');
+    expect(bodyText).toContain('văn bản không được gửi tới Google để dịch');
+    expect(bodyText).toContain('bản dịch được lưu cùng cuộc họp trên máy chủ Meetio');
+    expect(bodyText).not.toContain('thực thể, dịch (nếu bạn bật dịch)');
+  });
+
   it('opens the full privacy policy when "Đọc chính sách đầy đủ" is pressed', () => {
     const renderer = render();
     const link = renderer.root
