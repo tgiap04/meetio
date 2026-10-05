@@ -1,8 +1,8 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { View } from 'react-native';
 import type { MeetingGraphEdge, MeetingGraphNode } from '@meetio/shared';
-import { GraphCanvas } from './graph-canvas';
+import { GraphCanvas, type GraphCanvasProps } from './graph-canvas';
 import { GraphEdge } from './graph-edge';
+import { GraphEdgeLabel } from './graph-edge-label';
 import { GraphNode } from './graph-node';
 
 const NODES: readonly MeetingGraphNode[] = [
@@ -16,51 +16,81 @@ const EDGES: readonly MeetingGraphEdge[] = [
   { source_id: 'api', target_id: 'du-an-abc', relationship: 'thuộc', count: 1, chunk_id: 'c2', segment_seq: 4 },
 ];
 
-function render(nodes: readonly MeetingGraphNode[], edges: readonly MeetingGraphEdge[]) {
+function render(overrides: Partial<GraphCanvasProps> = {}, measure = true) {
+  const props: GraphCanvasProps = {
+    nodes: NODES,
+    edges: EDGES,
+    selectedId: null,
+    onNodePress: jest.fn(),
+    onBackgroundPress: jest.fn(),
+    ...overrides,
+  };
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<GraphCanvas edges={edges} nodes={nodes} />);
+    renderer = TestRenderer.create(<GraphCanvas {...props} />);
   });
-  const canvas = renderer.root.findByProps({ testID: 'graph-canvas' });
-  act(() => {
-    canvas.props.onLayout({ nativeEvent: { layout: { width: 300, height: 460 } } });
-  });
-  return renderer;
+  if (measure) {
+    act(() => {
+      renderer.root.findByProps({ testID: 'graph-canvas' }).props.onLayout({
+        nativeEvent: { layout: { width: 343, height: 380 } },
+      });
+    });
+  }
+  return { renderer, props };
+}
+
+function nodeById(renderer: TestRenderer.ReactTestRenderer, id: string) {
+  return renderer.root.findAllByType(GraphNode).find((n) => n.props.node.id === id)!;
 }
 
 describe('GraphCanvas', () => {
   it('renders nothing before the canvas has measured its size', () => {
-    let renderer!: TestRenderer.ReactTestRenderer;
-    act(() => {
-      renderer = TestRenderer.create(<GraphCanvas edges={EDGES} nodes={NODES} />);
-    });
+    const { renderer } = render({}, false);
     expect(renderer.root.findAllByType(GraphNode)).toHaveLength(0);
     expect(renderer.root.findAllByType(GraphEdge)).toHaveLength(0);
-    expect(renderer.root.findByProps({ testID: 'graph-canvas' }).type).toBe(View);
   });
 
-  it('renders every given node once measured', () => {
-    const renderer = render(NODES, EDGES);
-    const ids = renderer.root.findAllByType(GraphNode).map((n) => n.props.node.id).sort();
-    expect(ids).toEqual(['api', 'du-an-abc', 'nguyen-van-anh']);
+  it('renders the most-mentioned node as the center and the rest as ring pills', () => {
+    const { renderer } = render();
+    expect(nodeById(renderer, 'du-an-abc').props.variant).toBe('center');
+    expect(nodeById(renderer, 'api').props.variant).toBe('ring');
+    expect(nodeById(renderer, 'nguyen-van-anh').props.variant).toBe('ring');
   });
 
-  it('renders every given edge whose endpoints are present', () => {
-    const renderer = render(NODES, EDGES);
+  it('draws ring↔ring edges too, and labels only the center’s edges at rest', () => {
+    const { renderer } = render();
     expect(renderer.root.findAllByType(GraphEdge)).toHaveLength(2);
+    const labels = renderer.root.findAllByType(GraphEdgeLabel).map((l) => l.props.label);
+    expect(labels).toEqual(['thuộc']);
   });
 
   it('does not crash on an edge with a missing endpoint', () => {
-    const badEdges: readonly MeetingGraphEdge[] = [
-      { source_id: 'nguyen-van-anh', target_id: 'ghost', relationship: 'x', count: 1, chunk_id: 'c1', segment_seq: 1 },
-    ];
-    const renderer = render(NODES, badEdges);
+    const badEdges = [{ ...EDGES[0], target_id: 'ghost' }];
+    const { renderer } = render({ edges: badEdges });
     expect(renderer.root.findAllByType(GraphEdge)).toHaveLength(0);
   });
 
   it('renders a single node with no edges', () => {
-    const renderer = render([NODES[0]], []);
+    const { renderer } = render({ nodes: [NODES[0]], edges: [] });
     expect(renderer.root.findAllByType(GraphNode)).toHaveLength(1);
-    expect(renderer.root.findAllByType(GraphEdge)).toHaveLength(0);
+  });
+
+  it('forwards node taps and empty-canvas taps', () => {
+    const { renderer, props } = render();
+    act(() => nodeById(renderer, 'api').props.onPress('api'));
+    expect(props.onNodePress).toHaveBeenCalledWith('api');
+    act(() => renderer.root.findByProps({ testID: 'graph-canvas-background' }).props.onPress());
+    expect(props.onBackgroundPress).toHaveBeenCalled();
+  });
+
+  it('highlights the selected node’s neighbourhood and dims the rest', () => {
+    const { renderer } = render({ selectedId: 'nguyen-van-anh' });
+    expect(nodeById(renderer, 'nguyen-van-anh').props.emphasis).toBe('selected');
+    expect(nodeById(renderer, 'api').props.emphasis).toBe('related');
+    expect(nodeById(renderer, 'du-an-abc').props.emphasis).toBe('dimmed');
+    const emphases = renderer.root.findAllByType(GraphEdge).map((e) => e.props.emphasis);
+    expect(emphases).toEqual(['active', 'dimmed']);
+    const labels = renderer.root.findAllByType(GraphEdgeLabel).map((l) => l.props.label);
+    expect(labels).toEqual(['phụ trách']);
   });
 });

@@ -58,4 +58,38 @@ describe('RelationList', () => {
     const renderer = render({ nodes: [], onRelationPress: jest.fn(), onViewDetailsPress: jest.fn(), relations: [] });
     expect(allTexts(renderer).join(' ')).toContain('Chưa có quan hệ nào');
   });
+
+  it('shows no selection header by default', () => {
+    const renderer = render({ nodes: NODES, onRelationPress: jest.fn(), onViewDetailsPress: jest.fn(), relations: RELATIONS });
+    expect(allTexts(renderer).join(' ')).not.toContain('Quan hệ của');
+  });
+
+  it('names the selected node and clears it via "Bỏ chọn"', () => {
+    const onClearSelection = jest.fn();
+    const renderer = render({
+      nodes: NODES,
+      onRelationPress: jest.fn(),
+      onViewDetailsPress: jest.fn(),
+      relations: RELATIONS,
+      selectedNodeName: 'API',
+      onClearSelection,
+    });
+    expect(allTexts(renderer).join('')).toContain('Quan hệ của API');
+    const clear = renderer.root
+      .findAll((n) => n.props.accessibilityRole === 'button' && typeof n.props.onPress === 'function')
+      .find((n) => n.findAllByType(Text).some((t) => t.props.children === 'Bỏ chọn'));
+    act(() => clear?.props.onPress());
+    expect(onClearSelection).toHaveBeenCalled();
+  });
+
+  it('says the selected node has no relations when the filtered list is empty', () => {
+    const renderer = render({
+      nodes: NODES,
+      onRelationPress: jest.fn(),
+      onViewDetailsPress: jest.fn(),
+      relations: [],
+      selectedNodeName: 'API',
+    });
+    expect(allTexts(renderer).join(' ')).toContain('Thực thể này chưa có quan hệ nào.');
+  });
 });

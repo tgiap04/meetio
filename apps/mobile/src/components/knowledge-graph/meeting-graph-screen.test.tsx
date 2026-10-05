@@ -26,6 +26,7 @@ const NODES = [
 
 const EDGES = [
   { source_id: 'anh', target_id: 'api', relationship: 'phụ trách', count: 1, chunk_id: 'c1', segment_seq: 12 },
+  { source_id: 'api', target_id: 'du-an-abc', relationship: 'thuộc', count: 1, chunk_id: 'c2', segment_seq: 20 },
 ];
 
 function mockPending() {
@@ -63,6 +64,21 @@ function render() {
 
 function allText(renderer: TestRenderer.ReactTestRenderer) {
   return renderer.root.findAllByType(Text).map((node) => node.props.children).flat().join(' ');
+}
+
+function findGraphNode(renderer: TestRenderer.ReactTestRenderer, nodeId: string) {
+  return renderer.root.findAllByType(GraphNode).find((node) => node.props.node.id === nodeId)!;
+}
+
+function tapNode(renderer: TestRenderer.ReactTestRenderer, nodeId: string) {
+  act(() => findGraphNode(renderer, nodeId).props.onPress(nodeId));
+}
+
+function relationSentences(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root
+    .findAllByType(Text)
+    .filter((t) => Array.isArray(t.props.children) && t.findAllByType(Text).length > 1)
+    .map((t) => t.findAllByType(Text).slice(1).map((child) => child.props.children).join(''));
 }
 
 function findChip(renderer: TestRenderer.ReactTestRenderer, label: string) {
@@ -151,5 +167,71 @@ describe('MeetingGraphScreen', () => {
     const renderer = render();
     act(() => renderer.root.findByProps({ testID: 'error-state-retry' }).props.onPress());
     expect(mockBack).toHaveBeenCalled();
+  });
+
+  it('caps the canvas at 9 nodes and says how many were left out', () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      id: `n${i}`,
+      canonical_name: `Thực thể ${i}`,
+      type: 'topic',
+      mention_count: 100 - i,
+    }));
+    mockSuccess(many, []);
+    const renderer = render();
+    expect(renderer.root.findAllByType(GraphNode)).toHaveLength(9);
+    const note = renderer.root
+      .findAllByType(Text)
+      .map((t) => (Array.isArray(t.props.children) ? t.props.children.join('') : ''))
+      .find((text) => text.startsWith('Chỉ hiển thị'));
+    expect(note).toBe('Chỉ hiển thị 9 thực thể được nhắc nhiều nhất — còn 3 thực thể khác.');
+  });
+
+  describe('tap-to-highlight', () => {
+    it('selecting a node narrows the relation list and names it in a header', () => {
+      mockSuccess(NODES, EDGES);
+      const renderer = render();
+      expect(relationSentences(renderer)).toHaveLength(2);
+      tapNode(renderer, 'anh');
+      expect(findGraphNode(renderer, 'anh').props.emphasis).toBe('selected');
+      expect(findGraphNode(renderer, 'du-an-abc').props.emphasis).toBe('dimmed');
+      expect(relationSentences(renderer)).toEqual(['Nguyễn Văn Anh → phụ trách → API']);
+      expect(allText(renderer)).toContain('Quan hệ của');
+    });
+
+    it('tapping the selected node again clears the selection', () => {
+      mockSuccess(NODES, EDGES);
+      const renderer = render();
+      tapNode(renderer, 'anh');
+      tapNode(renderer, 'anh');
+      expect(findGraphNode(renderer, 'anh').props.emphasis).toBe('normal');
+      expect(relationSentences(renderer)).toHaveLength(2);
+    });
+
+    it('tapping empty canvas clears the selection', () => {
+      mockSuccess(NODES, EDGES);
+      const renderer = render();
+      tapNode(renderer, 'api');
+      act(() => renderer.root.findByProps({ testID: 'graph-canvas-background' }).props.onPress());
+      expect(findGraphNode(renderer, 'api').props.emphasis).toBe('normal');
+      expect(allText(renderer)).not.toContain('Quan hệ của');
+    });
+
+    it('"Bỏ chọn" clears the selection', () => {
+      mockSuccess(NODES, EDGES);
+      const renderer = render();
+      tapNode(renderer, 'api');
+      act(() => findChip(renderer, 'Bỏ chọn')?.props.onPress());
+      expect(allText(renderer)).not.toContain('Quan hệ của');
+    });
+
+    it('changing the type chip clears the selection', () => {
+      mockSuccess(NODES, EDGES);
+      const renderer = render();
+      tapNode(renderer, 'api');
+      act(() => findChip(renderer, 'Chủ đề')?.props.onPress());
+      act(() => findChip(renderer, 'Tất cả')?.props.onPress());
+      expect(findGraphNode(renderer, 'api').props.emphasis).toBe('normal');
+      expect(relationSentences(renderer)).toHaveLength(2);
+    });
   });
 });

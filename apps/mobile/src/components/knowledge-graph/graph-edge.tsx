@@ -1,33 +1,45 @@
 import { View } from 'react-native';
-import { computeEdgeGeometry, type CanvasSize, type FractionalPoint } from './compute-edge-geometry';
+import { computeEdgeGeometry, type Point } from './compute-edge-geometry';
+import { DIMMED_OPACITY, type EdgeEmphasis } from './graph-highlight';
+import { colors } from '../../theme/colors';
 
 export interface GraphEdgeProps {
-  from: FractionalPoint;
-  to: FractionalPoint;
-  canvasSize: CanvasSize;
-  /** The connected non-central node's palette text colour (`entity-colors.ts`). */
-  color: string;
+  /** Already trimmed to the node outlines (`trimSegmentToShapes`). */
+  from: Point;
+  to: Point;
+  emphasis: EdgeEmphasis;
   testID?: string;
 }
 
-const EDGE_THICKNESS = 1.5;
+const RESTING_OPACITY = 0.6;
 
-/** A straight line between two graph nodes, drawn as a rotated `View` — no
- *  `react-native-svg`. Rendered under the nodes so the line's raw ends are
- *  covered by the node fills at each join. */
-export function GraphEdge({ from, to, canvasSize, color, testID }: GraphEdgeProps) {
-  const { length, rotationDeg, midpoint } = computeEdgeGeometry(from, to, canvasSize);
+/** Stroke per emphasis: neutral gray at rest, brand orange and thicker for
+ *  the selected node's edges, faded for everything else while selected. */
+export const EDGE_STYLES: Record<EdgeEmphasis, { color: string; thickness: number; opacity: number }> = {
+  normal: { color: colors.textMuted, thickness: 1.5, opacity: RESTING_OPACITY },
+  active: { color: colors.primary, thickness: 2.5, opacity: 1 },
+  dimmed: { color: colors.textMuted, thickness: 1.5, opacity: RESTING_OPACITY * DIMMED_OPACITY },
+};
+
+/** A straight line drawn as a rotated `View` — no `react-native-svg`.
+ *  Rendered beneath the nodes. */
+export function GraphEdge({ from, to, emphasis, testID }: GraphEdgeProps) {
+  const { length, rotationDeg, midpoint } = computeEdgeGeometry(from, to);
+  const { color, thickness, opacity } = EDGE_STYLES[emphasis];
 
   return (
     <View
+      pointerEvents="none"
       testID={testID}
       style={{
         position: 'absolute',
         left: midpoint.x - length / 2,
-        top: midpoint.y - EDGE_THICKNESS / 2,
+        top: midpoint.y - thickness / 2,
         width: length,
-        height: EDGE_THICKNESS,
+        height: thickness,
+        borderRadius: thickness / 2,
         backgroundColor: color,
+        opacity,
         transform: [{ rotate: `${rotationDeg}deg` }],
       }}
     />

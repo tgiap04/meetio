@@ -43,6 +43,8 @@ export const typography = {
   sectionTitle: { fontFamily, fontSize: 17, fontWeight: '600' as const },
   /** Row labels and settings-item titles (e.g. "Ngôn ngữ", "Dịch thuật"). */
   label: { fontFamily, fontSize: 15, fontWeight: '600' as const },
+  /** Smallest UI text — type captions inside knowledge-graph pills. */
+  micro: { fontFamily, fontSize: 11, fontWeight: '500' as const },
 };
 
 /**

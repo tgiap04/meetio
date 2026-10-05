@@ -1,80 +1,118 @@
 import { useState } from 'react';
-import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import type { MeetingGraphEdge, MeetingGraphNode } from '@meetio/shared';
 import { GraphEdge } from './graph-edge';
-import { GraphNode } from './graph-node';
-import { getEntityPalette } from './entity-colors';
-import { computeCircularLayout } from './compute-circular-layout';
+import { GraphEdgeLabel } from './graph-edge-label';
+import { GraphNode, type GraphNodeData } from './graph-node';
+import { computeGraphLayout } from './compute-graph-layout';
+import { buildGraphEdgeScene } from './build-graph-edge-scene';
+import { collectNeighborIds, getNodeEmphasis } from './graph-highlight';
 import { colors } from '../../theme/colors';
 
 export interface GraphCanvasProps {
   /** Already filtered/capped by `selectVisibleGraphNodes` — the first entry
-   *  becomes the layout's centre. */
+   *  (most mentioned) becomes the center circle. */
   nodes: readonly MeetingGraphNode[];
   edges: readonly MeetingGraphEdge[];
+  selectedId: string | null;
+  onNodePress: (nodeId: string) => void;
+  /** Tap on empty canvas — clears the selection. */
+  onBackgroundPress: () => void;
 }
 
-const CANVAS_HEIGHT = 460;
+export const CANVAS_HEIGHT = 380;
+const CARD_BORDER = 1;
+
+function toNodeData(node: MeetingGraphNode): GraphNodeData {
+  return { id: node.id, label: node.canonical_name, type: node.type, mentionCount: node.mention_count };
+}
 
 /**
- * Real-data replacement for the mock build's five-fixed-position canvas.
- * Positions come from `computeCircularLayout` (arbitrary node count) instead
- * of a hand-placed lookup table; sized by `onLayout`, never a hardcoded
- * width, so edges stay attached to their nodes across device widths.
+ * Screen 10's diagram card. Sized by `onLayout` (never a hardcoded width);
+ * positions come from `computeGraphLayout` in points, edges from
+ * `buildGraphEdgeScene`. Layering, bottom to top: background tap target,
+ * edges, edge labels, nodes.
  */
-export function GraphCanvas({ nodes, edges }: GraphCanvasProps) {
+export function GraphCanvas({ nodes, edges, selectedId, onNodePress, onBackgroundPress }: GraphCanvasProps) {
   const [canvasWidth, setCanvasWidth] = useState(0);
+  const [pillWidths, setPillWidths] = useState<ReadonlyMap<string, number>>(new Map());
 
   function handleLayout(event: LayoutChangeEvent) {
     setCanvasWidth(event.nativeEvent.layout.width);
   }
 
-  const layout = computeCircularLayout(nodes.map((node) => node.id));
-  const canvasSize = { width: canvasWidth, height: CANVAS_HEIGHT };
-
-  function edgeColor(edge: MeetingGraphEdge): string {
-    const other = nodes.find((node) => node.id === edge.target_id) ?? nodes.find((node) => node.id === edge.source_id);
-    return other ? getEntityPalette(other.type).text : colors.border;
+  function handlePillWidth(nodeId: string, width: number) {
+    setPillWidths((current) => (current.get(nodeId) === width ? current : new Map(current).set(nodeId, width)));
   }
 
+  // Absolute children are laid out inside the card's border.
+  const size = { width: Math.max(0, canvasWidth - CARD_BORDER * 2), height: CANVAS_HEIGHT - CARD_BORDER * 2 };
+  const layout = computeGraphLayout(
+    nodes.map((node) => node.id),
+    size,
+  );
+  const scene = buildGraphEdgeScene(edges, layout, pillWidths, selectedId);
+  const neighborIds = collectNeighborIds(edges, selectedId);
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const centerNode = layout.center ? nodeById.get(layout.center.id) : undefined;
+
   return (
-    <View onLayout={handleLayout} style={styles.canvas} testID="graph-canvas">
-      {canvasWidth > 0 &&
-        edges.map((edge) => {
-          const from = layout.get(edge.source_id);
-          const to = layout.get(edge.target_id);
-          if (!from || !to) {
-            return null;
-          }
-          return (
-            <GraphEdge
-              canvasSize={canvasSize}
-              color={edgeColor(edge)}
-              from={from}
-              key={`${edge.source_id}-${edge.target_id}-${edge.relationship}`}
-              to={to}
-            />
-          );
-        })}
-      {canvasWidth > 0 &&
-        nodes.map((node) => {
-          const position = layout.get(node.id);
-          if (!position) {
-            return null;
-          }
-          return (
-            <GraphNode
-              key={node.id}
-              node={{ id: node.id, label: node.canonical_name, type: node.type }}
-              x={position.x * canvasWidth}
-              y={position.y * CANVAS_HEIGHT}
-            />
-          );
-        })}
+    <View onLayout={handleLayout} style={styles.card} testID="graph-canvas">
+      {layout.center && centerNode ? (
+        <>
+          <Pressable
+            accessible={false}
+            onPress={onBackgroundPress}
+            style={StyleSheet.absoluteFill}
+            testID="graph-canvas-background"
+          />
+          {scene.map((item) => (
+            <GraphEdge emphasis={item.emphasis} from={item.from} key={item.key} to={item.to} />
+          ))}
+          {scene.map((item) =>
+            item.label ? (
+              <GraphEdgeLabel active={item.label.active} at={item.label.at} key={item.key} label={item.label.text} />
+            ) : null,
+          )}
+          <GraphNode
+            diameter={layout.center.diameter}
+            emphasis={getNodeEmphasis(centerNode.id, selectedId, neighborIds)}
+            node={toNodeData(centerNode)}
+            onPress={onNodePress}
+            variant="center"
+            x={layout.center.x}
+            y={layout.center.y}
+          />
+          {layout.ring.map((slot) => {
+            const node = nodeById.get(slot.id);
+            return node ? (
+              <GraphNode
+                emphasis={getNodeEmphasis(node.id, selectedId, neighborIds)}
+                key={node.id}
+                maxWidth={slot.maxWidth}
+                node={toNodeData(node)}
+                onPress={onNodePress}
+                onWidthMeasured={handlePillWidth}
+                variant="ring"
+                x={slot.x}
+                y={slot.y}
+              />
+            ) : null;
+          })}
+        </>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  canvas: { width: '100%', height: CANVAS_HEIGHT },
+  card: {
+    width: '100%',
+    height: CANVAS_HEIGHT,
+    borderRadius: 16,
+    borderWidth: CARD_BORDER,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    overflow: 'hidden',
+  },
 });

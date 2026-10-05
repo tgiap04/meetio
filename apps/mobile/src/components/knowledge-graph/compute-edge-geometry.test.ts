@@ -1,41 +1,68 @@
-import { computeEdgeGeometry } from './compute-edge-geometry';
+import { computeEdgeGeometry, trimSegmentToShapes } from './compute-edge-geometry';
 
 describe('computeEdgeGeometry', () => {
-  const canvasSize = { width: 100, height: 100 };
-
-  it('yields rotation 0 for a horizontal pair', () => {
-    const geometry = computeEdgeGeometry({ x: 0, y: 0.5 }, { x: 1, y: 0.5 }, canvasSize);
-    expect(geometry.rotationDeg).toBe(0);
-    expect(geometry.length).toBe(100);
-    expect(geometry.midpoint).toEqual({ x: 50, y: 50 });
+  it('yields rotation 0, the length and the midpoint for a horizontal pair', () => {
+    const geometry = computeEdgeGeometry({ x: 0, y: 50 }, { x: 100, y: 50 });
+    expect(geometry).toEqual({ length: 100, rotationDeg: 0, midpoint: { x: 50, y: 50 } });
   });
 
-  it('yields rotation +90 for a downward vertical pair', () => {
-    const geometry = computeEdgeGeometry({ x: 0.5, y: 0 }, { x: 0.5, y: 1 }, canvasSize);
-    expect(geometry.rotationDeg).toBe(90);
-    expect(geometry.length).toBe(100);
-  });
-
-  it('yields rotation -90 for an upward vertical pair', () => {
-    const geometry = computeEdgeGeometry({ x: 0.5, y: 1 }, { x: 0.5, y: 0 }, canvasSize);
-    expect(geometry.rotationDeg).toBe(-90);
-    expect(geometry.length).toBe(100);
+  it('yields rotation +90 downward and -90 upward', () => {
+    expect(computeEdgeGeometry({ x: 50, y: 0 }, { x: 50, y: 100 }).rotationDeg).toBe(90);
+    expect(computeEdgeGeometry({ x: 50, y: 100 }, { x: 50, y: 0 }).rotationDeg).toBe(-90);
   });
 
   it('computes the Euclidean length for a diagonal pair', () => {
-    const geometry = computeEdgeGeometry({ x: 0, y: 0 }, { x: 0.3, y: 0.4 }, canvasSize);
-    // 30-40-50 triangle scaled by the 100x100 canvas.
-    expect(geometry.length).toBeCloseTo(50, 5);
+    expect(computeEdgeGeometry({ x: 0, y: 0 }, { x: 30, y: 40 }).length).toBeCloseTo(50, 5);
+  });
+});
+
+describe('trimSegmentToShapes', () => {
+  it('trims a circle endpoint by its radius', () => {
+    const segment = trimSegmentToShapes(
+      { x: 0, y: 0 },
+      { kind: 'circle', radius: 10 },
+      { x: 100, y: 0 },
+      { kind: 'circle', radius: 20 },
+    );
+    expect(segment?.from).toEqual({ x: 10, y: 0 });
+    expect(segment?.to).toEqual({ x: 80, y: 0 });
   });
 
-  it('scales endpoints by an asymmetric canvas size before measuring', () => {
-    const geometry = computeEdgeGeometry({ x: 0, y: 0 }, { x: 1, y: 0 }, { width: 200, height: 50 });
-    expect(geometry.length).toBe(200);
-    expect(geometry.midpoint).toEqual({ x: 100, y: 0 });
+  it('trims a rect endpoint where the line exits its side (horizontal)', () => {
+    const segment = trimSegmentToShapes(
+      { x: 0, y: 0 },
+      { kind: 'rect', halfWidth: 30, halfHeight: 10 },
+      { x: 100, y: 0 },
+      { kind: 'circle', radius: 0 },
+    );
+    expect(segment?.from.x).toBeCloseTo(30, 5);
+    expect(segment?.from.y).toBeCloseTo(0, 5);
   });
 
-  it('computes the correct midpoint for an off-center pair', () => {
-    const geometry = computeEdgeGeometry({ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.6 }, canvasSize);
-    expect(geometry.midpoint).toEqual({ x: 50, y: 40 });
+  it('trims a rect endpoint where the line exits its top/bottom (steep line)', () => {
+    const segment = trimSegmentToShapes(
+      { x: 0, y: 0 },
+      { kind: 'rect', halfWidth: 30, halfHeight: 10 },
+      { x: 10, y: 100 },
+      { kind: 'circle', radius: 0 },
+    );
+    // Exits the bottom edge (y = 10) at x = 1.
+    expect(segment?.from.y).toBeCloseTo(10, 5);
+    expect(segment?.from.x).toBeCloseTo(1, 5);
+  });
+
+  it('returns null when the two shapes overlap (nothing visible to draw)', () => {
+    const segment = trimSegmentToShapes(
+      { x: 0, y: 0 },
+      { kind: 'circle', radius: 40 },
+      { x: 50, y: 0 },
+      { kind: 'rect', halfWidth: 20, halfHeight: 10 },
+    );
+    expect(segment).toBeNull();
+  });
+
+  it('returns null for coincident points', () => {
+    const shape = { kind: 'circle' as const, radius: 1 };
+    expect(trimSegmentToShapes({ x: 5, y: 5 }, shape, { x: 5, y: 5 }, shape)).toBeNull();
   });
 });

@@ -37,6 +37,10 @@ describe('selectVisibleGraphNodes', () => {
     expect(result.nodes.map((n) => n.id)).toEqual(['high', 'low']);
   });
 
+  it('caps the canvas at 9 nodes (center + 8 ring pills)', () => {
+    expect(MAX_GRAPH_NODES).toBe(9);
+  });
+
   it('caps at MAX_GRAPH_NODES and reports how many were hidden', () => {
     const nodes = Array.from({ length: MAX_GRAPH_NODES + 3 }, (_, i) => node({ id: `n${i}`, mention_count: i }));
     const result = selectVisibleGraphNodes(nodes, [], 'all');

@@ -9,8 +9,9 @@
 import type { MeetingGraphEdge, MeetingGraphNode } from '@meetio/shared';
 import { entityTypeToChipKey, type EntityChipKey } from '../../utils/entity-type-labels';
 
-/** Chosen to stay legible on a phone-width circular layout. */
-export const MAX_GRAPH_NODES = 12;
+/** Center + 8 ring pills: the most `computeGraphLayout` fits on a 343×380
+ *  canvas with no pill crossing the edge or overlapping another. */
+export const MAX_GRAPH_NODES = 9;
 
 export interface VisibleGraph {
   /** Sorted by `mention_count` descending — the first entry is the node
