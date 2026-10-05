@@ -6,7 +6,6 @@ import { SegmentBatchWriter } from '../segments/segment-batch-writer.service.js'
 import { SegmentRejectedError } from '../segments/segment-rejected.error.js';
 import { segmentRuleViolation } from '../segments/segment-rules.js';
 import { SegmentDto } from '../segments/dto/segment.dto.js';
-import { TranslationService } from '../translation/translation.service.js';
 import { SegmentRateLimiter } from './segment-rate-limiter.js';
 import type { MeetingSocketData } from './ws-auth.middleware.js';
 
@@ -33,7 +32,6 @@ export class SegmentIngestHandler {
   constructor(
     private readonly writer: SegmentBatchWriter,
     private readonly rateLimiter: SegmentRateLimiter,
-    private readonly translation: TranslationService,
   ) {}
 
   async handle(socket: MeetingSocketData, raw: unknown, nowMs = Date.now()): Promise<SegmentOutcome> {
@@ -72,8 +70,6 @@ export class SegmentIngestHandler {
         ended_at_ms: segment.ended_at_ms,
         gap_before_ms: segment.gap_before_ms,
       });
-      // Phase 09: after COMMIT, and fire-and-forget — translation never delays or fails the ack.
-      this.translation.enqueue(meetingId, [segment.seq]);
       return { kind: 'ack', seq: segment.seq };
     } catch (failure) {
       if (failure instanceof SegmentRejectedError) {

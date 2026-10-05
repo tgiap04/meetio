@@ -12,7 +12,6 @@ import { transition } from './meeting-state-machine.js';
 import { clampInstant, closePause, MAX_OFFLINE_START_MS, openPause, recordedDurationSec } from './meeting-timing.js';
 import { defaultMeetingTitle } from './default-meeting-title.js';
 import { translateToViolation } from './translate-target.js';
-import { TranslationService } from '../translation/translation.service.js';
 import { MeetingPipelineTrigger } from './meeting-pipeline.trigger.js';
 import { SegmentsPendingException } from './segments-pending.exception.js';
 import { toMeetingStateResponse } from './meeting-state-response.js';
@@ -43,7 +42,6 @@ export class MeetingsService {
     private readonly segmentWriter: SegmentBatchWriter,
     private readonly segments: SegmentUpsertRepository,
     private readonly pipeline: MeetingPipelineTrigger,
-    private readonly translation: TranslationService,
   ) {}
 
   /** US-07: the row exists — and its id is returned — before the client opens the mic. */
@@ -148,8 +146,6 @@ export class MeetingsService {
       patch.translate_to = dto.translate_to;
     }
     const updated = await this.meetings.updateOwned(id, userId, patch);
-    // Ingestion caches a meeting's translate_to briefly; a change must apply to the very next segment.
-    if (dto.translate_to !== undefined) this.translation.forget(id);
     return updated;
   }
 

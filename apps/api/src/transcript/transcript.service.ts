@@ -7,7 +7,6 @@ import { MeetingStatus } from '../database/enums/meeting-status.enum.js';
 import { OwnershipViolationException } from '../common/exceptions/ownership-violation.exception.js';
 import { InvalidStateTransitionException } from '../meetings/invalid-state-transition.exception.js';
 import { MeetingsRepository } from '../meetings/meetings.repository.js';
-import { TranslationService } from '../translation/translation.service.js';
 import type { ListSegmentsResponseDto, TranscriptSegmentItemDto } from './dto/transcript.dto.js';
 
 const DEFAULT_PAGE = 200;
@@ -36,7 +35,6 @@ export class TranscriptService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly meetings: MeetingsRepository,
-    private readonly translation: TranslationService,
   ) {}
 
   async list(meetingId: string, userId: string, fromSeq = 1, limit = DEFAULT_PAGE): Promise<ListSegmentsResponseDto> {
@@ -68,7 +66,7 @@ export class TranscriptService {
         details: { text: 'blank' },
       });
     }
-    const { item, retranslate } = await this.dataSource.transaction(async (manager) => {
+    const item = await this.dataSource.transaction(async (manager) => {
       const [owned] = (await manager.query(
         `SELECT s.meeting_id FROM transcript_segments s JOIN meetings m ON m.id = s.meeting_id
          WHERE s.id = $1 AND m.user_id = $2 AND m.deleted_at IS NULL`,
@@ -83,17 +81,15 @@ export class TranscriptService {
       if (!EDITABLE.includes(meeting.status)) {
         throw new InvalidStateTransitionException(meeting.status, 'sửa transcript');
       }
-      // The old translation describes the old text: clear it, so it is neither shown nor kept by the idempotent retry.
+      // The old translation describes the old text: clear it so the phone translates the corrected line again.
       await manager.update(
         TranscriptSegment,
         { id: segmentId },
         { text: text.trim(), is_edited: true, edited_at: new Date(), translated_text: null, translated_to: null },
       );
       const segment = await manager.findOneByOrFail(TranscriptSegment, { id: segmentId });
-      return { item: toSegmentItem(segment), retranslate: meeting.translate_to ? { meetingId: meeting.id, seq: segment.seq } : null };
+      return toSegmentItem(segment);
     });
-    // After COMMIT, fire-and-forget: the edited line is translated again and pushed like any other.
-    if (retranslate) this.translation.enqueue(retranslate.meetingId, [retranslate.seq]);
     return item;
   }
 }

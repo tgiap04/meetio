@@ -16,19 +16,9 @@ describe('MeetingRoomNotifier', () => {
 
     notifier.processingStatus({ meeting_id: 'm1', status: 'processing', step: 'chunk', progress: 0.2 });
     notifier.meetingReady({ meeting_id: 'm1' });
-    notifier.segmentTranslated('m1', { seq: 3, translated_text: 'hello', translated_to: 'en' });
 
-    notifier.segmentTranslationFailed('m1', { seq: 4 });
-
-    expect(to.mock.calls).toEqual([['meeting:m1'], ['meeting:m1'], ['meeting:m1'], ['meeting:m1']]);
-    expect(emit.mock.calls.map((c) => c[0])).toEqual([
-      'processing_status',
-      'meeting_ready',
-      'segment_translated',
-      'segment_translation_failed',
-    ]);
-    expect(emit.mock.calls[2][1]).toEqual({ seq: 3, translated_text: 'hello', translated_to: 'en', meeting_id: 'm1' });
-    expect(emit.mock.calls[3][1]).toEqual({ seq: 4, meeting_id: 'm1' });
+    expect(to.mock.calls).toEqual([['meeting:m1'], ['meeting:m1']]);
+    expect(emit.mock.calls.map((c) => c[0])).toEqual(['processing_status', 'meeting_ready']);
   });
 
   it('is a no-op before the gateway attaches (e.g. a worker with no socket server)', () => {

@@ -3,9 +3,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { ActionItem, Meeting, ProcessingJob, TranscriptSegment } from '../database/entities/index.js';
 import { SegmentsModule } from '../segments/segments.module.js';
-import { TranslationModule } from '../translation/translation.module.js';
 import { MeetingsController } from './meetings.controller.js';
 import { MeetingSegmentsController } from './meeting-segments.controller.js';
+import { SegmentTranslationService } from './segment-translation.service.js';
 import { MeetingsService } from './meetings.service.js';
 import { MeetingQueryService } from './meeting-query.service.js';
 import { MeetingDeletionService } from './meeting-deletion.service.js';
@@ -18,10 +18,9 @@ import { MEETING_PROCESSING_QUEUE, MeetingPipelineTrigger } from './meeting-pipe
     TypeOrmModule.forFeature([Meeting, ActionItem, ProcessingJob, TranscriptSegment]),
     BullModule.registerQueue({ name: MEETING_PROCESSING_QUEUE }),
     SegmentsModule,
-    TranslationModule,
   ],
   controllers: [MeetingsController, MeetingSegmentsController],
-  providers: [MeetingsService, MeetingQueryService, MeetingDeletionService, MeetingsRepository, MeetingPipelineTrigger],
+  providers: [MeetingsService, MeetingQueryService, MeetingDeletionService, MeetingsRepository, MeetingPipelineTrigger, SegmentTranslationService],
   exports: [MeetingsRepository, MeetingPipelineTrigger, MeetingDeletionService],
 })
 export class MeetingsModule {}

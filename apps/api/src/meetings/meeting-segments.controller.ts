@@ -1,5 +1,5 @@
-import { BadRequestException, Body, ConflictException, Controller, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, ConflictException, Controller, HttpCode, HttpStatus, Param, Post, Put } from '@nestjs/common';
+import { ApiBearerAuth, ApiNoContentResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiErrorCode } from '@meetio/shared';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { ParseMeetingIdPipe } from '../common/pipes/parse-meeting-id.pipe.js';
@@ -9,7 +9,9 @@ import { SegmentUpsertRepository } from '../segments/segment-upsert.repository.j
 import { SegmentRejectedError } from '../segments/segment-rejected.error.js';
 import { segmentRuleViolation } from '../segments/segment-rules.js';
 import { BulkSegmentsDto, BulkSegmentsResponseDto } from '../segments/dto/bulk-segments.dto.js';
-import { TranslationService } from '../translation/translation.service.js';
+import { ParseSegmentSeqPipe } from '../common/pipes/parse-segment-seq.pipe.js';
+import { PutSegmentTranslationDto } from './dto/put-segment-translation.dto.js';
+import { SegmentTranslationService } from './segment-translation.service.js';
 import { MeetingsRepository } from './meetings.repository.js';
 
 /**
@@ -24,7 +26,7 @@ export class MeetingSegmentsController {
   constructor(
     private readonly meetings: MeetingsRepository,
     private readonly segments: SegmentUpsertRepository,
-    private readonly translation: TranslationService,
+    private readonly translation: SegmentTranslationService,
   ) {}
 
   @Post('bulk')
@@ -51,9 +53,21 @@ export class MeetingSegmentsController {
       throw toHttpError(error);
     }
     const ackedSeqs = [...new Set(dto.segments.map((s) => s.seq))].sort((a, b) => a - b);
-    // Phase 09: rows are committed; translating them is fire-and-forget and skips already-translated resends.
-    this.translation.enqueue(id, ackedSeqs);
     return { acked_seqs: ackedSeqs };
+  }
+
+  @Put(':seq/translation')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Store the on-device translation of one segment; idempotent overwrite' })
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Meeting or segment not found (or not yours)' })
+  async putTranslation(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseMeetingIdPipe) id: string,
+    @Param('seq', ParseSegmentSeqPipe) seq: number,
+    @Body() dto: PutSegmentTranslationDto,
+  ): Promise<void> {
+    await this.translation.put(id, user.userId, seq, dto.translated_text, dto.translated_to);
   }
 }
 

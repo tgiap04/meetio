@@ -18,7 +18,6 @@ import { GraphModule } from './graph/graph.module.js';
 import { ActionsModule } from './actions/actions.module.js';
 import { QaModule } from './qa/qa.module.js';
 import { SttModule } from './stt/stt.module.js';
-import { TranslationModule } from './translation/translation.module.js';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage.js';
 
 @Module({
@@ -60,7 +59,6 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
     ActionsModule,
     QaModule,
     SttModule,
-    TranslationModule,
   ],
   controllers: [HealthController],
 })

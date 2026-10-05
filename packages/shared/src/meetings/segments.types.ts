@@ -43,3 +43,9 @@ export interface ListSegmentsResponse {
 export interface UpdateSegmentRequest {
   text: string;
 }
+
+/** `PUT /meetings/:id/segments/:seq/translation` — the phone's on-device translation, stored with the meeting (204). */
+export interface PutSegmentTranslationRequest {
+  translated_text: string;
+  translated_to: 'vi-VN' | 'en-US';
+}
