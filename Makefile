@@ -44,7 +44,7 @@ MOBILE := yarn workspace @meetio/mobile
         psql redis-cli migrate migrate-down seed db-reset reset-hard \
         dev api mobile openapi test check build build-api build-app \
         app-ios app-android app-clean app-doctor app-verify typecheck lint doctor \
-        clean clean-ios clean-android disk
+        clean clean-ios clean-android disk lan localhost adb-reverse device-ios device-adr
 
 # ---------------------------------------------------------------- help -------
 
@@ -99,6 +99,9 @@ env: ## Sinh .env gốc (không ghi đè) + apps/mobile/.env (luôn sinh lại t
 			'' \
 			'EXPO_PUBLIC_API_URL=http://localhost:3000/api' \
 			'EXPO_PUBLIC_WS_URL=ws://localhost:3000' \
+			'# Push: projectId của EAS (công khai) — chạy `cd apps/mobile && npx eas init` để lấy.' \
+			'# Để trống = push tắt, app chỉ cảnh báo một dòng.' \
+			'EXPO_PUBLIC_EAS_PROJECT_ID=' \
 			'# Google Sign-In: client ID là định danh CÔNG KHAI, không phải bí mật. Để trống' \
 			'# = plugin native không được thêm, đăng nhập Google tắt. Xem README § "Google' \
 			'# Sign-In setup" để lấy ba giá trị này rồi chạy lại `make build-app`.' \
@@ -366,6 +369,67 @@ build: ## Build tất cả workspace (JS/TS — không phải native)
 	@yarn build
 
 check: build typecheck lint test ## Chạy đủ cổng như CI
+
+# ------------------------------------------------- máy thật: địa chỉ API -----
+#
+# EXPO_PUBLIC_API_URL / EXPO_PUBLIC_WS_URL được nội tuyến vào bundle lúc Metro
+# đóng gói. Trên máy thật, "localhost" là chính cái điện thoại — request không
+# bao giờ tới API trên Mac, và terminal không có log nào. Hai cách:
+#   - make lan        → trỏ sang IP LAN hiện tại của Mac (Wi-Fi, iOS + Android).
+#                       IP đổi mỗi khi đổi mạng → chạy lại lệnh này ở chỗ mới.
+#   - make localhost  → về localhost (simulator iOS / emulator / Android cắm cáp
+#                       kèm `make adb-reverse`).
+# Sửa .env GỐC (nguồn sự thật) rồi sinh lại apps/mobile/.env qua `make env`.
+# Sau khi đổi phải khởi động lại Metro với --clear, không thì bundle cũ vẫn giữ host cũ.
+
+ADB := $(shell command -v adb 2>/dev/null || echo $(HOME)/Library/Android/sdk/platform-tools/adb)
+
+# IP LAN của interface đang ra mạng mặc định (macOS), fallback Linux.
+LAN_IP = $(shell iface=$$(route -n get default 2>/dev/null | awk '/interface:/{print $$2}'); \
+	ip=$$([ -n "$$iface" ] && ipconfig getifaddr "$$iface" 2>/dev/null); \
+	[ -n "$$ip" ] || ip=$$(hostname -I 2>/dev/null | awk '{print $$1}'); echo $$ip)
+
+# $(1) = host mới. Giữ nguyên scheme, cổng và đường dẫn (vd. /api) đang có trong .env.
+define set_api_host
+	@[ -f .env ] || { echo "  ❌ Chưa có .env — chạy 'make env' trước."; exit 1; }
+	@sed -E -i.bak \
+		-e 's#^(EXPO_PUBLIC_API_URL=[a-z]+://)[^:/]+#\1$(1)#' \
+		-e 's#^(EXPO_PUBLIC_WS_URL=[a-z]+://)[^:/]+#\1$(1)#' .env && rm -f .env.bak
+	@$(MAKE) --no-print-directory env >/dev/null
+	@grep -E '^EXPO_PUBLIC_(API|WS)_URL=' apps/mobile/.env | sed 's/^/  ✅ /'
+	@echo "  → Khởi động lại Metro với cache sạch: $(MOBILE) start --dev-client --clear"
+endef
+
+lan: ## Trỏ app vào IP LAN hiện tại của Mac (chạy lại mỗi khi đổi mạng)
+	@[ -n "$(LAN_IP)" ] || { echo "  ❌ Không tìm thấy IP LAN — đã kết nối Wi-Fi/LAN chưa?"; exit 1; }
+	@echo "  IP LAN hiện tại: $(LAN_IP) — điện thoại phải cùng mạng này."
+	@# Android đang cắm: so dải mạng (3 octet đầu) của điện thoại với Mac — khác dải là
+	@# không gọi được nhau, và app chỉ báo lỗi chung chung mà API không có log nào.
+	@phone=$$($(ADB) shell "ip -4 addr show wlan0" 2>/dev/null | awk '/inet /{split($$2,a,"/"); print a[1]}'); \
+	if [ -n "$$phone" ] && [ "$${phone%.*}" != "$$(echo $(LAN_IP) | sed 's/\.[0-9]*$$//')" ]; then \
+		echo "  ⚠️  Điện thoại Android đang ở $$phone — KHÁC mạng với Mac ($(LAN_IP))."; \
+		echo "     Cho điện thoại vào cùng Wi-Fi, hoặc dùng cáp: make localhost && make adb-reverse"; \
+	fi
+	$(call set_api_host,$(LAN_IP))
+
+localhost: ## Trỏ app về localhost (simulator / emulator / Android qua adb reverse)
+	$(call set_api_host,localhost)
+
+adb-reverse: ## Android cắm cáp: chuyển cổng API 3000 + Metro 8081 của máy về Mac
+	@$(ADB) reverse tcp:3000 tcp:3000 && $(ADB) reverse tcp:8081 tcp:8081 && \
+	echo "  ✅ Điện thoại gọi localhost:3000 / :8081 sẽ tới Mac (mất khi rút cáp)."
+
+device-ios: ## Chạy trên thiết bị ios thật
+	@yarn workspace @meetio/mobile ios --device
+
+# Giữ adb reverse SUỐT lúc chạy: Expo khởi động lại Metro, adb hay USB kết nối lại
+# đều xoá luật reverse — mất cổng 3000 là login lỗi mà API không có dòng log nào.
+# Vòng nền đặt lại mỗi 3 giây (vô hại khi đang dùng IP LAN), dừng khi lệnh kết thúc.
+device-adr: ## Chạy trên thiết bị android thật (giữ adb reverse 3000/8081 suốt phiên)
+	@( while true; do $(ADB) reverse tcp:3000 tcp:3000 >/dev/null 2>&1; \
+		$(ADB) reverse tcp:8081 tcp:8081 >/dev/null 2>&1; sleep 3; done ) & \
+	keeper=$$!; trap 'kill $$keeper 2>/dev/null' EXIT INT TERM; \
+	yarn workspace @meetio/mobile android --device
 
 doctor: ## Kiểm tra môi trường máy
 	@echo "  node    : $$(node -v 2>/dev/null || echo 'THIẾU')"

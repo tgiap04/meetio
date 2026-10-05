@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import type { ExpoConfig } from 'expo/config';
 
 /**
@@ -46,6 +47,13 @@ if (process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME) {
   ]);
 }
 
+// Push (US-29/30): Expo push token cần projectId của EAS — lấy bằng `npx eas init`, đặt vào
+// EXPO_PUBLIC_EAS_PROJECT_ID ở .env gốc (không phải bí mật). Android còn cần FCM:
+// `google-services.json` của Firebase đặt cạnh file này (đã gitignore). Thiếu thứ nào thì
+// push tắt có chủ đích và app báo một dòng cảnh báo — không crash.
+const easProjectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+const googleServicesFile = existsSync(`${__dirname}/google-services.json`) ? './google-services.json' : undefined;
+
 // `newArchEnabled` được Expo CLI đọc và ghi ra `expo config` (xác nhận qua diff byte-identical
 // với app.json cũ), nhưng gói `@expo/config-types` ở bản này chưa khai nó trong `ExpoConfig` —
 // ép kiểu thay vì đánh rơi trường để tránh lỗi biên dịch giả.
@@ -73,10 +81,12 @@ const config = {
       monochromeImage: './assets/android-icon-monochrome.png',
     },
     predictiveBackGestureEnabled: false,
+    ...(googleServicesFile ? { googleServicesFile } : {}),
     package: 'com.tobi_04.meetio',
     // Hàng đợi transcript (SQLite) chứa nội dung cuộc họp — không cho vào bản sao lưu Google Drive.
     allowBackup: false,
   },
+  ...(easProjectId ? { extra: { eas: { projectId: easProjectId } } } : {}),
   web: {
     favicon: './assets/favicon.png',
     bundler: 'metro',

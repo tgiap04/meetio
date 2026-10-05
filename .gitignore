@@ -43,3 +43,6 @@ apps/api/openapi.json
 
 # Bộ nhớ nháp của subagent — trạng thái công cụ, không phải sản phẩm dự án.
 .claude/agent-memory/
+
+# Firebase (FCM) config cho push Android — tải từ Firebase console, không commit.
+apps/mobile/google-services.json
