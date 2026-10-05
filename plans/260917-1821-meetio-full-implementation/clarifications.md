@@ -82,3 +82,9 @@
 - Q: Stream chữ? → A: Làm Phase 19 — expo-audio useAudioStream → socket.io → Gemini Live `gemini-3.5-transcribe-live`; giữ cách chia đoạn 10s làm dự phòng
 - Q: Key Gemini đang ở gói miễn phí (Google có thể dùng dữ liệu để cải thiện sản phẩm)? → A: Chấp nhận và ghi rõ vào chính sách + màn Đồng ý; tăng phiên bản đồng ý lên 4
 - Q: Duyệt 3 việc (stream, dịch trực tiếp, vuốt xóa)? → A: Duyệt cả 3, làm song song
+
+## Session 2026-10-05 (dịch bằng ML Kit + sửa giao diện)
+- Q: Dịch dùng gì? → A: Google ML Kit Translation trên điện thoại, THAY HOÀN TOÀN Gemini cho phần dịch; điện thoại dịch câu chốt rồi gửi bản dịch lên máy chủ lưu; gỡ bộ dịch Gemini phía máy chủ
+- Q: Gói ngôn ngữ ML Kit (~30 MB) tải khi nào? → A: Khi bật "Dịch sang" ở màn cài đặt ghi âm; hiện tiến trình, cảnh báo khi dùng dữ liệu di động; chưa tải xong thì chưa bắt đầu ghi có dịch
+- Q: Bấm Kết thúc khi câu cuối chưa dịch xong? → A: Chờ đến khi dịch xong, không giới hạn thời gian (câu ML Kit báo lỗi thì đánh dấu chưa dịch rồi kết thúc tiếp, dịch lại được ở màn transcript)
+- Q: Lỗi giao diện được báo → A: Sửa: chữ đang ghi sát mép dưới; Hỏi AI bàn phím che ô nhập/nút gửi (Android), chữ "Chưa có câu hỏi nào" bị lộn ngược, chỉ báo "đang trả lời" sai vị trí

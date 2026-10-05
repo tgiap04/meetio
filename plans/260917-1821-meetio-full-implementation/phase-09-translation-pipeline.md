@@ -3,10 +3,12 @@
 **Liên kết:** [plan.md](plan.md) · [US-17→19](../../user_stories.md#e3--dịch-song-song) ·
 [Mô hình chi phí](../../docs/system-architecture.md#6-mô-hình-chi-phí)
 
-## Tổng quan
-**Ưu tiên:** Trung bình · **Trạng thái:** 🟡 implemented — awaiting device verification · **Phụ thuộc:** Phase 05, 07
+> **Cập nhật 2026-10-05:** Phần dịch phía máy chủ Gemini đã được **thay thế hoàn toàn bởi Phase 21** (ML Kit dịch trên điện thoại). Phần này ghi lại quyết định gốc nhưng không còn hiệu lực — xem [Phase 21](phase-21-mlkit-translation-and-ui-fixes.md) cho triển khai hiện tại.
 
-Dịch từng đoạn ngay trong lúc họp, lưu lại để đọc sau.
+## Tổng quan
+**Ưu tiên:** Trung bình · **Trạng thái:** 🟡 replaced by Phase 21 (ML Kit on-device) · **Phụ thuộc:** Phase 05, 07
+
+Dịch từng đoạn ngay trong lúc họp, lưu lại để đọc sau. **Phiên bản hiện tại dịch trên thiết bị bằng ML Kit (Phase 21), không dùng Gemini máy chủ.**
 
 ## Nhận định then chốt
 - Đây là khoản chi lớn nhất trên mỗi cuộc họp: ~180 lượt gọi nếu dịch từng câu. Gom lô 3–5 câu kéo
