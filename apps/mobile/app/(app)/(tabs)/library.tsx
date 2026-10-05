@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, StyleSheet } from 'react-native';
 import { ScreenSurface } from '../../../src/components/ui/screen-surface';
 import { router } from 'expo-router';
 import { MeetingStatus, type MeetingListItem } from '@meetio/shared';
 import { LibraryFiltersHeader } from '../../../src/components/library/library-filters-header';
-import { MeetingListRow } from '../../../src/components/ui/meeting-list-row';
+import { SwipeableMeetingRow } from '../../../src/components/library/swipeable-meeting-row';
+import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import {
   LibraryDateFilterSheet,
   type DateRangeFilter,
@@ -44,7 +45,7 @@ const EMPTY_DATE_RANGE: DateRangeFilter = { from: null, to: null };
  * of hundreds of rows loads more without a manual button, and rows outside
  * the viewport aren't mounted.
  *
- * A client-side 10s undo window on delete (US-26 — long press a row, see
+ * A client-side 10s undo window on delete (US-26 — swipe a row left or long press it, see
  * `use-delete-meeting-with-undo.ts`).
  *
  * The mock's two hardcoded "Gần đây" / "Tuần trước" date groups are dropped:
@@ -59,6 +60,7 @@ export default function LibraryScreen() {
   const [dateFilterVisible, setDateFilterVisible] = useState(false);
   const debouncedQuery = useDebouncedValue(queryText.trim(), SEARCH_DEBOUNCE_MS);
   const { pendingDeleteId, startDelete, undoDelete } = useDeleteMeetingWithUndo();
+  const openRowRef = useRef<SwipeableMethods | null>(null);
 
   const meetingsQuery = useInfiniteMeetingsQuery({
     q: debouncedQuery === '' ? undefined : debouncedQuery,
@@ -147,13 +149,17 @@ export default function LibraryScreen() {
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         renderItem={({ item }) => (
-          <MeetingListRow
-            badge={{ status: toStatusBadgeStatus(item.status) }}
-            leading="waveform"
-            meta={formatMeetingMeta(item)}
-            onLongPress={() => handleDeleteRequest(item)}
-            onPress={() => handleMeetingPress(item.id)}
-            title={item.title}
+          <SwipeableMeetingRow
+            onDeleteRequest={() => handleDeleteRequest(item)}
+            openRowRef={openRowRef}
+            row={{
+              badge: { status: toStatusBadgeStatus(item.status) },
+              leading: 'waveform',
+              meta: formatMeetingMeta(item),
+              onLongPress: () => handleDeleteRequest(item),
+              onPress: () => handleMeetingPress(item.id),
+              title: item.title,
+            }}
           />
         )}
         style={styles.list}

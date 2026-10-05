@@ -16,6 +16,9 @@ const plugins: ExpoConfig['plugins'] = [
     {
       microphonePermission:
         'Meetio cần quyền truy cập microphone để ghi âm cuộc họp và chuyển giọng nói thành văn bản.',
+      // Server-mode recognition records with expo-audio, which keeps recording under the screen
+      // lock only when its own microphone foreground service is declared.
+      enableBackgroundRecording: true,
     },
   ],
   'expo-sharing',

@@ -9,7 +9,7 @@ import { colors } from '../../src/theme/colors';
 import { typography } from '../../src/theme/typography';
 
 /**
- * Recording-consent gate (US-04, NFR-01 consent v2). A legal requirement, not
+ * Recording-consent gate (US-04, NFR-01 consent v4). A legal requirement, not
  * onboarding flavor text — it blocks the Start-recording action on Home until
  * accepted, and is shown again whenever `PublicUser.consent_required` is true
  * (first use, or the consent text version changed since the user last
@@ -17,7 +17,10 @@ import { typography } from '../../src/theme/typography';
  *
  * The copy below was corrected from an earlier version that wrongly said
  * Meetio stores the audio recording — it does not (see docs/privacy-policy.md
- * §2). Keep this summary short; the accurate detail lives in the full policy,
+ * §2). v3 (Phase 18) adds the one case where audio leaves the phone: a device
+ * that cannot recognise speech offline sends audio chunks to the server to be
+ * transcribed, never stored. v4 states that the Gemini free tier is in use, so Google may use the
+ * content to improve its products. Keep this summary short; the accurate detail lives in the full policy,
  * one tap away via "Đọc chính sách đầy đủ".
  */
 export default function ConsentScreen() {
@@ -34,10 +37,13 @@ export default function ConsentScreen() {
     <ScreenSurface style={styles.container}>
       <Text style={styles.title}>Đồng ý ghi âm</Text>
       <Text style={styles.body}>
-        Khi bạn ghi âm một cuộc họp, giọng nói được nhận diện ngay trên điện thoại của bạn — âm
-        thanh không rời khỏi máy. Bản chép lời (văn bản) được gửi về máy chủ Meetio và Google Gemini
-        để tạo tóm tắt, rút thực thể, phục vụ tìm kiếm và trả lời câu hỏi của bạn. Dữ liệu được giữ
-        theo hạn lưu trữ bạn chọn trong Cài đặt và có thể xóa bất cứ lúc nào.
+        Khi bạn ghi âm một cuộc họp, giọng nói thường được nhận diện ngay trên điện thoại của bạn nên
+        âm thanh không rời khỏi máy. Riêng trên điện thoại không nhận diện giọng nói offline được, âm
+        thanh được gửi liên tục tới máy chủ Meetio và Google Gemini để chuyển thành chữ; Meetio không lưu
+        âm thanh. Hiện Meetio dùng gói miễn phí của Gemini API, nên Google có thể dùng nội dung gửi tới
+        (văn bản và âm thanh) để cải thiện sản phẩm của họ. Bản chép lời (văn bản) được gửi về máy chủ Meetio và Google Gemini để tạo tóm tắt, rút
+        thực thể, dịch (nếu bạn bật dịch), phục vụ tìm kiếm và trả lời câu hỏi của bạn. Dữ liệu được giữ theo hạn lưu trữ bạn
+        chọn trong Cài đặt và có thể xóa bất cứ lúc nào.
       </Text>
 
       <Pressable accessibilityRole="link" onPress={() => router.push(PRIVACY_POLICY_ROUTE)}>

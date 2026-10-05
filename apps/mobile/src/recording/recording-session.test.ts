@@ -3,9 +3,9 @@ import { openNodeSqliteDb } from '../queue/test-support/node-sqlite-db';
 import { getLocalMeeting, insertLocalMeeting } from '../queue/local-meetings';
 import { nextOp, removeOp } from '../queue/lifecycle-ops';
 import { enqueueSegment, pendingSegments } from '../queue/segment-queue';
-import { createRecordingSession } from './recording-session';
+import { createRecordingSession, type RecordingSessionDeps } from './recording-session';
 import { resetRecordingStore, useRecordingStore } from './recording.store';
-import type { SttEngine, SttHandlers, SttStartOptions } from './stt-engine';
+import type { RecognitionMode, SttEngine, SttHandlers, SttStartOptions } from './stt-engine';
 
 const T0 = Date.UTC(2026, 8, 27, 7, 0, 0);
 
@@ -35,7 +35,7 @@ function fakeEngine() {
   };
 }
 
-function setup(serverSegments: TranscriptSegmentItem[] = [], failWrites = 0) {
+function setup(serverSegments: TranscriptSegmentItem[] = [], failWrites = 0, resumeMode: RecognitionMode = 'on_device') {
   const real = openNodeSqliteDb();
   let failuresLeft = failWrites;
   // Same database; the first `failWrites` transactions fail like a full or locked disk.
@@ -45,13 +45,19 @@ function setup(serverSegments: TranscriptSegmentItem[] = [], failWrites = 0) {
       failuresLeft-- > 0 ? Promise.reject(new Error('disk full')) : real.withExclusiveTransactionAsync(task),
   };
   const speech = fakeEngine();
+  const server = fakeEngine();
+  const modesAsked: RecognitionMode[] = [];
   let now = T0;
   const timers: { at: number; fn: () => void }[] = [];
   const kicks: number[] = [];
   const live: (string | null)[] = [];
   const keepalive = { starts: 0, stops: 0 };
-  const session = createRecordingSession({
-    engine: speech.engine,
+  const deps: RecordingSessionDeps = {
+    engineFor: (mode) => {
+      modesAsked.push(mode);
+      return mode === 'server' ? server.engine : speech.engine;
+    },
+    resolveMode: async () => resumeMode,
     db: async () => db,
     worker: { kick: () => void kicks.push(now), setLive: (id) => void live.push(id) },
     keepalive: { start: async () => void (keepalive.starts += 1), stop: async () => void (keepalive.stops += 1) },
@@ -63,7 +69,8 @@ function setup(serverSegments: TranscriptSegmentItem[] = [], failWrites = 0) {
       return () => void timers.splice(timers.indexOf(t), 1);
     },
     newId: () => 'meeting-1',
-  });
+  };
+  const session = createRecordingSession(deps);
   /** Moves the clock and fires every timer that came due. */
   const advance = (ms: number) => {
     now += ms;
@@ -73,10 +80,10 @@ function setup(serverSegments: TranscriptSegmentItem[] = [], failWrites = 0) {
     }
   };
   const settle = () => new Promise((r) => setTimeout(r, 0));
-  return { db, speech, session, advance, settle, kicks, live, keepalive, setNow: (t: number) => (now = t) };
+  return { deps, db, speech, server, modesAsked, session, advance, settle, kicks, live, keepalive, setNow: (t: number) => (now = t) };
 }
 
-const SETTINGS = { ownerId: 'u1', language: 'vi-VN', audioSource: 'device_mic', quality: 'high' } as const;
+const SETTINGS = { ownerId: 'u1', language: 'vi-VN', audioSource: 'device_mic', quality: 'high', mode: 'on_device' } as const;
 
 describe('recording session', () => {
   beforeEach(() => resetRecordingStore());
@@ -97,6 +104,16 @@ describe('recording session', () => {
     expect(useRecordingStore.getState()).toMatchObject({ phase: 'recording', meetingId: id, startedAt: T0, quality: 'standard' });
     expect(h.live).toEqual([id]);
     expect(h.keepalive.starts).toBe(1);
+  });
+
+  it('start passes the chosen translation language into the create body (Phase 09), and defaults to none', async () => {
+    const withTranslation = setup();
+    const id = await withTranslation.session.start({ ...SETTINGS, translateTo: 'en-US' });
+    expect((await getLocalMeeting(withTranslation.db, id))?.createBody).toMatchObject({ source_language: 'vi-VN', translate_to: 'en-US' });
+    resetRecordingStore();
+    const without = setup();
+    await without.session.start(SETTINGS);
+    expect((await getLocalMeeting(without.db, 'meeting-1'))?.createBody.translate_to).toBeNull();
   });
 
   it('refuses a second recording while one is live', async () => {
@@ -234,6 +251,141 @@ describe('recording session', () => {
     expect(useRecordingStore.getState().problem).toBeNull();
   });
 
+  describe('server mode (Phase 18)', () => {
+    const SERVER = { ...SETTINGS, mode: 'server' } as const;
+
+    it('records with the server engine, never the on-device one (interim is requested; only the streaming engine honours it)', async () => {
+      const h = setup();
+      await h.session.start(SERVER);
+      expect(h.modesAsked).toEqual(['server']);
+      expect(h.server.starts).toEqual([{ lang: 'vi-VN', interim: true, volume: true, bluetooth: false, upload: { ownerId: 'u1', meetingId: 'meeting-1' } }]);
+      expect(h.speech.starts).toEqual([]);
+    });
+
+    it('uses the on-device engine for on-device mode', async () => {
+      const h = setup();
+      await h.session.start(SETTINGS);
+      expect(h.modesAsked).toEqual(['on_device']);
+      expect(h.speech.starts).toHaveLength(1);
+      expect(h.server.starts).toEqual([]);
+    });
+
+    it('turns chunk transcripts into segments and lost chunks into a gap before the next one', async () => {
+      const h = setup();
+      await h.session.start(SERVER);
+      h.server.emit().onStart();
+      h.advance(12_000);
+      h.server.emit().onResult('đoạn một', true);
+      h.server.emit().onGap?.(10_000);
+      h.advance(10_000);
+      h.server.emit().onResult('đoạn ba', true);
+      await h.settle();
+      expect(useRecordingStore.getState().lines.map((l) => [l.text, l.gapBeforeMs])).toEqual([
+        ['đoạn một', null],
+        ['đoạn ba', 10_000],
+      ]);
+    });
+
+    it('does not restart the engine while it simply keeps recording', async () => {
+      const h = setup();
+      await h.session.start(SERVER);
+      h.server.emit().onStart();
+      h.advance(60_000);
+      expect(h.server.starts).toHaveLength(1);
+    });
+
+    it('pause waits for the last chunk transcript, which still becomes a segment, before the pause is recorded', async () => {
+      const h = setup();
+      await h.session.start(SERVER);
+      h.server.emit().onStart();
+      h.advance(4_000);
+      const paused = h.session.pause();
+      await h.settle();
+      expect(h.server.stops()).toBe(1);
+      expect(useRecordingStore.getState().phase).toBe('recording'); // still flushing the last chunk
+      h.server.emit().onResult('câu cuối trước khi tạm dừng', true);
+      h.server.emit().onEnd();
+      await paused;
+      expect(useRecordingStore.getState()).toMatchObject({ phase: 'paused' });
+      expect(useRecordingStore.getState().lines.map((l) => l.text)).toEqual(['câu cuối trước khi tạm dừng']);
+    });
+
+    it('does not hang on pause when the engine never reports its end', async () => {
+      const h = setup();
+      await h.session.start(SERVER);
+      h.server.emit().onStart();
+      const paused = h.session.pause();
+      await h.settle();
+      h.advance(40_000);
+      await paused;
+      expect(useRecordingStore.getState().phase).toBe('paused');
+    });
+
+    it('pause does not wait for an engine that never started', async () => {
+      const h = setup();
+      await h.session.start(SERVER);
+      await h.session.pause();
+      expect(useRecordingStore.getState().phase).toBe('paused');
+    });
+
+    it('stores the mode with the local meeting so a resume can keep it', async () => {
+      const h = setup();
+      await h.session.start(SERVER);
+      expect(await getLocalMeeting(h.db, 'meeting-1')).toMatchObject({ recognitionMode: 'server' });
+    });
+
+    const stored = (h: ReturnType<typeof setup>, recognitionMode: 'on_device' | 'server' | null) =>
+      insertLocalMeeting(h.db, {
+        ownerId: 'u1',
+        id: 'meeting-1',
+        startedAt: T0,
+        createBody: { source_language: 'vi-VN', translate_to: null, audio_source: 'device_mic', recording_quality: 'high' },
+        recognitionMode,
+      });
+
+    it('a meeting that started on-device resumes on-device even if the device now looks server-only (never a silent switch)', async () => {
+      const h = setup([], 0, 'server');
+      await stored(h, 'on_device');
+      await h.session.resumeUnfinished('meeting-1');
+      expect(h.modesAsked).toEqual(['on_device']);
+      expect(h.server.starts).toEqual([]);
+      expect(h.speech.starts).toHaveLength(1);
+    });
+
+    it('a meeting that started on the server resumes there', async () => {
+      const h = setup([], 0, 'on_device');
+      await stored(h, 'server');
+      await h.session.resumeUnfinished('meeting-1');
+      expect(h.modesAsked).toEqual(['server']);
+      expect(h.server.starts[0]).toMatchObject({ upload: { ownerId: 'u1', meetingId: 'meeting-1' } });
+    });
+
+    it('does not guess when an adopted meeting has no stored mode and the device cannot tell', async () => {
+      const real = setup();
+      const h = { ...real };
+      await stored(h, null);
+      const failing = createRecordingSession({ ...real.deps, resolveMode: () => Promise.reject(new Error('cannot tell')) });
+      await expect(failing.resumeUnfinished('meeting-1')).rejects.toThrow('cannot tell');
+      expect(real.speech.starts).toEqual([]);
+      expect(real.server.starts).toEqual([]);
+    });
+
+    it('a recovered meeting with no stored mode picks its engine from what the device can do now', async () => {
+      const h = setup([], 0, 'server');
+      await insertLocalMeeting(h.db, {
+        ownerId: 'u1',
+        id: 'meeting-1',
+        startedAt: T0,
+        createBody: { source_language: 'vi-VN', translate_to: null, audio_source: 'device_mic', recording_quality: 'high' },
+        recognitionMode: null,
+      });
+      await h.session.resumeUnfinished('meeting-1');
+      expect(h.modesAsked).toEqual(['server']);
+      expect(h.server.starts).toHaveLength(1);
+      expect(h.speech.starts).toEqual([]);
+    });
+  });
+
   describe('resuming a meeting the app died in (US-15)', () => {
     const serverSeg = (seq: number, text: string, start: number): TranscriptSegmentItem =>
       ({ id: `s${seq}`, seq, text, started_at_ms: start, ended_at_ms: start + 900, gap_before_ms: null, is_edited: false }) as TranscriptSegmentItem;
@@ -281,6 +433,21 @@ describe('recording session', () => {
       await h.settle();
       expect(useRecordingStore.getState().lines.map((l) => l.seq)).toEqual([1, 2, 3]);
       expect((await pendingSegments(h.db, 'meeting-1', 10)).map((s) => s.seq)).toEqual([3]);
+    });
+
+    it('shows the translations the server already stored for the lines it loads (Phase 09)', async () => {
+      const translated = { ...serverSeg(1, 'xin chào', 1_000), translated_text: 'hello', translated_to: 'en-US' } as TranscriptSegmentItem;
+      const h = setup([translated, { ...serverSeg(2, 'chưa dịch', 3_000), translated_text: null, translated_to: null } as TranscriptSegmentItem]);
+      await insertLocalMeeting(h.db, {
+        ownerId: 'u1',
+        id: 'meeting-1',
+        startedAt: T0,
+        createBody: { source_language: 'vi-VN', translate_to: 'en-US', audio_source: 'device_mic', recording_quality: 'high' },
+        serverCreated: true,
+        lastSeq: 2,
+      });
+      await h.session.resumeUnfinished('meeting-1');
+      expect(useRecordingStore.getState().translations).toEqual({ 1: { status: 'done', text: 'hello', to: 'en-US' } });
     });
 
     it('a meeting left paused resumes through a replayed `resume`', async () => {

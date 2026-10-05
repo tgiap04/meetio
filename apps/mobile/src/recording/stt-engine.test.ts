@@ -1,4 +1,4 @@
-import { pickRecordingLanguages, RECORDING_LANGUAGES } from './stt-engine';
+import { pickRecordingLanguages, pickServerRecordingLanguages, RECORDING_LANGUAGES, resolveRecognitionMode } from './stt-engine';
 
 describe('pickRecordingLanguages', () => {
   it('filters to only installed locales', () => {
@@ -81,5 +81,29 @@ describe('pickRecordingLanguages', () => {
   it('only returns languages in RECORDING_LANGUAGES', () => {
     const result = pickRecordingLanguages(['vi-VN', 'en-US', 'ja-JP']);
     expect(result.every((l) => RECORDING_LANGUAGES.includes(l))).toBe(true);
+  });
+});
+
+describe('resolveRecognitionMode', () => {
+  it('uses the device when it can recognise at least one offered language offline', () => {
+    expect(resolveRecognitionMode(['en-US'])).toBe('on_device');
+    expect(resolveRecognitionMode(['vi_VN', 'ja-JP'])).toBe('on_device');
+  });
+
+  it('falls back to the server when no offered language is installed on-device', () => {
+    expect(resolveRecognitionMode([])).toBe('server');
+    expect(resolveRecognitionMode(['ja-JP', 'ko-KR'])).toBe('server');
+  });
+});
+
+describe('pickServerRecordingLanguages', () => {
+  it('offers every language, device language first', () => {
+    expect(pickServerRecordingLanguages('en-GB').map((l) => l.tag)).toEqual(['en-US', 'vi-VN']);
+    expect(pickServerRecordingLanguages('vi').map((l) => l.tag)).toEqual(['vi-VN', 'en-US']);
+  });
+
+  it('keeps the default order for an unrelated or unknown device language', () => {
+    expect(pickServerRecordingLanguages('ja-JP').map((l) => l.tag)).toEqual(['vi-VN', 'en-US']);
+    expect(pickServerRecordingLanguages().map((l) => l.tag)).toEqual(['vi-VN', 'en-US']);
   });
 });

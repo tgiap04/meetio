@@ -92,9 +92,65 @@ describe('TranscriptSegmentRow', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  it('renders the translated text card when present', () => {
-    const { renderer } = render({ segment: segment({ translated_text: 'Hello everyone' }) });
+  it('renders the translated text card when present (side by side)', () => {
+    const { renderer } = render({ segment: segment({ translated_text: 'Hello everyone' }), viewMode: 'both', translationEnabled: true });
     const texts = renderer.root.findAllByType(Text).map((n) => n.props.children);
     expect(texts).toContain('Hello everyone');
+  });
+
+  describe('view modes (Phase 09)', () => {
+    const translated = () => segment({ translated_text: 'Hello everyone', translated_to: 'en-US' });
+    const shown = (r: TestRenderer.ReactTestRenderer) => r.root.findAllByType(Text).map((n) => n.props.children);
+    const retryButton = (r: TestRenderer.ReactTestRenderer) =>
+      r.root.findAll((n) => n.props.accessibilityLabel === 'Thử lại dịch đoạn này' && typeof n.props.onPress === 'function');
+
+    it('original: only the original text, even when a translation exists', () => {
+      const { renderer } = render({ segment: translated(), viewMode: 'original', translationEnabled: true });
+      expect(shown(renderer)).toContain('Xin chào mọi người');
+      expect(shown(renderer)).not.toContain('Hello everyone');
+    });
+
+    it('translated: the translation replaces the original', () => {
+      const { renderer } = render({ segment: translated(), viewMode: 'translated', translationEnabled: true });
+      expect(shown(renderer)).toContain('Hello everyone');
+      expect(shown(renderer)).not.toContain('Xin chào mọi người');
+    });
+
+    it('both: original with the translation under it', () => {
+      const { renderer } = render({ segment: translated(), viewMode: 'both', translationEnabled: true });
+      const all = shown(renderer);
+      expect(all.indexOf('Hello everyone')).toBe(all.indexOf('Xin chào mọi người') + 1);
+    });
+
+    it('an untranslated segment of a translated meeting offers "Thử lại" in translated and both modes, never in original', () => {
+      const onRetryTranslation = jest.fn();
+      for (const viewMode of ['translated', 'both'] as const) {
+        const { renderer } = render({ viewMode, translationEnabled: true, onRetryTranslation });
+        expect(shown(renderer)).toContain('Xin chào mọi người'); // never a blank row
+        expect(shown(renderer)).toContain('Chưa dịch được');
+        act(() => retryButton(renderer)[0].props.onPress());
+      }
+      expect(onRetryTranslation).toHaveBeenCalledTimes(2);
+      const original = render({ viewMode: 'original', translationEnabled: true, onRetryTranslation });
+      expect(retryButton(original.renderer)).toHaveLength(0);
+    });
+
+    it('a meeting without translation shows no translation UI at all', () => {
+      const { renderer } = render({ viewMode: 'both', translationEnabled: false });
+      expect(shown(renderer)).not.toContain('Chưa dịch được');
+    });
+
+    it('shows retry progress and error for that segment', () => {
+      const { renderer } = render({ viewMode: 'both', translationEnabled: true, onRetryTranslation: jest.fn(), retryingTranslation: true });
+      expect(shown(renderer)).toContain('Đang dịch…');
+      const failed = render({ viewMode: 'both', translationEnabled: true, onRetryTranslation: jest.fn(), translationError: 'Dịch vụ AI tạm thời không khả dụng.' });
+      expect(shown(failed.renderer)).toContain('Dịch vụ AI tạm thời không khả dụng.');
+    });
+
+    it('the translated text cannot be edited in place — only the original can', () => {
+      const { renderer } = render({ segment: translated(), viewMode: 'translated', translationEnabled: true });
+      const press = renderer.root.findAll((n) => typeof n.props.onPress === 'function' && n.props.accessibilityLabel?.startsWith('Sửa đoạn'));
+      expect(press).toHaveLength(0);
+    });
   });
 });

@@ -4,17 +4,24 @@ import { getLocalMeeting, insertLocalMeeting, raiseLastSeq } from '../queue/loca
 import { recordOp } from '../queue/lifecycle-ops';
 import { enqueueSegment, pendingSegments, type NewSegment } from '../queue/segment-queue';
 import type { Scheduler } from './restart-loop';
-import type { SttEngine } from './stt-engine';
+import type { RecognitionMode, SttEngine } from './stt-engine';
 import { createRecognitionPipeline, type PipelineSettings, type RecognitionPipeline } from './recognition-pipeline';
-import { resetRecordingStore, useRecordingStore } from './recording.store';
+import { resetRecordingStore, useRecordingStore, type LiveTranslation } from './recording.store';
 import { mergeSavedLines, toLine } from './saved-lines';
 
 export interface RecordingSettings extends PipelineSettings {
   ownerId: string;
+  /** Decided at setup (screen 05); stored with the local meeting and reused on resume. */
+  mode: RecognitionMode;
+  /** Phase 09: translate each line into this language on the server (vi-VN / en-US); omitted or null = no translation. */
+  translateTo?: string | null;
 }
 
 export interface RecordingSessionDeps {
-  engine: SttEngine;
+  /** The recognition engine for a mode: on-device (expo-speech-recognition) or server (Phase 18). */
+  engineFor: (mode: RecognitionMode) => SttEngine;
+  /** What this device can do now — only for a resumed meeting with no stored mode (adopted from the server). Rejects when the device cannot tell. */
+  resolveMode: () => Promise<RecognitionMode>;
   db: () => Promise<SqlDb>;
   worker: { kick(): void; setLive(meetingId: string | null): void };
   keepalive: { start(): Promise<void>; stop(): Promise<void> };
@@ -64,10 +71,12 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
     });
   }
 
-  function wire(meetingId: string, startedAt: number, settings: PipelineSettings) {
+  function wire(meetingId: string, ownerId: string, startedAt: number, settings: PipelineSettings, mode: RecognitionMode) {
     pipeline?.dispose();
     pipeline = createRecognitionPipeline({
-      engine: deps.engine,
+      engine: deps.engineFor(mode),
+      mode,
+      upload: { ownerId, meetingId },
       now: deps.now,
       schedule: deps.schedule,
       meetingStartedAt: startedAt,
@@ -86,7 +95,7 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
 
   /** Stops the mic and waits until every utterance heard so far is on disk. */
   async function silence() {
-    pipeline?.silence();
+    await pipeline?.silence();
     store.setState({ partial: null, volume: 0 });
     await writes;
     if (unsaved.length > 0) {
@@ -108,13 +117,14 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
         id,
         ownerId: settings.ownerId,
         startedAt,
-        createBody: { source_language: settings.language, translate_to: null, audio_source: settings.audioSource, recording_quality: settings.quality },
+        createBody: { source_language: settings.language, translate_to: settings.translateTo ?? null, audio_source: settings.audioSource, recording_quality: settings.quality },
+        recognitionMode: settings.mode,
       });
       resetRecordingStore();
       store.setState({ phase: 'recording', meetingId: id, startedAt, quality: settings.quality });
       deps.worker.setLive(id);
       deps.worker.kick();
-      wire(id, startedAt, settings);
+      wire(id, settings.ownerId, startedAt, settings, settings.mode);
       await listen();
       return id;
     },
@@ -167,8 +177,15 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
       const lines = mergeSavedLines(await pendingSegments(db, meetingId, 1_000_000), server);
       if (server.length) await raiseLastSeq(db, meetingId, Math.max(...server.map((s) => s.seq)));
 
+      // Translations the server already holds for the lines shown (an unfinished meeting resumed on this device).
+      const translations: Record<number, LiveTranslation> = {};
+      for (const s of server) {
+        if (s.translated_text && s.translated_to) translations[s.seq] = { status: 'done', text: s.translated_text, to: s.translated_to };
+      }
+
       resetRecordingStore();
       store.setState({
+        translations,
         phase: local.status === 'ending' ? 'ending' : 'paused',
         meetingId,
         startedAt: local.startedAt,
@@ -182,7 +199,9 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
       if (local.status === 'ending') return;
 
       const settings = { language: local.createBody.source_language, audioSource: local.createBody.audio_source, quality: local.createBody.recording_quality };
-      wire(meetingId, local.startedAt, settings);
+      // Resume in the mode it started in: a meeting recorded on-device must never silently move to the
+      // server (NFR-02). If that mode is unavailable now, the engine reports the usual problem.
+      wire(meetingId, local.ownerId, local.startedAt, settings, local.recognitionMode ?? (await deps.resolveMode()));
       if (local.status === 'paused') {
         await this.resume();
         return;

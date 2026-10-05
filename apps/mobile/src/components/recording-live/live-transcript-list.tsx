@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
-import type { LiveLine } from '../../recording/recording.store';
+import type { LiveLine, LiveTranslation } from '../../recording/recording.store';
+import { TranslatedSegment } from '../translated-segment';
 import { formatGapLabel, formatSegmentTimestamp } from '../../utils/segment-formatting';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -16,6 +17,12 @@ export interface LiveTranscriptListProps {
   lines: readonly LiveLine[];
   /** The utterance still being recognised — drawn in a different colour (US-08). */
   partial: string | null;
+  /** Phase 09: translations by seq, drawn under their line. Absent = translation is not in play. */
+  translations?: Readonly<Record<number, LiveTranslation>>;
+  onRetryTranslation?: (seq: number) => void;
+  /** Seqs whose manual retry is running, and why the last one failed. */
+  retryingTranslations?: ReadonlySet<number>;
+  translationErrors?: Readonly<Record<number, string>>;
 }
 
 /**
@@ -24,7 +31,7 @@ export interface LiveTranscriptListProps {
  * Every interruption shows as a gap marker, never silently joined (US-10). Virtualised FlatList,
  * like the Phase 10 transcript, so a 60-minute meeting stays smooth.
  */
-export function LiveTranscriptList({ lines, partial }: LiveTranscriptListProps) {
+export function LiveTranscriptList({ lines, partial, translations, onRetryTranslation, retryingTranslations, translationErrors }: LiveTranscriptListProps) {
   const list = useRef<FlatList<LiveLine>>(null);
   const [following, setFollowing] = useState(true);
   const [unread, setUnread] = useState(0);
@@ -55,19 +62,32 @@ export function LiveTranscriptList({ lines, partial }: LiveTranscriptListProps) 
         ref={list}
         contentContainerStyle={styles.content}
         data={lines}
+        extraData={{ translations, retryingTranslations, translationErrors }}
         keyExtractor={(line) => String(line.seq)}
         ListEmptyComponent={partial ? null : <Text style={styles.empty}>Hãy bắt đầu nói — chữ sẽ hiện ở đây.</Text>}
         ListFooterComponent={partial ? <Text style={styles.partial} testID="live-partial">{partial}</Text> : null}
         onScrollBeginDrag={handleScroll}
         onMomentumScrollEnd={handleScroll}
         onScrollEndDrag={handleScroll}
-        renderItem={({ item }) => (
-          <View style={styles.line}>
-            {item.gapBeforeMs !== null ? <Text style={styles.gap}>{formatGapLabel(item.gapBeforeMs)}</Text> : null}
-            <Text style={styles.timestamp}>{formatSegmentTimestamp(item.startedAtMs)}</Text>
-            <Text style={styles.text}>{item.text}</Text>
-          </View>
-        )}
+        renderItem={({ item }) => {
+          const translation = translations?.[item.seq];
+          return (
+            <View style={styles.line}>
+              {item.gapBeforeMs !== null ? <Text style={styles.gap}>{formatGapLabel(item.gapBeforeMs)}</Text> : null}
+              <Text style={styles.timestamp}>{formatSegmentTimestamp(item.startedAtMs)}</Text>
+              <Text style={styles.text}>{item.text}</Text>
+              {translation ? (
+                <TranslatedSegment
+                  error={translationErrors?.[item.seq]}
+                  failed={translation.status === 'failed'}
+                  onRetry={onRetryTranslation ? () => onRetryTranslation(item.seq) : undefined}
+                  retrying={retryingTranslations?.has(item.seq)}
+                  text={translation.status === 'done' ? translation.text : null}
+                />
+              ) : null}
+            </View>
+          );
+        }}
         testID="live-transcript-list"
       />
       {!following && unread > 0 ? (

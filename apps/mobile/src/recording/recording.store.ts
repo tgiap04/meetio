@@ -16,6 +16,9 @@ export interface LiveLine {
   gapBeforeMs: number | null;
 }
 
+/** What the server said about one line's translation (Phase 09); a line with no entry is simply not translated (yet). */
+export type LiveTranslation = { status: 'done'; text: string; to: string } | { status: 'failed' };
+
 export interface RecordingState {
   phase: RecordingPhase;
   meetingId: string | null;
@@ -24,6 +27,8 @@ export interface RecordingState {
   pausedMs: number;
   pausedAt: number | null;
   lines: LiveLine[];
+  /** Translations by seq, filled from `segment_translated` / `segment_translation_failed` on the recording socket. */
+  translations: Record<number, LiveTranslation>;
   partial: string | null;
   volume: number;
   sync: { pending: number; online: boolean };
@@ -41,6 +46,7 @@ const INITIAL: RecordingState = {
   pausedMs: 0,
   pausedAt: null,
   lines: [],
+  translations: {},
   partial: null,
   volume: 0,
   sync: { pending: 0, online: true },
@@ -51,6 +57,15 @@ const INITIAL: RecordingState = {
 export const useRecordingStore = create<RecordingState>(() => INITIAL);
 
 export const resetRecordingStore = () => useRecordingStore.setState(INITIAL);
+
+/** Applies a server translation event — only to the meeting being recorded, and a failure never undoes a success. */
+export function setLiveTranslation(meetingId: string, seq: number, value: LiveTranslation): void {
+  useRecordingStore.setState((s) => {
+    if (s.meetingId !== meetingId) return s;
+    if (value.status === 'failed' && s.translations[seq]?.status === 'done') return s;
+    return { translations: { ...s.translations, [seq]: value } };
+  });
+}
 
 /** Recorded time so far, pauses excluded (US-09). */
 export function elapsedMs(state: Pick<RecordingState, 'startedAt' | 'pausedMs' | 'pausedAt'>, now: number): number {

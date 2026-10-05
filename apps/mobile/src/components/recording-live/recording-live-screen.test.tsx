@@ -1,5 +1,6 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { Alert, Text } from 'react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 /** `app/(app)/recording-live.tsx` (screen 06) against the real recording store and a fake session. */
 const mockReplace = jest.fn();
@@ -25,10 +26,22 @@ import { Waveform } from './waveform';
 const mounted: TestRenderer.ReactTestRenderer[] = [];
 afterEach(() => act(() => mounted.splice(0).forEach((r) => r.unmount())));
 
+const mockRetryTranslation = jest.fn();
+jest.mock('../../api/segment-translation', () => ({ retrySegmentTranslation: (...a: unknown[]) => mockRetryTranslation(...a) }));
+
+const clients: QueryClient[] = [];
+afterEach(() => clients.splice(0).forEach((c) => c.clear()));
+
 function render() {
   let r!: TestRenderer.ReactTestRenderer;
+  const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
+  clients.push(client);
   act(() => {
-    r = TestRenderer.create(<RecordingLiveScreen />);
+    r = TestRenderer.create(
+      <QueryClientProvider client={client}>
+        <RecordingLiveScreen />
+      </QueryClientProvider>,
+    );
   });
   mounted.push(r);
   return r;
@@ -125,5 +138,40 @@ describe('(app)/recording-live screen', () => {
   it('shows the problem the user has to act on', () => {
     useRecordingStore.setState({ problem: 'Máy chưa tải gói nhận diện offline cho ngôn ngữ này.' });
     expect(texts(render())).toContain('Máy chưa tải gói nhận diện offline cho ngôn ngữ này.');
+  });
+
+  describe('translations (Phase 09)', () => {
+    const line = (seq: number, text: string) => ({ seq, text, startedAtMs: seq * 1_000, endedAtMs: seq * 1_000 + 500, gapBeforeMs: null });
+
+    it('shows a translation under its line as soon as the socket delivers it', () => {
+      useRecordingStore.setState({ lines: [line(1, 'xin chào')] });
+      const r = render();
+      expect(texts(r)).not.toContain('hello');
+      act(() => useRecordingStore.setState({ translations: { 1: { status: 'done', text: 'hello', to: 'en-US' } } }));
+      const all = texts(r);
+      expect(all.indexOf('hello')).toBe(all.indexOf('xin chào') + 1);
+    });
+
+    it('"Thử lại" on a failed line retries it and shows the translation that comes back', async () => {
+      mockRetryTranslation.mockResolvedValue({ seq: 1, translated_text: 'hello', translated_to: 'en-US' });
+      useRecordingStore.setState({ lines: [line(1, 'xin chào')], translations: { 1: { status: 'failed' } } });
+      const r = render();
+      expect(texts(r)).toContain('Chưa dịch được');
+      const retry = r.root.findAll((n) => n.props.accessibilityLabel === 'Thử lại dịch đoạn này' && typeof n.props.onPress === 'function')[0];
+      await act(async () => retry.props.onPress());
+      expect(mockRetryTranslation).toHaveBeenCalledWith('m-1', 1);
+      expect(useRecordingStore.getState().translations[1]).toEqual({ status: 'done', text: 'hello', to: 'en-US' });
+      expect(texts(r)).toContain('hello');
+    });
+
+    it('keeps "Thử lại" and says why when the retry fails', async () => {
+      mockRetryTranslation.mockRejectedValue(new Error('boom'));
+      useRecordingStore.setState({ lines: [line(1, 'xin chào')], translations: { 1: { status: 'failed' } } });
+      const r = render();
+      const retry = r.root.findAll((n) => n.props.accessibilityLabel === 'Thử lại dịch đoạn này' && typeof n.props.onPress === 'function')[0];
+      await act(async () => retry.props.onPress());
+      expect(useRecordingStore.getState().translations[1]).toEqual({ status: 'failed' });
+      expect(texts(r)).toContain('Thử lại');
+    });
   });
 });

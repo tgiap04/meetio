@@ -1,5 +1,5 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { FlatList, Text, TextInput } from 'react-native';
+import { Alert, FlatList, Text, TextInput } from 'react-native';
 
 /**
  * Exercises `app/(app)/(tabs)/library.tsx` against mocked data hooks, without
@@ -27,6 +27,18 @@ jest.mock('expo-router', () => ({
 const mockUseInfiniteMeetingsQuery = jest.fn();
 jest.mock('../../hooks/use-meetings-query', () => ({
   useInfiniteMeetingsQuery: (...args: unknown[]) => mockUseInfiniteMeetingsQuery(...args),
+}));
+
+// The real swipeable needs the Reanimated runtime; `swipeable-meeting-row.test.tsx` covers its wiring.
+// Here it renders the row plus its action so the screen's confirm flow can be driven.
+jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => ({
+  __esModule: true,
+  default: ({ children, renderRightActions }: { children: React.ReactNode; renderRightActions: () => React.ReactNode }) => (
+    <>
+      {children}
+      {renderRightActions()}
+    </>
+  ),
 }));
 
 const mockStartDelete = jest.fn();
@@ -193,6 +205,34 @@ describe('(tabs)/library screen', () => {
     // undo-window mechanics themselves are covered by
     // `use-delete-meeting-with-undo.test.tsx`.
     expect(row).toBeTruthy();
+  });
+
+  it('the swipe action asks for confirmation, and confirming starts the undo countdown', () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockSuccess([meeting({ id: 'sprint-review', title: 'Sprint Review' })]);
+    const renderer = render();
+    act(() => {
+      renderer.root.findByProps({ accessibilityLabel: 'Xóa cuộc họp Sprint Review' }).props.onPress();
+    });
+    expect(alertSpy).toHaveBeenCalledTimes(1);
+    expect(mockStartDelete).not.toHaveBeenCalled();
+    const buttons = alertSpy.mock.calls[0][2] ?? [];
+    act(() => buttons.find((b) => b.text === 'Xóa')?.onPress?.());
+    expect(mockStartDelete).toHaveBeenCalledWith('sprint-review');
+    alertSpy.mockRestore();
+  });
+
+  it('cancelling the confirm leaves the meeting alone', () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockSuccess([meeting({ id: 'sprint-review', title: 'Sprint Review' })]);
+    const renderer = render();
+    act(() => {
+      renderer.root.findByProps({ accessibilityLabel: 'Xóa cuộc họp Sprint Review' }).props.onPress();
+    });
+    const buttons = alertSpy.mock.calls[0][2] ?? [];
+    act(() => buttons.find((b) => b.text === 'Hủy')?.onPress?.());
+    expect(mockStartDelete).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
   });
 
   it('shows the undo banner and calls undoDelete when a delete is pending', () => {

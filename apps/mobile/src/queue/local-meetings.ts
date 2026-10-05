@@ -1,5 +1,6 @@
 import type { CreateMeetingRequest } from '@meetio/shared';
 import type { SqlDb } from './queue-db';
+import type { RecognitionMode } from '../recording/stt-engine';
 
 /**
  * A meeting this device is recording or has not finished syncing. It exists locally from the
@@ -22,6 +23,8 @@ export interface LocalMeeting {
   pausedAt: number | null;
   /** Server refused the meeting for good (e.g. CONSENT_REQUIRED) — sync stops until the user acts. */
   blocked: string | null;
+  /** How it is being recognised; `null` for a meeting adopted from the server (no local history). */
+  recognitionMode: RecognitionMode | null;
 }
 
 interface Row {
@@ -35,6 +38,7 @@ interface Row {
   paused_ms: number;
   paused_at: number | null;
   blocked: string | null;
+  recognition_mode: RecognitionMode | null;
 }
 
 const toMeeting = (r: Row): LocalMeeting => ({
@@ -48,6 +52,7 @@ const toMeeting = (r: Row): LocalMeeting => ({
   pausedMs: r.paused_ms,
   pausedAt: r.paused_at,
   blocked: r.blocked,
+  recognitionMode: r.recognition_mode,
 });
 
 export async function insertLocalMeeting(
@@ -57,11 +62,12 @@ export async function insertLocalMeeting(
     lastSeq?: number;
     status?: LocalMeetingStatus;
     pausedAt?: number | null;
+    recognitionMode?: RecognitionMode | null;
   },
 ): Promise<void> {
   await db.runAsync(
-    `INSERT INTO local_meetings (id, owner_id, status, started_at, create_body, server_created, last_seq, paused_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO local_meetings (id, owner_id, status, started_at, create_body, server_created, last_seq, paused_at, recognition_mode)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       m.id,
       m.ownerId,
@@ -71,6 +77,7 @@ export async function insertLocalMeeting(
       m.serverCreated ? 1 : 0,
       m.lastSeq ?? 0,
       m.pausedAt ?? null,
+      m.recognitionMode ?? null,
     ],
   );
 }

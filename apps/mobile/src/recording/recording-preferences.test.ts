@@ -31,6 +31,7 @@ describe('recording preferences', () => {
         audioSource: AudioSource.DEVICE_MIC,
         quality: RecordingQuality.HIGH,
         language: 'vi-VN',
+        translateTo: null,
       });
       const prefs = await readRecordingPreferences();
       expect(prefs.audioSource).toBe(AudioSource.DEVICE_MIC);
@@ -44,6 +45,7 @@ describe('recording preferences', () => {
         audioSource: AudioSource.DEVICE_MIC,
         quality: RecordingQuality.HIGH,
         language: null,
+        translateTo: null,
       });
       const prefs = await readRecordingPreferences();
       expect(prefs.audioSource).toBe(AudioSource.DEVICE_MIC);
@@ -55,6 +57,7 @@ describe('recording preferences', () => {
         audioSource: AudioSource.DEVICE_MIC,
         quality: RecordingQuality.HIGH,
         language: 'custom-lang',
+        translateTo: null,
       };
       await writeRecordingPreferences(stored);
       const prefs = await readRecordingPreferences();
@@ -66,6 +69,7 @@ describe('recording preferences', () => {
         audioSource: AudioSource.DEVICE_MIC,
         quality: RecordingQuality.HIGH,
         language: null,
+        translateTo: null,
       });
       const prefs = await readRecordingPreferences();
       expect(prefs.language).toBeNull();
@@ -78,6 +82,7 @@ describe('recording preferences', () => {
         audioSource: AudioSource.DEVICE_MIC,
         quality: RecordingQuality.STANDARD,
         language: 'en-US',
+        translateTo: 'vi-VN',
       };
       await writeRecordingPreferences(toWrite);
       const read = await readRecordingPreferences();
@@ -91,6 +96,7 @@ describe('recording preferences', () => {
           audioSource: source as AudioSource,
           quality: RecordingQuality.HIGH,
           language: null,
+        translateTo: null,
         });
         const prefs = await readRecordingPreferences();
         expect(prefs.audioSource).toBe(source);
@@ -104,6 +110,7 @@ describe('recording preferences', () => {
           audioSource: AudioSource.DEVICE_MIC,
           quality: quality as RecordingQuality,
           language: null,
+        translateTo: null,
         });
         const prefs = await readRecordingPreferences();
         expect(prefs.quality).toBe(quality);
@@ -115,15 +122,39 @@ describe('recording preferences', () => {
         audioSource: AudioSource.DEVICE_MIC,
         quality: RecordingQuality.HIGH,
         language: 'vi-VN',
+        translateTo: null,
       });
       await writeRecordingPreferences({
         audioSource: AudioSource.DEVICE_MIC,
         quality: RecordingQuality.STANDARD,
         language: 'en-US',
+        translateTo: null,
       });
       const prefs = await readRecordingPreferences();
       expect(prefs.quality).toBe(RecordingQuality.STANDARD);
       expect(prefs.language).toBe('en-US');
     });
+  });
+});
+
+describe('translateTo preference (Phase 09)', () => {
+  const base = { audioSource: AudioSource.DEVICE_MIC, quality: RecordingQuality.HIGH, language: 'vi-VN' };
+
+  it('defaults to off', async () => {
+    expect(DEFAULT_RECORDING_PREFERENCES.translateTo).toBeNull();
+    await writeRecordingPreferences({ ...base, translateTo: null });
+    expect((await readRecordingPreferences()).translateTo).toBeNull();
+  });
+
+  it('remembers vi-VN / en-US', async () => {
+    await writeRecordingPreferences({ ...base, translateTo: 'en-US' });
+    expect((await readRecordingPreferences()).translateTo).toBe('en-US');
+  });
+
+  it('falls back to off for a value the API would refuse, or one stored by an older version (missing)', async () => {
+    await writeRecordingPreferences({ ...base, translateTo: 'fr-FR' });
+    expect((await readRecordingPreferences()).translateTo).toBeNull();
+    await writeRecordingPreferences(base as never);
+    expect((await readRecordingPreferences()).translateTo).toBeNull();
   });
 });

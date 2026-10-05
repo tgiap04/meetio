@@ -23,6 +23,8 @@ export interface UnfinishedMeeting {
   serverOnly: boolean;
   /** Recognition language it was started with. */
   language: string;
+  /** Phase 09: language its lines are translated into, or null. Kept when the meeting is resumed here. */
+  translateTo: string | null;
 }
 
 const fromLocal = async (m: LocalMeeting): Promise<UnfinishedMeeting> => ({
@@ -32,6 +34,7 @@ const fromLocal = async (m: LocalMeeting): Promise<UnfinishedMeeting> => ({
   pending: await countPending(await openQueueDb(), m.id),
   serverOnly: false,
   language: m.createBody.source_language,
+  translateTo: m.createBody.translate_to ?? null,
 });
 
 /** Local meetings first (they hold unsynced text), then server ones this device knows nothing about. */
@@ -48,6 +51,7 @@ export async function listUnfinishedMeetings(ownerId: string, server: MeetingLis
       pending: 0,
       serverOnly: true,
       language: m.source_language,
+      translateTo: m.translate_to,
     }));
   return [...(await Promise.all(local.map(fromLocal))), ...serverOnly];
 }
@@ -61,7 +65,7 @@ export async function resumeUnfinishedMeeting(meeting: UnfinishedMeeting, ownerI
       id: meeting.id,
       ownerId,
       startedAt: meeting.startedAt,
-      createBody: { source_language: meeting.language, translate_to: null, audio_source: preferences.audioSource, recording_quality: preferences.quality },
+      createBody: { source_language: meeting.language, translate_to: meeting.translateTo, audio_source: preferences.audioSource, recording_quality: preferences.quality },
       serverCreated: true,
       status: meeting.state === 'paused' ? 'paused' : 'recording',
       pausedAt: meeting.state === 'paused' ? Date.now() : null,

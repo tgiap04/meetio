@@ -12,6 +12,8 @@ export interface SttStartOptions {
   interim: boolean;
   /** Let the OS route input from a Bluetooth headset (US-42). */
   bluetooth: boolean;
+  /** Server engine only: whose meeting the audio belongs to (owner guard + usage attribution). */
+  upload?: { ownerId: string; meetingId: string };
   /** Emit input levels for the waveform (quality `high`). */
   volume: boolean;
 }
@@ -23,6 +25,11 @@ export interface SttHandlers {
   onEnd(): void;
   /** Input level, roughly -2 (silence) … 10 (loud). */
   onVolume(value: number): void;
+  /**
+   * Audio of `ms` was lost (server engine only: a chunk that could not be transcribed). Shown in
+   * the transcript as "— Gián đoạn N giây —" before the next segment, like a restart gap.
+   */
+  onGap?(ms: number): void;
 }
 
 export interface SttEngine {
@@ -32,7 +39,7 @@ export interface SttEngine {
   subscribe(handlers: SttHandlers): () => void;
 }
 
-/** Languages Meetio offers, in display order. Only those the device can recognise ON-DEVICE are listed. */
+/** Languages Meetio offers, in display order. */
 export const RECORDING_LANGUAGES = [
   { tag: 'vi-VN', label: 'Tiếng Việt' },
   { tag: 'en-US', label: 'Tiếng Anh' },
@@ -42,12 +49,33 @@ export type RecordingLanguage = (typeof RECORDING_LANGUAGES)[number];
 
 const sameLanguage = (a: string, b: string) => a.toLowerCase().replace('_', '-') === b.toLowerCase();
 
+/** Device's own language first when it is one of the offered ones (US-12). */
+function deviceLanguageFirst(available: RecordingLanguage[], deviceLanguageTag?: string): RecordingLanguage[] {
+  const deviceFirst = available.find((l) => deviceLanguageTag && l.tag.split('-')[0] === deviceLanguageTag.split('-')[0]);
+  return deviceFirst ? [deviceFirst, ...available.filter((l) => l !== deviceFirst)] : available;
+}
+
 /**
- * US-12: list only what the device really supports offline (NFR-02: audio never leaves the phone),
- * with the device's own language first when it is one of them.
+ * US-12: on-device mode lists only what the device really supports offline (NFR-02: audio stays
+ * on the phone), with the device's own language first when it is one of them.
  */
 export function pickRecordingLanguages(installedLocales: string[], deviceLanguageTag?: string): RecordingLanguage[] {
   const available = RECORDING_LANGUAGES.filter((l) => installedLocales.some((installed) => sameLanguage(installed, l.tag)));
-  const deviceFirst = available.find((l) => deviceLanguageTag && l.tag.split('-')[0] === deviceLanguageTag.split('-')[0]);
-  return deviceFirst ? [deviceFirst, ...available.filter((l) => l !== deviceFirst)] : available;
+  return deviceLanguageFirst(available, deviceLanguageTag);
+}
+
+/** Server mode (Phase 18): the server recognises every offered language, so all are listed. */
+export function pickServerRecordingLanguages(deviceLanguageTag?: string): RecordingLanguage[] {
+  return deviceLanguageFirst([...RECORDING_LANGUAGES], deviceLanguageTag);
+}
+
+/**
+ * How speech becomes text on this phone: `on_device` whenever it can recognise at least one
+ * offered language offline (audio never leaves the phone), otherwise `server` — audio chunks go
+ * to the Meetio API (Phase 18).
+ */
+export type RecognitionMode = 'on_device' | 'server';
+
+export function resolveRecognitionMode(installedLocales: string[]): RecognitionMode {
+  return pickRecordingLanguages(installedLocales).length > 0 ? 'on_device' : 'server';
 }

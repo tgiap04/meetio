@@ -17,6 +17,18 @@ jest.mock('../../hooks/use-meeting-mutations', () => ({
   useReindexMeetingMutation: () => ({ mutate: mockReindexMutate, isPending: false }),
 }));
 
+const mockUseMeetingQuery = jest.fn();
+jest.mock('../../hooks/use-meeting-detail-query', () => ({
+  useMeetingQuery: (...args: unknown[]) => mockUseMeetingQuery(...args),
+}));
+
+const mockRetryTranslation = jest.fn();
+let mockRetrying = new Set<number>();
+let mockRetryErrors: Record<number, string> = {};
+jest.mock('../../hooks/use-retry-segment-translation', () => ({
+  useRetrySegmentTranslation: () => ({ retry: mockRetryTranslation, retrying: mockRetrying, errors: mockRetryErrors }),
+}));
+
 jest.mock('../../storage/transcript-read-position', () => ({
   readLastReadSeq: jest.fn().mockResolvedValue(null),
   writeLastReadSeq: jest.fn().mockResolvedValue(undefined),
@@ -72,6 +84,9 @@ function render(meetingId = 'm1', initialSeq?: number) {
 describe('RealTranscriptScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseMeetingQuery.mockReturnValue({ data: { translate_to: null } });
+    mockRetrying = new Set();
+    mockRetryErrors = {};
     jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   });
 
@@ -247,6 +262,57 @@ describe('RealTranscriptScreen', () => {
       const fetchNextPage = mockSuccess([segment({ seq: 1 })], { hasNextPage: true });
       render();
       expect(fetchNextPage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('translated meetings (Phase 09)', () => {
+    const translatedMeeting = () => mockUseMeetingQuery.mockReturnValue({ data: { translate_to: 'en-US' } });
+    const texts = (r: TestRenderer.ReactTestRenderer) => r.root.findAllByType(Text).map((n) => n.props.children);
+    const tab = (r: TestRenderer.ReactTestRenderer, label: string) =>
+      r.root.findAll((n) => n.props.accessibilityRole === 'tab' && typeof n.props.onPress === 'function' && n.findAllByType(Text)[0]?.props.children === label)[0];
+    const items = () => [
+      segment({ seq: 1, text: 'Xin chào', translated_text: 'Hello', translated_to: 'en-US' }),
+      segment({ seq: 2, text: 'Tạm biệt', translated_text: null, translated_to: null }),
+    ];
+
+    it('has no switch for a meeting without translation', () => {
+      mockSuccess(items().slice(0, 1).map((s) => ({ ...s, translated_text: null, translated_to: null })));
+      const r = render();
+      expect(texts(r)).not.toContain('Song song');
+    });
+
+    it('shows the switch, defaulting to side by side, and each mode changes what is read', () => {
+      translatedMeeting();
+      mockSuccess(items());
+      const r = render();
+      expect(texts(r)).toEqual(expect.arrayContaining(['Gốc', 'Dịch', 'Song song', 'Xin chào', 'Hello']));
+
+      act(() => tab(r, 'Gốc').props.onPress());
+      expect(texts(r)).toContain('Xin chào');
+      expect(texts(r)).not.toContain('Hello');
+
+      act(() => tab(r, 'Dịch').props.onPress());
+      expect(texts(r)).toContain('Hello');
+      expect(texts(r)).not.toContain('Xin chào');
+    });
+
+    it('offers "Thử lại" for an untranslated segment only and retries THAT seq', () => {
+      translatedMeeting();
+      mockSuccess(items());
+      const r = render();
+      const retry = r.root.findAll((n) => n.props.accessibilityLabel === 'Thử lại dịch đoạn này' && typeof n.props.onPress === 'function');
+      expect(retry).toHaveLength(1);
+      act(() => retry[0].props.onPress());
+      expect(mockRetryTranslation).toHaveBeenCalledWith(2);
+    });
+
+    it('a search also finds text in the translation while it is shown', () => {
+      translatedMeeting();
+      mockSuccess(items());
+      const r = render();
+      act(() => r.root.findByType(TextInput).props.onChangeText('hello'));
+      expect(texts(r)).toContain('Xin chào');
+      expect(texts(r)).not.toContain('Tạm biệt');
     });
   });
 });

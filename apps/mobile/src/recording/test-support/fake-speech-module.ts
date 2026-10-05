@@ -9,6 +9,8 @@ const listeners = new Map<string, Set<Listener>>();
 
 export const fakeSpeech = {
   installedLocales: ['vi-VN', 'en-US'] as string[],
+  /** Makes `getSupportedLocales` reject, like a native failure. */
+  localesError: null as Error | null,
   permission: { granted: true, canAskAgain: true },
   starts: [] as unknown[],
   stops: 0,
@@ -21,6 +23,7 @@ export const fakeSpeech = {
   reset() {
     listeners.clear();
     this.installedLocales = ['vi-VN', 'en-US'];
+    this.localesError = null;
     this.permission = { granted: true, canAskAgain: true };
     this.starts = [];
     this.stops = 0;
@@ -36,7 +39,10 @@ export const ExpoSpeechRecognitionModule = {
     listeners.get(name)!.add(listener);
     return { remove: () => listeners.get(name)?.delete(listener) };
   },
-  getSupportedLocales: async () => ({ locales: fakeSpeech.installedLocales, installedLocales: fakeSpeech.installedLocales }),
+  getSupportedLocales: async () => {
+    if (fakeSpeech.localesError) throw fakeSpeech.localesError;
+    return { locales: fakeSpeech.installedLocales, installedLocales: fakeSpeech.installedLocales };
+  },
   supportsOnDeviceRecognition: () => true,
   requestPermissionsAsync: async () => fakeSpeech.permission,
   getPermissionsAsync: async () => fakeSpeech.permission,

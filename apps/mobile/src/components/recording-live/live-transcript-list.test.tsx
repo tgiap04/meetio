@@ -3,6 +3,10 @@ import { Text, FlatList, type NativeScrollEvent } from 'react-native';
 import type { LiveLine } from '../../recording/recording.store';
 import { LiveTranscriptList, isNearBottom } from './live-transcript-list';
 
+// Unmount every renderer after its test: a mounted FlatList keeps scheduling updates into the next test.
+const mounted: TestRenderer.ReactTestRenderer[] = [];
+afterEach(() => act(() => mounted.splice(0).forEach((r) => r.unmount())));
+
 describe('LiveTranscriptList', () => {
   function renderList(props: Partial<Parameters<typeof LiveTranscriptList>[0]> = {}) {
     const merged = {
@@ -15,6 +19,7 @@ describe('LiveTranscriptList', () => {
     act(() => {
       renderer = TestRenderer.create(<LiveTranscriptList {...merged} />);
     });
+    mounted.push(renderer);
 
     return renderer;
   }
@@ -266,5 +271,50 @@ describe('LiveTranscriptList', () => {
       act(() => r.update(<LiveTranscriptList lines={[line(1), line(2), line(3), line(4)]} partial={null} />));
       expect(scrollToEnd).toHaveBeenCalled(); // following again
     });
+  });
+});
+
+describe('LiveTranscriptList translations (Phase 09)', () => {
+  const line = (seq: number): LiveLine => ({ seq, startedAtMs: seq * 1000, endedAtMs: seq * 1000 + 500, gapBeforeMs: null, text: `Dòng ${seq}` });
+  const mount = (props: Partial<Parameters<typeof LiveTranscriptList>[0]>) => {
+    let r!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      r = TestRenderer.create(<LiveTranscriptList lines={[line(1), line(2), line(3)]} partial={null} {...props} />);
+    });
+    mounted.push(r);
+    return r;
+  };
+  const texts = (r: TestRenderer.ReactTestRenderer) => r.root.findAllByType(Text).map((n) => n.props.children);
+
+  it('shows each translation under its own line, and none for lines without one', () => {
+    const r = mount({ translations: { 1: { status: 'done', text: 'Line one', to: 'en-US' }, 3: { status: 'done', text: 'Line three', to: 'en-US' } } });
+    const shown = texts(r);
+    expect(shown.indexOf('Line one')).toBe(shown.indexOf('Dòng 1') + 1);
+    expect(shown.indexOf('Line three')).toBe(shown.indexOf('Dòng 3') + 1);
+    expect(r.root.findAllByProps({ testID: 'translated-segment' }).filter((n) => typeof n.type === 'string')).toHaveLength(2);
+  });
+
+  it('a failed line offers "Thử lại" that retries THAT seq', () => {
+    const onRetryTranslation = jest.fn();
+    const r = mount({ translations: { 2: { status: 'failed' } }, onRetryTranslation });
+    expect(texts(r)).toContain('Chưa dịch được');
+    const retry = r.root.findAll((n) => n.props.accessibilityRole === 'button' && typeof n.props.onPress === 'function' && n.props.accessibilityLabel === 'Thử lại dịch đoạn này')[0];
+    act(() => retry.props.onPress());
+    expect(onRetryTranslation).toHaveBeenCalledWith(2);
+  });
+
+  it('shows progress for a retry in flight and the reason a retry failed', () => {
+    const r = mount({
+      translations: { 1: { status: 'failed' }, 2: { status: 'failed' } },
+      onRetryTranslation: jest.fn(),
+      retryingTranslations: new Set([1]),
+      translationErrors: { 2: 'Dịch vụ AI tạm thời không khả dụng.' },
+    });
+    expect(texts(r)).toEqual(expect.arrayContaining(['Đang dịch…', 'Dịch vụ AI tạm thời không khả dụng.']));
+  });
+
+  it('without translations the list is exactly as before', () => {
+    const r = mount({});
+    expect(r.root.findAllByProps({ testID: 'translated-segment' })).toHaveLength(0);
   });
 });

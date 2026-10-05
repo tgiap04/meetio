@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { getRecordingRuntime } from '../recording/recording-runtime';
 import type { RecordingSession } from '../recording/recording-session';
 
@@ -10,8 +10,12 @@ import type { RecordingSession } from '../recording/recording-session';
 export function useRecordingActions() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // State updates land a render late; a ref closes the window where a second tap (or the End alert) slips in.
+  const running = useRef(false);
 
   const run = useCallback(async <T,>(command: (session: RecordingSession) => Promise<T>): Promise<T | undefined> => {
+    if (running.current) return undefined;
+    running.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -20,6 +24,7 @@ export function useRecordingActions() {
       setError('Không thực hiện được thao tác. Transcript vẫn được giữ trên máy — thử lại.');
       return undefined;
     } finally {
+      running.current = false;
       setBusy(false);
     }
   }, []);

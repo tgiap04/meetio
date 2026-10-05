@@ -16,6 +16,13 @@ import TestRenderer, { act } from 'react-test-renderer';
  */
 const mockSlot = jest.fn((_props: unknown) => null);
 
+// The root layout wraps the app in GestureHandlerRootView (swipe-to-delete, Phase 20); the real
+// module needs native gesture-handler internals that Jest cannot resolve, so render a plain View.
+jest.mock('react-native-gesture-handler', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  GestureHandlerRootView: ({ children }: { children: React.ReactNode }) => require('react').createElement(require('react').Fragment, null, children),
+}));
+
 jest.mock('expo-router', () => ({
   Slot: (props: unknown) => mockSlot(props),
 }));

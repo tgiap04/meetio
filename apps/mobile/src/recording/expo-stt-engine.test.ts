@@ -1,4 +1,6 @@
-import { buildRecognitionOptions } from './expo-stt-engine';
+import { Platform } from 'react-native';
+import { buildRecognitionOptions, getOnDeviceLocales, OnDeviceCheckError } from './expo-stt-engine';
+import { fakeSpeech } from './test-support/fake-speech-module';
 import type { SttStartOptions } from './stt-engine';
 
 describe('buildRecognitionOptions', () => {
@@ -182,5 +184,32 @@ describe('buildRecognitionOptions', () => {
     expect(result.iosCategory).toBeDefined();
     expect(result.interimResults).toBe(true);
     expect(result.requiresOnDeviceRecognition).toBe(true);
+  });
+});
+
+describe('getOnDeviceLocales', () => {
+  beforeEach(() => fakeSpeech.reset());
+  afterEach(() => jest.restoreAllMocks());
+
+  it('lists what the native module reports as installed', async () => {
+    fakeSpeech.installedLocales = ['vi-VN'];
+    await expect(getOnDeviceLocales()).resolves.toEqual(['vi-VN']);
+  });
+
+  it('a successful empty answer is empty — the phone really cannot recognise offline', async () => {
+    fakeSpeech.installedLocales = [];
+    await expect(getOnDeviceLocales()).resolves.toEqual([]);
+  });
+
+  it('a native failure is NOT an empty list: it rejects so the audio is never silently sent to the server (NFR-02)', async () => {
+    fakeSpeech.localesError = new Error('service crashed');
+    await expect(getOnDeviceLocales()).rejects.toBeInstanceOf(OnDeviceCheckError);
+  });
+
+  it('Android below 13 has no reliable on-device recognition: empty without asking the module', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    jest.spyOn(Platform, 'Version', 'get').mockReturnValue(31);
+    fakeSpeech.localesError = new Error('must not be asked');
+    await expect(getOnDeviceLocales()).resolves.toEqual([]);
   });
 });

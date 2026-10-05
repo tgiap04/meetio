@@ -31,7 +31,7 @@ function render() {
   return renderer;
 }
 
-describe('ConsentScreen (NFR-01, consent v2)', () => {
+describe('ConsentScreen (NFR-01, consent v3)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockMutationState = { isPending: false, isError: false };
@@ -41,8 +41,20 @@ describe('ConsentScreen (NFR-01, consent v2)', () => {
     const renderer = render();
     const bodyText = renderer.root.findAllByType(Text).map((node) => node.props.children).join(' ');
     expect(bodyText).not.toContain('lưu bản ghi âm');
-    expect(bodyText).toContain('không rời khỏi máy');
     expect(bodyText).toContain('Google Gemini');
+  });
+
+  it('says on-device recognition is the usual case, not a guarantee, and discloses the server fallback (Phase 18)', () => {
+    const renderer = render();
+    const bodyText = renderer.root.findAllByType(Text).map((node) => node.props.children).join(' ').replace(/\s+/g, ' ');
+    expect(bodyText).toContain('thường được nhận diện ngay trên điện thoại');
+    expect(bodyText).not.toContain('giọng nói được nhận diện ngay trên điện thoại');
+    expect(bodyText).toContain(
+      'Riêng trên điện thoại không nhận diện giọng nói offline được, âm thanh được gửi liên tục tới máy chủ Meetio và Google Gemini để chuyển thành chữ; Meetio không lưu âm thanh.',
+    );
+    expect(bodyText).toContain(
+      'Hiện Meetio dùng gói miễn phí của Gemini API, nên Google có thể dùng nội dung gửi tới (văn bản và âm thanh) để cải thiện sản phẩm của họ.',
+    );
   });
 
   it('opens the full privacy policy when "Đọc chính sách đầy đủ" is pressed', () => {

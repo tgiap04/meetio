@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { TranscriptSegmentItem } from '@meetio/shared';
+import { TranslatedSegment } from '../translated-segment';
+import type { TranscriptViewMode } from './view-mode';
 import { formatGapLabel, formatSegmentTimestamp } from '../../utils/segment-formatting';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -8,6 +10,13 @@ import { typography } from '../../theme/typography';
 export interface TranscriptSegmentRowProps {
   segment: TranscriptSegmentItem;
   onSave: (text: string) => void;
+  /** Phase 09: which of original / translation to show. Defaults to the original alone. */
+  viewMode?: TranscriptViewMode;
+  /** The meeting translates its lines, so a line with no translation is a failure worth a retry. */
+  translationEnabled?: boolean;
+  onRetryTranslation?: () => void;
+  retryingTranslation?: boolean;
+  translationError?: string | null;
 }
 
 /**
@@ -17,7 +26,15 @@ export interface TranscriptSegmentRowProps {
  * tap-to-edit → save on blur (US-24). The reindex prompt after a save is the
  * screen's responsibility, not this row's — it only reports the new text.
  */
-export function TranscriptSegmentRow({ segment, onSave }: TranscriptSegmentRowProps) {
+export function TranscriptSegmentRow({
+  segment,
+  onSave,
+  viewMode = 'original',
+  translationEnabled = false,
+  onRetryTranslation,
+  retryingTranslation,
+  translationError,
+}: TranscriptSegmentRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draftText, setDraftText] = useState(segment.text);
 
@@ -34,14 +51,20 @@ export function TranscriptSegmentRow({ segment, onSave }: TranscriptSegmentRowPr
     }
   }
 
+  const translation = translationEnabled ? segment.translated_text : null;
+  // "Dịch" replaces the original, but only where a translation exists — a missing one never leaves a blank row.
+  const showsTranslationOnly = viewMode === 'translated' && Boolean(translation);
+  const showsTranslationCard = translationEnabled && viewMode !== 'original' && !showsTranslationOnly;
+
   return (
     <View>
       {segment.gap_before_ms !== null ? (
         <Text style={styles.gapMarker}>{formatGapLabel(segment.gap_before_ms)}</Text>
       ) : null}
       <Pressable
-        accessibilityLabel={`Sửa đoạn ${formatSegmentTimestamp(segment.started_at_ms)}`}
-        onPress={handlePress}
+        accessibilityLabel={showsTranslationOnly ? undefined : `Sửa đoạn ${formatSegmentTimestamp(segment.started_at_ms)}`}
+        disabled={showsTranslationOnly}
+        onPress={showsTranslationOnly ? undefined : handlePress}
         style={styles.row}
       >
         <View style={styles.headerRow}>
@@ -59,12 +82,16 @@ export function TranscriptSegmentRow({ segment, onSave }: TranscriptSegmentRowPr
             value={draftText}
           />
         ) : (
-          <Text style={styles.text}>{segment.text}</Text>
+          <Text style={styles.text}>{showsTranslationOnly ? translation : segment.text}</Text>
         )}
-        {segment.translated_text ? (
-          <View style={styles.translationCard}>
-            <Text style={styles.translationText}>{segment.translated_text}</Text>
-          </View>
+        {showsTranslationCard ? (
+          <TranslatedSegment
+            error={translationError}
+            failed={!translation}
+            onRetry={onRetryTranslation}
+            retrying={retryingTranslation}
+            text={translation}
+          />
         ) : null}
       </Pressable>
     </View>
@@ -79,6 +106,4 @@ const styles = StyleSheet.create({
   text: { ...typography.body, color: colors.text },
   input: { ...typography.body, color: colors.text, padding: 0 },
   gapMarker: { ...typography.caption, color: colors.textMuted, textAlign: 'center', paddingVertical: 8 },
-  translationCard: { backgroundColor: colors.translationTint, borderRadius: 10, padding: 10, marginTop: 4 },
-  translationText: { ...typography.body, color: colors.text },
 });

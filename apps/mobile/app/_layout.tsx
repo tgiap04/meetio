@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Slot } from 'expo-router';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { queryClient, wireQueryClientToAppState } from '../src/query/query-client';
 import { useHydrateSession } from '../src/hooks/use-hydrate-session';
@@ -35,10 +36,12 @@ export default function RootLayout() {
   // source of inset values in the tree, and a screen that mounts before it
   // would read zeros and draw its header under the status bar / Dynamic Island.
   return (
-    <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        {isBooting ? <AppSplash /> : <Slot />}
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          {isBooting ? <AppSplash /> : <Slot />}
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

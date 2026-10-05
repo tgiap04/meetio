@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS local_meetings (
   last_seq INTEGER NOT NULL DEFAULT 0,
   paused_ms INTEGER NOT NULL DEFAULT 0,
   paused_at INTEGER,
-  blocked TEXT
+  blocked TEXT,
+  recognition_mode TEXT
 );
 CREATE TABLE IF NOT EXISTS pending_ops (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,12 +54,25 @@ CREATE TABLE IF NOT EXISTS pending_segments (
 );
 `;
 
+/**
+ * Databases created before Phase 18 have no `recognition_mode` column. Every meeting in them was
+ * recorded on-device, so they are backfilled as such — resume must never move them to the server.
+ * `CREATE TABLE IF NOT EXISTS` cannot add a column to an existing table, hence this step.
+ */
+export async function migrateQueueSchema(db: SqlDb): Promise<void> {
+  const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(local_meetings)');
+  if (columns.some((c) => c.name === 'recognition_mode')) return;
+  await db.execAsync(`ALTER TABLE local_meetings ADD COLUMN recognition_mode TEXT;
+UPDATE local_meetings SET recognition_mode = 'on_device';`);
+}
+
 let opening: Promise<SqlDb> | null = null;
 
 /** One connection for the whole app (WAL + a single writer — no "database is locked"). */
 export function openQueueDb(): Promise<SqlDb> {
   opening ??= openDatabaseAsync('meetio-queue.db').then(async (db) => {
     await db.execAsync(QUEUE_SCHEMA);
+    await migrateQueueSchema(db as unknown as SqlDb);
     return db as unknown as SqlDb;
   });
   return opening;

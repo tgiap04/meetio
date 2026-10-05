@@ -38,18 +38,27 @@ export const expoSttEngine: SttEngine = {
   },
 };
 
+/** The native module could not say what this phone can recognise on-device. */
+export class OnDeviceCheckError extends Error {
+  constructor(cause: unknown) {
+    super('Cannot determine on-device recognition support', { cause });
+    this.name = 'OnDeviceCheckError';
+  }
+}
+
 /**
- * Locales the device can recognise OFFLINE. Empty when it cannot recognise on-device at all:
+ * Locales the device can recognise OFFLINE. Empty ONLY when it really cannot recognise on-device:
  * Android below 13 only gets a "prefer offline" hint that may still use the network, and iOS
  * reports per-locale on-device support through the patched `installedLocales`
- * (.yarn/patches/expo-speech-recognition-*.patch).
+ * (.yarn/patches/expo-speech-recognition-*.patch). A native failure is NOT "empty" — that would
+ * silently route the user's audio to the server (NFR-02) — so it rejects with `OnDeviceCheckError`.
  */
 export async function getOnDeviceLocales(): Promise<string[]> {
   if (Platform.OS === 'android' && Number(Platform.Version) < 33) return [];
   try {
     return (await ExpoSpeechRecognitionModule.getSupportedLocales({})).installedLocales;
-  } catch {
-    return [];
+  } catch (error) {
+    throw new OnDeviceCheckError(error);
   }
 }
 

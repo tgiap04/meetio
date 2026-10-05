@@ -45,6 +45,7 @@ jest.mock('../api/axios-client', () => ({ refreshAccessToken: () => mockRefresh(
 
 import { createMeetingSocket, type RealtimeHandlers } from './meeting-socket';
 import { useSessionStore } from '../store/session.store';
+import { resetRecordingStore, useRecordingStore } from '../recording/recording.store';
 
 function setup() {
   mockSocket = new FakeSocket();
@@ -167,3 +168,60 @@ describe('meeting socket', () => {
     expect(port.isReady('m1')).toBe(false);
   });
 });
+
+describe('meeting socket translation events (Phase 09)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useSessionStore.setState({ accessToken: 'token-1' });
+    resetRecordingStore();
+    useRecordingStore.setState({ meetingId: 'm1' });
+  });
+
+  it('stores segment_translated by seq for the open meeting', () => {
+    const { port, connectAndJoin } = setup();
+    port.open('m1');
+    connectAndJoin();
+    mockSocket.fire('segment_translated', { meeting_id: 'm1', seq: 4, translated_text: 'hello', translated_to: 'en-US' });
+    expect(useRecordingStore.getState().translations[4]).toEqual({ status: 'done', text: 'hello', to: 'en-US' });
+  });
+
+  it('stores segment_translation_failed as a failure marker', () => {
+    const { port, connectAndJoin } = setup();
+    port.open('m1');
+    connectAndJoin();
+    mockSocket.fire('segment_translation_failed', { meeting_id: 'm1', seq: 5 });
+    expect(useRecordingStore.getState().translations[5]).toEqual({ status: 'failed' });
+  });
+
+  it('ignores malformed payloads from the wire', () => {
+    const { port, connectAndJoin } = setup();
+    port.open('m1');
+    connectAndJoin();
+    mockSocket.fire('segment_translated', { meeting_id: 'm1', seq: '4', translated_text: 'x', translated_to: 'en-US' });
+    mockSocket.fire('segment_translated', { meeting_id: 'm1', seq: 4, translated_text: 7, translated_to: 'en-US' });
+    mockSocket.fire('segment_translated', null);
+    mockSocket.fire('segment_translation_failed', { meeting_id: 'm1', seq: 'x' });
+    expect(useRecordingStore.getState().translations).toEqual({});
+  });
+
+  it('ignores events once the socket has been closed or moved to another meeting', () => {
+    const { port, connectAndJoin } = setup();
+    port.open('m2');
+    connectAndJoin();
+    // The store still shows m1 (m2 is a different room): nothing is applied to it.
+    mockSocket.fire('segment_translated', { meeting_id: 'm2', seq: 1, translated_text: 'x', translated_to: 'en-US' });
+    expect(useRecordingStore.getState().translations).toEqual({});
+  });
+
+  it('drops a late event of the previous meeting on a reused socket, and one with no meeting_id', () => {
+    const { port, connectAndJoin } = setup();
+    port.open('m1');
+    connectAndJoin();
+    mockSocket.fire('segment_translated', { meeting_id: 'old', seq: 2, translated_text: 'late', translated_to: 'en-US' });
+    mockSocket.fire('segment_translated', { seq: 2, translated_text: 'no id', translated_to: 'en-US' });
+    mockSocket.fire('segment_translation_failed', { meeting_id: 'old', seq: 3 });
+    mockSocket.fire('segment_translation_failed', { seq: 3 });
+    expect(useRecordingStore.getState().translations).toEqual({});
+  });
+});
+

@@ -7,6 +7,7 @@ const PROBLEMS: Record<string, string> = {
   'not-allowed': 'Meetio chưa được cấp quyền micro hoặc nhận diện giọng nói. Mở Cài đặt của máy để cấp quyền.',
   'service-not-allowed': 'Nhận diện giọng nói đang bị tắt trên máy. Bật Siri & Đọc chính tả (iOS) hoặc dịch vụ nhận diện của Google (Android).',
   'language-not-supported': 'Máy chưa tải gói nhận diện offline cho ngôn ngữ này. Tải gói trong Cài đặt của máy rồi thử lại.',
+  'owner-changed': 'Tài khoản đăng nhập đã thay đổi nên Meetio dừng nhận diện — âm thanh không được gửi sang tài khoản khác.',
   'audio-capture': 'Không mở được micro — có thể một ứng dụng khác đang dùng.',
 };
 
