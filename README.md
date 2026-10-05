@@ -5,7 +5,8 @@ pipeline, and cross-meeting Q&A with citations.
 
 See [`user_stories.md`](user_stories.md), [`docs/system-architecture.md`](docs/system-architecture.md),
 [`docs/data-model.md`](docs/data-model.md), and [`docs/api-spec.md`](docs/api-spec.md) for the
-full specification. Implementation plan lives under
+full specification. Android-specific integrations (foreground service, widget, shortcuts, app lock, call
+auto-pause) are summarised in [`docs/android-integration.md`](docs/android-integration.md). Implementation plan lives under
 [`plans/260917-1821-meetio-full-implementation/`](plans/260917-1821-meetio-full-implementation/plan.md).
 
 ## Interface design

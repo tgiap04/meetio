@@ -21,6 +21,7 @@ nhân.
 - **Kết quả AI:** tóm tắt, việc cần làm, các thực thể và quan hệ (người, dự án, chủ đề…) rút ra từ cuộc họp, lịch sử
   hỏi đáp của bạn.
 - **Thiết bị:** mã nhận thông báo đẩy (push token) nếu bạn cho phép thông báo.
+- **Trên điện thoại (Android):** một tệp tóm tắt nhỏ cho widget màn hình chính (trạng thái đăng nhập, đang ghi hay không, số việc cần làm, cuộc họp gần nhất; ẩn tiêu đề khi bạn bật khoá vân tay), nằm trong bộ nhớ riêng của app, không chứa mã đăng nhập hay bản chép lời. Khi ghi âm, app đọc chế độ âm thanh của hệ thống để biết có cuộc gọi và tự tạm dừng; app không đọc số điện thoại, nhật ký cuộc gọi hay quyền trạng thái điện thoại.
 - **Mức sử dụng:** số token AI mỗi lượt xử lý, để tính hạn mức và chi phí.
 
 ## 2. Âm thanh khi nhận diện giọng nói
@@ -75,7 +76,7 @@ thống.
 Mỗi đoạn chép lời được lưu tạm trên điện thoại trước khi gửi lên máy chủ, và bị xóa khỏi máy ngay khi máy chủ xác nhận
 đã nhận — nhờ vậy mất mạng hay app bị đóng đột ngột cũng không mất nội dung. Trên Android, dữ liệu tạm này bị loại khỏi
 bản sao lưu tự động của thiết bị. Trên iOS, phần chưa kịp gửi có thể nằm trong bản sao lưu iCloud của chính bạn cho tới
-khi gửi xong.
+khi gửi xong. Bạn có thể bật khoá vân tay trong **Cài đặt**; khi bật, ảnh xem trước của app ở màn hình đa nhiệm bị làm trống.
 
 ## 7. Đồng ý
 

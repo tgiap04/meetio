@@ -71,6 +71,14 @@ mở đường cho việc phục hồi sau sự cố ([US-15](../user_stories.md
   đặt `edited_at`; cuộc họp `ready` vẫn phục vụ nguyên bản tóm tắt cũ cho tới khi client tự gọi
   `POST /reindex` (xem mục 3).
 
+**Điều khiển pha ghi trên Android (mobile).** Ba nguồn cùng gọi `pause` / `resume` / `end` của
+`createRecordingSession`: màn hình, nút trên thông báo foreground service, và cuộc gọi điện thoại. Phiên ghi
+chạy các chuyển pha **lần lượt** (`serial()` trong `recording-session.ts`), mỗi thao tác đọc pha khi tới lượt
+nên không có cặp `resume` đè lên `end` đang ghi đĩa; `pause()` trả `boolean` cho biết chính lần gọi đó có
+tạm dừng hay không. Cuộc gọi đến làm tạm dừng với `pausedBy = 'call'` và chỉ tự ghi tiếp khi hết gọi nếu
+chính cuộc gọi gây ra lần dừng. Widget màn hình chính không đọc trạng thái app: app ghi một snapshot (không token,
+không transcript) vào bộ nhớ riêng, widget chỉ đọc. Chi tiết và giới hạn: [`android-integration.md`](android-integration.md).
+
 ---
 
 ## 2. Luồng 1 — Ghi và nhận diện thời gian thực
