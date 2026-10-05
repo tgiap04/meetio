@@ -26,6 +26,10 @@ jest.mock('expo-router', () => ({
 
 // The transcript sync the layout starts is covered by its own tests; this file is about the guard.
 jest.mock('../hooks/use-recording-sync', () => ({ useRecordingSync: () => undefined }));
+// Widget sync and the app lock have their own tests; neither changes what the guard renders.
+jest.mock('../hooks/use-widget-snapshot-sync', () => ({ useWidgetSnapshotSync: () => undefined }));
+const mockAppLockGate = jest.fn(({ children }: { children: unknown }) => children);
+jest.mock('../components/security/app-lock-gate', () => ({ AppLockGate: (props: { children: unknown }) => mockAppLockGate(props) }));
 
 jest.mock('../store/session.store', () => ({
   useSessionStore: jest.fn(),
@@ -50,6 +54,7 @@ describe('(app) group layout guard', () => {
   beforeEach(() => {
     mockRedirect.mockClear();
     mockStack.mockClear();
+    mockAppLockGate.mockClear();
   });
 
   it('redirects to login when the session is unauthenticated', () => {
@@ -71,5 +76,18 @@ describe('(app) group layout guard', () => {
 
     expect(mockRedirect).not.toHaveBeenCalled();
     expect(mockStack).toHaveBeenCalled();
+  });
+
+  it('wraps the Stack in the app lock rather than replacing it', () => {
+    renderWithAuthStatus('authenticated');
+
+    expect(mockAppLockGate).toHaveBeenCalled();
+    expect(mockStack).toHaveBeenCalled();
+  });
+
+  it('never shows the lock to a signed-out user (login is outside the lock)', () => {
+    renderWithAuthStatus('unauthenticated');
+
+    expect(mockAppLockGate).not.toHaveBeenCalled();
   });
 });
