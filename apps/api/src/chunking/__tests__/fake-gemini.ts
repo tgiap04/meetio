@@ -14,7 +14,7 @@ export function fakeGemini(
   const models: GenAiModels = {
     generateContent: async ({ contents, config }) => {
       calls.generate++;
-      return { text: generate(contents, config?.systemInstruction), usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 } };
+      return { text: generate(typeof contents === 'string' ? contents : '', config?.systemInstruction), usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 } };
     },
     countTokens: async ({ contents }) => {
       calls.count++;

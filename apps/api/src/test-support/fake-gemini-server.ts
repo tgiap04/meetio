@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { fakeEmbedding } from './fake-embedding.js';
+import { FakeGeminiLive } from './fake-gemini-live.js';
 
 export interface GeminiCall {
   key: string;
@@ -37,6 +38,10 @@ export class FakeGeminiServer {
         : { not_found: true, answer: '', sources: [], confidence: 'low' },
     );
   };
+  /** Answer to a speech-to-text call (a generateContent whose parts carry inlineData); defaults to a fixed transcript. */
+  transcribe: (audio: { mimeType: string; data: string }, prompt: string) => string = () => 'xin chào các bạn';
+  /** The Live (WebSocket) side of the fake, for streaming speech-to-text. */
+  readonly live = new FakeGeminiLive();
   private server!: Server;
   baseUrl = '';
 
@@ -79,7 +84,10 @@ export class FakeGeminiServer {
           }
           const system = (body.systemInstruction?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join(' ');
           const prompt = texts.join('\n');
-          const text = system.includes('executive summary')
+          const inline = (body.contents ?? []).flatMap((c: { parts?: { inlineData?: { mimeType: string; data: string } }[] }) => c.parts ?? []).find((p: { inlineData?: unknown }) => p.inlineData)?.inlineData;
+          const text = inline
+            ? this.transcribe(inline, prompt)
+            : system.includes('executive summary')
             ? this.summarize(prompt)
             : system.includes("answer questions about the user's own meetings")
               ? this.answer(prompt)
@@ -88,11 +96,13 @@ export class FakeGeminiServer {
         }
       });
     });
+    this.live.attach(this.server);
     await new Promise<void>((resolve) => this.server.listen(0, resolve));
     this.baseUrl = `http://localhost:${(this.server.address() as { port: number }).port}`;
   }
 
   stop(): Promise<void> {
+    this.live.close();
     return new Promise((resolve) => this.server.close(() => resolve()));
   }
 }

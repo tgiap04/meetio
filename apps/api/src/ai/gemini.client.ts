@@ -2,11 +2,15 @@ import type { UsageTracker } from './usage-tracker.js';
 import { AiServiceUnavailableError } from './ai-errors.js';
 import type { GeminiCallRunner } from './gemini-call-runner.js';
 
+/** A Gemini content part: plain text, or inline binary data (audio) as base64. */
+export type GenAiPart = { text?: string } | { inlineData: { mimeType: string; data: string } };
+export type GenAiContents = string | Array<{ role?: string; parts: GenAiPart[] }>;
+
 /** The slice of `@google/genai`'s `ai.models` this client uses — injectable so tests need no network. */
 export interface GenAiModels {
   generateContent(params: {
     model: string;
-    contents: string;
+    contents: GenAiContents;
     config?: { systemInstruction?: string; responseMimeType?: string; responseSchema?: Record<string, unknown>; abortSignal?: AbortSignal };
   }): Promise<{ text?: string; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number } }>;
   embedContent(params: {
@@ -39,6 +43,13 @@ export interface GenerateResult {
   outputTokens: number;
 }
 
+export interface TranscribeRequest extends Omit<Attribution, 'operation'> {
+  audio: Buffer;
+  mimeType: string;
+  /** BCP-47 tag the speaker is using, e.g. "vi-VN". */
+  language: string;
+}
+
 export type EmbedTaskType = 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY' | 'SEMANTIC_SIMILARITY';
 
 export interface EmbedRequest extends Attribution {
@@ -58,6 +69,12 @@ export interface GeminiClientOptions {
   embeddingModel: string;
   dimensions: number;
 }
+
+/** Transcription prompt: verbatim, nothing but the words (no labels/timestamps), empty when nothing is intelligible. */
+const transcribePrompt = (language: string) =>
+  `Transcribe this audio verbatim. The speaker is using the language ${language}. ` +
+  'Output only the transcript text: no timestamps, no speaker labels, no quotation marks, no commentary or translation. ' +
+  'If there is no intelligible speech, output nothing at all.';
 
 const normalise = (v: number[]) => {
   const norm = Math.hypot(...v);
@@ -101,6 +118,31 @@ export class GeminiClient {
       outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
     };
     await this.record(request, this.options.textModel, result.inputTokens, result.outputTokens);
+    return result;
+  }
+
+  /**
+   * Speech-to-text for one short chunk (Phase 18 server fallback). The audio goes to Gemini as
+   * inlineData and is neither stored nor logged (NFR-04); only token counts reach usage_records.
+   */
+  async transcribeAudio(request: TranscribeRequest): Promise<GenerateResult> {
+    const runner = this.requireRunner();
+    await this.usage.assertWithinBudget(request.userId);
+    const contents: GenAiContents = [
+      {
+        role: 'user',
+        parts: [{ inlineData: { mimeType: request.mimeType, data: request.audio.toString('base64') } }, { text: transcribePrompt(request.language) }],
+      },
+    ];
+    const response = await runner.run(request.signal, (models) =>
+      models.generateContent({ model: this.options.textModel, contents, config: { abortSignal: request.signal } }),
+    );
+    const result = {
+      text: (response.text ?? '').trim(),
+      inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
+      outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+    };
+    await this.record({ ...request, operation: 'stt' }, this.options.textModel, result.inputTokens, result.outputTokens);
     return result;
   }
 

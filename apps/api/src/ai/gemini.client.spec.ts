@@ -70,4 +70,47 @@ describe('GeminiClient', () => {
     expect(client.isConfigured()).toBe(false);
     await expect(client.embed({ ...who, operation: 'e', texts: ['a'], taskType: 'RETRIEVAL_QUERY' })).rejects.toBeInstanceOf(AiServiceUnavailableError);
   });
+  describe('transcribeAudio', () => {
+    const audio = Buffer.from('fake-aac-bytes');
+    const request = { userId: 'u1', meetingId: 'm1', audio, mimeType: 'audio/mp4', language: 'vi-VN' as const };
+
+    it('sends the audio as base64 inlineData with the language in the prompt, records usage "stt", and trims the text', async () => {
+      const generateContent = jest.fn(async (_p: Parameters<GenAiModels['generateContent']>[0]) => ({
+        text: '  xin chào các bạn \n',
+        usageMetadata: { promptTokenCount: 300, candidatesTokenCount: 12 },
+      }));
+      const t = setup({ generateContent });
+      await expect(t.client.transcribeAudio(request)).resolves.toEqual({ text: 'xin chào các bạn', inputTokens: 300, outputTokens: 12 });
+
+      const params = generateContent.mock.calls[0][0];
+      expect(params.model).toBe('gemini-text');
+      expect(params.contents).toEqual([
+        {
+          role: 'user',
+          parts: [{ inlineData: { mimeType: 'audio/mp4', data: audio.toString('base64') } }, { text: expect.stringContaining('vi-VN') }],
+        },
+      ]);
+      expect(t.recorded).toEqual([{ userId: 'u1', meetingId: 'm1', operation: 'stt', model: 'gemini-text', inputTokens: 300, outputTokens: 12 }]);
+    });
+
+    it('returns an empty string when Gemini hears no speech', async () => {
+      const t = setup({ generateContent: async () => ({ usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 0 } }) });
+      await expect(t.client.transcribeAudio({ ...request, meetingId: null, language: 'en-US' })).resolves.toMatchObject({ text: '' });
+      expect(t.recorded[0]).toMatchObject({ meetingId: null, operation: 'stt' });
+    });
+
+    it('checks the budget before calling Gemini', async () => {
+      const generateContent = jest.fn(async () => ({ text: 'x' }));
+      const t = setup({ generateContent });
+      t.usage.assertWithinBudget.mockRejectedValue(new QuotaExceededError(10, 10));
+      await expect(t.client.transcribeAudio(request)).rejects.toBeInstanceOf(QuotaExceededError);
+      expect(generateContent).not.toHaveBeenCalled();
+      expect(t.recorded).toEqual([]);
+    });
+
+    it('fails with AI_SERVICE_UNAVAILABLE when no key is configured', async () => {
+      const client = new GeminiClient(null, {} as UsageTracker, OPTIONS);
+      await expect(client.transcribeAudio(request)).rejects.toBeInstanceOf(AiServiceUnavailableError);
+    });
+  });
 });

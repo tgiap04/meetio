@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { GoogleGenAI } from '@google/genai';
 import { GeminiClient, type GenAiModels } from './gemini.client.js';
 import { GeminiCallRunner } from './gemini-call-runner.js';
+import { GeminiLiveClient, type LiveApi } from './gemini-live.js';
 import { GeminiKeyPool, parseApiKeys } from './gemini-key-pool.js';
 import { UsageTracker } from './usage-tracker.js';
 
@@ -55,7 +56,25 @@ const num = (raw: string | undefined, fallback: number) => (Number(raw) > 0 ? Nu
         });
       },
     },
+    {
+      // Phase 19: streaming transcription. Same keys (and GEMINI_BASE_URL) as the REST client; Live
+      // sessions are long-lived, so this pool is separate from the per-call runner's concurrency cap.
+      provide: GeminiLiveClient,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const keys = parseApiKeys(config.get<string>('GEMINI_API_KEY'));
+        const baseUrl = config.get<string>('GEMINI_BASE_URL') || undefined;
+        const pool =
+          keys.length === 0
+            ? null
+            : new GeminiKeyPool<LiveApi>(
+                keys.map((apiKey) => new GoogleGenAI({ apiKey, httpOptions: baseUrl ? { baseUrl } : undefined }).live),
+                { defaultCooldownMs: num(config.get<string>('GEMINI_KEY_COOLDOWN_MS'), 60_000) },
+              );
+        return new GeminiLiveClient(pool, { model: config.get<string>('GEMINI_LIVE_TRANSCRIBE_MODEL') || 'gemini-3.5-transcribe-live' });
+      },
+    },
   ],
-  exports: [GeminiClient, UsageTracker],
+  exports: [GeminiClient, GeminiLiveClient, UsageTracker],
 })
 export class AiModule {}
