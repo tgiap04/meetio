@@ -60,6 +60,32 @@ jest.mock('react-native-background-actions', () => {
         running = false;
       }),
       isRunning: () => running,
+      updateNotification: jest.fn(async () => {}),
     },
   };
 });
+
+/**
+ * Android system-integration modules (plan 261005). Each is a native module with no Jest mock of its
+ * own. Biometrics default to "enrolled, succeeds" — a test that needs a refusal overrides per call.
+ */
+jest.mock('expo-local-authentication', () => ({
+  SecurityLevel: { NONE: 0, SECRET: 1, BIOMETRIC_WEAK: 2, BIOMETRIC_STRONG: 3 },
+  hasHardwareAsync: jest.fn(async () => true),
+  getEnrolledLevelAsync: jest.fn(async () => 3),
+  authenticateAsync: jest.fn(async () => ({ success: true })),
+}));
+jest.mock('expo-quick-actions', () => ({
+  setItems: jest.fn(async () => {}),
+  isSupported: jest.fn(async () => true),
+  addListener: jest.fn(() => ({ remove: jest.fn() })),
+  initial: undefined,
+}));
+jest.mock('expo-quick-actions/router', () => ({ useQuickActionRouting: jest.fn() }));
+jest.mock('react-native-android-widget', () => ({
+  requestWidgetUpdate: jest.fn(async () => {}),
+  registerWidgetTaskHandler: jest.fn(),
+  FlexWidget: 'FlexWidget',
+  TextWidget: 'TextWidget',
+  IconWidget: 'IconWidget',
+}));

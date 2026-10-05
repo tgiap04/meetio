@@ -1,0 +1,142 @@
+diff --git a/android/src/main/java/com/asterinet/react/bgactions/BackgroundActionsModule.java b/android/src/main/java/com/asterinet/react/bgactions/BackgroundActionsModule.java
+index 46375fd98ce4dc36efa6a3f5f0fb9a199f297280..006cfe1af500d8e96135ed58534e14c9dbfb99f5 100644
+--- a/android/src/main/java/com/asterinet/react/bgactions/BackgroundActionsModule.java
++++ b/android/src/main/java/com/asterinet/react/bgactions/BackgroundActionsModule.java
+@@ -2,8 +2,10 @@ package com.asterinet.react.bgactions;
+ 
+ import android.app.Notification;
+ import android.app.NotificationManager;
++import android.content.BroadcastReceiver;
+ import android.content.Context;
+ import android.content.Intent;
++import android.content.IntentFilter;
+ 
+ import androidx.annotation.NonNull;
+ import androidx.core.content.ContextCompat;
+@@ -24,9 +26,35 @@ public class BackgroundActionsModule extends ReactContextBaseJavaModule {
+ 
+     private Intent currentServiceIntent;
+ 
++    /** JS event carrying the id of the notification action the user tapped. */
++    private static final String ACTION_EVENT = "RNBackgroundActionsNotificationAction";
++
++    private final BroadcastReceiver actionReceiver = new BroadcastReceiver() {
++        @Override
++        public void onReceive(Context context, Intent intent) {
++            final String id = intent.getStringExtra(RNBackgroundActionsTask.ACTION_BUTTON_EXTRA_ID);
++            if (id != null && reactContext.hasActiveReactInstance()) {
++                reactContext.emitDeviceEvent(ACTION_EVENT, id);
++            }
++        }
++    };
++
+     public BackgroundActionsModule(ReactApplicationContext reactContext) {
+         super(reactContext);
+         this.reactContext = reactContext;
++        final IntentFilter filter = new IntentFilter(reactContext.getPackageName() + RNBackgroundActionsTask.ACTION_BUTTON_INTENT);
++        // Not exported: only this app's own PendingIntents reach it (required on Android 14+).
++        ContextCompat.registerReceiver(reactContext, actionReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
++    }
++
++    @Override
++    public void invalidate() {
++        try {
++            reactContext.unregisterReceiver(actionReceiver);
++        } catch (IllegalArgumentException ignored) {
++            // Already unregistered.
++        }
++        super.invalidate();
+     }
+ 
+     @NonNull
+diff --git a/android/src/main/java/com/asterinet/react/bgactions/BackgroundTaskOptions.java b/android/src/main/java/com/asterinet/react/bgactions/BackgroundTaskOptions.java
+index 35d8f8769e5ec7e36d25c3836f646889a64010c5..aaddd523121c221242b67fe424b33d8c754275b9 100644
+--- a/android/src/main/java/com/asterinet/react/bgactions/BackgroundTaskOptions.java
++++ b/android/src/main/java/com/asterinet/react/bgactions/BackgroundTaskOptions.java
+@@ -101,6 +101,19 @@ public final class BackgroundTaskOptions {
+         return extras.getString("linkingURI");
+     }
+ 
++    /** Notification action buttons: each `{id, title}`. Empty when none were passed. */
++    @NonNull
++    public ArrayList<Bundle> getActions() {
++        final ArrayList<Bundle> result = new ArrayList<>();
++        final Object raw = extras.get("actions");
++        if (raw instanceof ArrayList) {
++            for (final Object item : (ArrayList<?>) raw) {
++                if (item instanceof Bundle) result.add((Bundle) item);
++            }
++        }
++        return result;
++    }
++
+     @Nullable
+     public Bundle getProgressBar() {
+         return extras.getBundle("progressBar");
+diff --git a/android/src/main/java/com/asterinet/react/bgactions/RNBackgroundActionsTask.java b/android/src/main/java/com/asterinet/react/bgactions/RNBackgroundActionsTask.java
+index 963b7889356454d12c150398631a3d493f53b5b2..58426ceeb1e8d5c9695291cab7b6ff48be7dc445 100644
+--- a/android/src/main/java/com/asterinet/react/bgactions/RNBackgroundActionsTask.java
++++ b/android/src/main/java/com/asterinet/react/bgactions/RNBackgroundActionsTask.java
+@@ -23,6 +23,9 @@ import com.facebook.react.jstasks.HeadlessJsTaskConfig;
+ final public class RNBackgroundActionsTask extends HeadlessJsTaskService {
+ 
+     public static final int SERVICE_NOTIFICATION_ID = 92901;
++    /** Broadcast fired by a notification action button; delivered only inside this app. */
++    public static final String ACTION_BUTTON_INTENT = ".bgactions.NOTIFICATION_ACTION";
++    public static final String ACTION_BUTTON_EXTRA_ID = "actionId";
+     private static final String CHANNEL_ID = "RN_BACKGROUND_ACTIONS_CHANNEL";
+ 
+     @SuppressLint("UnspecifiedImmutableFlag")
+@@ -62,6 +65,19 @@ final public class RNBackgroundActionsTask extends HeadlessJsTaskService {
+                 .setPriority(NotificationCompat.PRIORITY_MIN)
+                 .setColor(color);
+ 
++        int requestCode = 1;
++        for (final Bundle action : bgOptions.getActions()) {
++            final String id = action.getString("id");
++            final String title = action.getString("title");
++            if (id == null || title == null) continue;
++            // Explicit to this package + immutable: no other app can fire or alter the action.
++            final Intent actionIntent = new Intent(context.getPackageName() + ACTION_BUTTON_INTENT)
++                    .setPackage(context.getPackageName())
++                    .putExtra(ACTION_BUTTON_EXTRA_ID, id);
++            final PendingIntent actionPending = PendingIntent.getBroadcast(context, requestCode++, actionIntent, pendingIntentFlags);
++            builder.addAction(0, title, actionPending);
++        }
++
+         final Bundle progressBarBundle = bgOptions.getProgressBar();
+         if (progressBarBundle != null) {
+             final int progressMax = (int) Math.floor(progressBarBundle.getDouble("max"));
+diff --git a/lib/types/index.d.ts b/lib/types/index.d.ts
+index cc9906f27b2d988ec01fc07e4096ec24b075b22e..b224ff6127692a9fc0ff1f96ffdafb02a6d8fd79 100644
+--- a/lib/types/index.d.ts
++++ b/lib/types/index.d.ts
+@@ -15,6 +15,8 @@ export type BackgroundTaskOptions = {
+         value: number;
+         indeterminate?: boolean | undefined;
+     } | undefined;
++    /** Android: notification action buttons. A tap emits `RNBackgroundActionsNotificationAction` with the id. */
++    actions?: { id: string; title: string }[] | undefined;
+     foregroundServiceType?: ("dataSync" | "mediaPlayback" | "phoneCall" | "location" | "connectedDevice" | "mediaProjection" | "camera" | "microphone" | "health" | "remoteMessaging" | "systemExempted" | "shortService" | "specialUse")[] | undefined;
+ };
+ declare const backgroundServer: BackgroundServer;
+@@ -72,6 +74,7 @@ declare class BackgroundServer extends EventEmitter<"expiration", any> {
+             value: number;
+             indeterminate?: boolean;
+         };
++        actions?: { id: string; title: string }[];
+     }): Promise<void>;
+     /**
+      * Returns if the current background task is running.
+diff --git a/src/index.js b/src/index.js
+index b744e685308297bb3e0f250ae18ec43c5ff2f971..3d755d00609c8a7d58fa135e4c502c4d431e1039 100644
+--- a/src/index.js
++++ b/src/index.js
+@@ -119,6 +119,7 @@ class BackgroundServer extends EventEmitter {
+             color: options.color || '#ffffff',
+             linkingURI: options.linkingURI,
+             progressBar: options.progressBar,
++            actions: options.actions,
+             foregroundServiceType: options.foregroundServiceType,
+         };
+     }

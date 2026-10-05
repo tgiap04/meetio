@@ -41,6 +41,38 @@ const plugins: ExpoConfig['plugins'] = [
       icon: './assets/icon.png',
     },
   ],
+  // Android: nhấn giữ icon app → 3 lối tắt (src/navigation/app-shortcuts.ts). Icon là glyph Feather
+  // cam `primaryStrong` dựng thành adaptive icon trên nền peach của icon app.
+  [
+    'expo-quick-actions',
+    {
+      androidIcons: {
+        shortcut_record: { foregroundImage: './assets/shortcuts/shortcut-record.png', backgroundColor: '#FEF3E6' },
+        shortcut_ask: { foregroundImage: './assets/shortcuts/shortcut-ask.png', backgroundColor: '#FEF3E6' },
+        shortcut_actions: { foregroundImage: './assets/shortcuts/shortcut-actions.png', backgroundColor: '#FEF3E6' },
+      },
+    },
+  ],
+  // Android: widget màn hình chính (src/widget/). Cập nhật chủ yếu do app đẩy; 30 phút là mức sàn của hệ thống.
+  [
+    'react-native-android-widget',
+    {
+      widgets: [
+        {
+          name: 'MeetioWidget',
+          label: 'Meetio',
+          description: 'Ghi cuộc họp một chạm, việc cần làm và cuộc họp gần nhất',
+          minWidth: '250dp',
+          minHeight: '110dp',
+          targetCellWidth: 4,
+          targetCellHeight: 2,
+          resizeMode: 'horizontal|vertical',
+          updatePeriodMillis: 1800000,
+          previewImage: './assets/widget-preview.png',
+        },
+      ],
+    },
+  ],
 ];
 
 if (process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME) {
