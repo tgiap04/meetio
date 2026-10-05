@@ -1,3 +1,4 @@
+import { DeviceEventEmitter } from 'react-native';
 import { ApiErrorCode } from '@meetio/shared';
 import { bulkUpsertSegments, createMeeting, transitionMeeting } from '../api/recording';
 import { listSegments } from '../api/meetings';
@@ -12,7 +13,10 @@ import { expoSttEngine, getOnDeviceLocales } from './expo-stt-engine';
 import { purgeStaleChunks } from './server-stt-native';
 import { serverRecognitionEngine } from './server-stream-stt-native';
 import { resolveRecognitionMode } from './stt-engine';
-import { startKeepalive, stopKeepalive } from './background-keepalive';
+import { startKeepalive, stopKeepalive, updateKeepaliveNotification } from './background-keepalive';
+import { wireRecordingNotification } from './recording-notification-actions';
+import { createCallInterruption } from './call-interruption';
+import { watchCallState } from '../../modules/call-state';
 import { newClientId } from './client-id';
 import { createRecordingSession, type RecordingSession } from './recording-session';
 import { useRecordingStore } from './recording.store';
@@ -82,6 +86,15 @@ export function getRecordingRuntime(): Promise<RecordingRuntime> {
       // ML Kit on the device; an unsupported language pair is rejected inside the wrapper.
       translate: (text, from, to) => translate(text, from as TranslationLanguage, to as TranslationLanguage),
     });
+    // Pause / Resume / End buttons on the recording notification. Lives as long as the runtime (the app process).
+    wireRecordingNotification({
+      session,
+      store: useRecordingStore,
+      emitter: DeviceEventEmitter,
+      update: updateKeepaliveNotification,
+    });
+    // Pause while the phone rings or is in a call, resume after (Android; inert elsewhere).
+    createCallInterruption({ session, store: useRecordingStore, watch: watchCallState });
     return { worker, session };
   });
   return runtime;

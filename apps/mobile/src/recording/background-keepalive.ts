@@ -1,5 +1,6 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 import BackgroundService from 'react-native-background-actions';
+import { notificationForPhase, type RecordingNotificationContent } from './recording-notification-actions';
 
 /**
  * Keeps recording alive with the screen off or another app open (US-10).
@@ -11,6 +12,8 @@ import BackgroundService from 'react-native-background-actions';
  *   if iOS still cuts the session, the restart loop brings it back and marks the gap.
  * The service task itself does nothing — recognition runs on the JS thread; the service only
  * keeps the process at foreground priority. Pattern measured in the Phase 00 spike.
+ * The notification carries Pause/Resume/End buttons (recording-notification-actions.ts) through a
+ * local patch of react-native-background-actions (.yarn/patches).
  */
 const idleUntilStopped = () =>
   new Promise<void>((resolve) => {
@@ -31,7 +34,8 @@ export async function startKeepalive(): Promise<void> {
   await BackgroundService.start(idleUntilStopped, {
     taskName: 'meetio-recording',
     taskTitle: 'Meetio đang ghi cuộc họp',
-    taskDesc: 'Chạm để mở lại màn hình ghi',
+    // Started only by `listen()`, i.e. while recording.
+    ...notificationForPhase('recording'),
     taskIcon: { name: 'ic_launcher', type: 'mipmap' },
     linkingURI: 'meetio://recording-live',
     foregroundServiceType: ['microphone'],
@@ -41,4 +45,10 @@ export async function startKeepalive(): Promise<void> {
 export async function stopKeepalive(): Promise<void> {
   if (Platform.OS !== 'android' || !BackgroundService.isRunning()) return;
   await BackgroundService.stop();
+}
+
+/** Redraws the running service's notification (text + buttons). No-op when no service runs. */
+export async function updateKeepaliveNotification(content: RecordingNotificationContent): Promise<void> {
+  if (Platform.OS !== 'android' || !BackgroundService.isRunning()) return;
+  await BackgroundService.updateNotification(content);
 }

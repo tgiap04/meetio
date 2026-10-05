@@ -59,6 +59,16 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
   // Set while a meeting that translates is on screen; every saved line goes through it (both STT modes).
   let pair: { from: string; to: string } | null = null;
 
+  // pause / resume / end run one after another. Three sources drive them — the screen, the
+  // notification buttons and phone calls — and each reads the phase only once its turn comes, so a
+  // `resume` can never land on top of an `end` that started while it was still writing to disk.
+  let transitions: Promise<unknown> = Promise.resolve();
+  function serial<T>(fn: () => Promise<T>): Promise<T> {
+    const run = transitions.then(fn, fn);
+    transitions = run.catch(() => undefined);
+    return run;
+  }
+
   function translateLine(meetingId: string, seq: number, text: string) {
     if (translator && pair) void translator.translateLine(meetingId, seq, text, pair.from, pair.to);
   }
@@ -149,24 +159,30 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
       return id;
     },
 
-    async pause() {
-      const { phase, meetingId } = store.getState();
-      if (phase !== 'recording' || !meetingId) return;
-      const at = deps.now();
-      await silence();
-      await recordOp(await deps.db(), meetingId, 'pause', at);
-      store.setState({ phase: 'paused', pausedAt: at });
-      deps.worker.kick();
+    /** Resolves true only when THIS call paused the meeting (false: not recording by its turn). */
+    pause(): Promise<boolean> {
+      return serial(async () => {
+        const { phase, meetingId } = store.getState();
+        if (phase !== 'recording' || !meetingId) return false;
+        const at = deps.now();
+        await silence();
+        await recordOp(await deps.db(), meetingId, 'pause', at);
+        store.setState({ phase: 'paused', pausedAt: at });
+        deps.worker.kick();
+        return true;
+      });
     },
 
-    async resume() {
-      const { phase, meetingId, pausedAt, pausedMs } = store.getState();
-      if (phase !== 'paused' || !meetingId) return;
-      const at = deps.now();
-      await recordOp(await deps.db(), meetingId, 'resume', at);
-      store.setState({ phase: 'recording', pausedAt: null, pausedMs: pausedMs + (pausedAt === null ? 0 : at - pausedAt) });
-      deps.worker.kick();
-      await listen();
+    resume(): Promise<void> {
+      return serial(async () => {
+        const { phase, meetingId, pausedAt, pausedMs } = store.getState();
+        if (phase !== 'paused' || !meetingId) return;
+        const at = deps.now();
+        await recordOp(await deps.db(), meetingId, 'resume', at);
+        store.setState({ phase: 'recording', pausedAt: null, pausedMs: pausedMs + (pausedAt === null ? 0 : at - pausedAt) });
+        deps.worker.kick();
+        await listen();
+      });
     },
 
     /**
@@ -174,23 +190,25 @@ export function createRecordingSession(deps: RecordingSessionDeps) {
      * the `end` op is recorded only after every line has its translation done or failed (no timeout),
      * so the worker finds all translations on disk and syncs them before it sends `end`.
      */
-    async end() {
-      const { phase, meetingId, pausedAt, pausedMs } = store.getState();
-      if ((phase !== 'recording' && phase !== 'paused') || !meetingId) return;
-      const at = deps.now();
-      await silence();
-      pipeline?.dispose();
-      pipeline = null;
-      store.setState({ phase: 'ending', pausedAt: null, pausedMs: pausedMs + (pausedAt === null ? 0 : at - pausedAt) });
-      try {
-        await translator?.settled();
-        await recordOp(await deps.db(), meetingId, 'end', at);
-      } catch (error) {
-        store.setState({ phase, pausedAt, pausedMs });
-        throw error;
-      }
-      deps.worker.kick();
-      await deps.keepalive.stop().catch(() => undefined);
+    end(): Promise<void> {
+      return serial(async () => {
+        const { phase, meetingId, pausedAt, pausedMs } = store.getState();
+        if ((phase !== 'recording' && phase !== 'paused') || !meetingId) return;
+        const at = deps.now();
+        await silence();
+        pipeline?.dispose();
+        pipeline = null;
+        store.setState({ phase: 'ending', pausedAt: null, pausedMs: pausedMs + (pausedAt === null ? 0 : at - pausedAt) });
+        try {
+          await translator?.settled();
+          await recordOp(await deps.db(), meetingId, 'end', at);
+        } catch (error) {
+          store.setState({ phase, pausedAt, pausedMs });
+          throw error;
+        }
+        deps.worker.kick();
+        await deps.keepalive.stop().catch(() => undefined);
+      });
     },
 
     /** "Thử lại" on a line whose translation failed — translates it again on the device. */
