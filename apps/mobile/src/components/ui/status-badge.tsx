@@ -4,7 +4,7 @@ import { typography } from '../../theme/typography';
 
 export type StatusBadgeStatus = 'done' | 'processing' | 'queued' | 'failed';
 
-const DEFAULT_LABEL: Record<StatusBadgeStatus, string> = {
+export const STATUS_BADGE_LABEL: Record<StatusBadgeStatus, string> = {
   done: 'Đã xử lý',
   processing: 'Đang xử lý',
   queued: 'Chờ xử lý',
@@ -35,7 +35,7 @@ export interface StatusBadgeProps {
 export function StatusBadge({ status, label }: StatusBadgeProps) {
   return (
     <View style={[styles.pill, { backgroundColor: TINT[status] }]}>
-      <Text style={[styles.label, { color: TEXT[status] }]}>{label ?? DEFAULT_LABEL[status]}</Text>
+      <Text style={[styles.label, { color: TEXT[status] }]}>{label ?? STATUS_BADGE_LABEL[status]}</Text>
     </View>
   );
 }

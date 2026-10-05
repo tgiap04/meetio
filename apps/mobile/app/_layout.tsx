@@ -8,6 +8,7 @@ import { useHydrateSession } from '../src/hooks/use-hydrate-session';
 import { useHydratePreferences } from '../src/hooks/use-hydrate-preferences';
 import { useMinimumSplashDelay } from '../src/hooks/use-minimum-splash-delay';
 import { usePushNotificationsLifecycle } from '../src/hooks/use-push-notifications-lifecycle';
+import { useWidgetSignedOutSync } from '../src/hooks/use-widget-snapshot-sync';
 import { useSessionStore } from '../src/store/session.store';
 import { usePreferencesStore } from '../src/store/preferences.store';
 import { AppSplash } from '../src/components/splash/app-splash';
@@ -24,6 +25,7 @@ export default function RootLayout() {
   useHydrateSession();
   useHydratePreferences();
   usePushNotificationsLifecycle();
+  useWidgetSignedOutSync();
   const authStatus = useSessionStore((state) => state.authStatus);
   const preferencesStatus = usePreferencesStore((state) => state.status);
   const minimumElapsed = useMinimumSplashDelay(900);
