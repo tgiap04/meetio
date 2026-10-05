@@ -1,0 +1,65 @@
+{
+  "score": 9,
+  "criticalCount": 0,
+  "decision": "SEALED",
+  "acceptanceCovered": [
+    "app lock covers the (app) group without unmounting it or stopping a recording",
+    "app lock re-locks after 30s in background and needs auth to enable or disable",
+    "three launcher shortcuts route to recording setup, ask and actions through the (app) guard",
+    "widget renders signed-out, normal, recording and empty states from a stored snapshot",
+    "widget hides the meeting title when the app lock is on",
+    "notification buttons call session pause/resume/end and follow the phase",
+    "call interruption auto-resumes only a pause the call caused",
+    "existing mobile and api suites stay green and the Android build compiles"
+  ],
+  "regressionChecked": [
+    "serial() queue in recording-session.ts: ordering, rejection does not jam queue (transitions swallows rejection), error propagates to caller via run, no deadlock (resumeUnfinished calls resume outside the queue and is not itself queued)",
+    "pause() void->boolean: all callers grepped (recording-live.tsx run<unknown>, notification-actions Promise<unknown>, recording-session*.test, recording-live-screen.test, call-interruption) - none consume void",
+    "call-interruption sawFirstState/callActive reset on each new watch in sync(); native CallStateModule emits the current state first (lastBusy=null), so baseline swallow is correct",
+    "existing recording-session tests unchanged and green; new transitions test uses real session",
+    "yarn workspace @meetio/mobile typecheck exit 0; test: 265 suites, 1824 tests passed",
+    "widget title leak gated on lock hydration; app-lock a11y hiding",
+    "recents-privacy: Kotlin runs on Queues.MAIN, null activity returns false (no NPE), TS wrapper never throws, module absent on iOS/Jest via requireOptionalNativeModule; MainActivity declares configChanges so rotation/uiMode do not recreate it; jest 1828, typecheck, eslint, assembleDebug green"
+  ],
+  "contractStatus": "CHANGED",
+  "refuted": [],
+  "unproven": [],
+  "reachableRegressions": [],
+  "findings": [
+    {
+      "severity": "Low",
+      "category": "Concurrency",
+      "location": "apps/mobile/src/recording/recording-session.ts:140-141",
+      "summary": "start() and resumeUnfinished() are outside serial(); check-then-act on phase=idle across awaits lets two concurrent starts both pass (pre-existing, not reachable from the new sources: pause/resume/end all no-op on idle)",
+      "disposition": "Defer"
+    },
+    {
+      "severity": "Low",
+      "category": "Contract",
+      "location": "apps/mobile/src/recording/recording-session.ts:163",
+      "summary": "RecordingSession.pause() changed from Promise<void> to Promise<boolean>; all callers verified compatible",
+      "disposition": "Accept"
+    },
+    {
+      "severity": "Low",
+      "category": "Security",
+      "location": "apps/mobile/src/recording/recording-notification-actions.ts:1",
+      "summary": "notification actions do not set setAuthenticationRequired, so they work while device locked",
+      "disposition": "Defer"
+    },
+    {
+      "severity": "Medium",
+      "category": "Security",
+      "location": "apps/mobile/src/components/security/app-lock-gate.tsx:1",
+      "summary": "Recents thumbnail hiding now implemented (setRecentsScreenshotEnabled on API 33+, FLAG_SECURE below); prior deferred finding resolved",
+      "disposition": "Reject"
+    },
+    {
+      "severity": "Low",
+      "category": "Robustness",
+      "location": "apps/mobile/src/hooks/use-app-lock-lifecycle.ts:25-27",
+      "summary": "setRecentsHidden is applied only when `enabled` changes; native returns false (swallowed) if currentActivity is null at cold start, and a new Activity instance (task relaunched while process/JS alive) loses the per-activity setting. Cheap fix: also re-apply in the existing AppState 'active' handler (void setRecentsHidden(useAppLockStore.getState().enabled)). Narrow window: hydrate awaits SecureStore so activity is almost always attached; configChanges prevents rotation recreation",
+      "disposition": "Defer"
+    }
+  ]
+}

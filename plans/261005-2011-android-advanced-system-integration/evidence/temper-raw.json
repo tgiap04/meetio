@@ -1,0 +1,56 @@
+[
+  {
+    "command": "yarn workspace @meetio/mobile typecheck",
+    "exitCode": 0,
+    "summary": "Mobile typecheck passed",
+    "ts": "2026-10-05T20:46:00Z"
+  },
+  {
+    "command": "yarn workspace @meetio/mobile test",
+    "exitCode": 0,
+    "summary": "Mobile jest: 263 suites, 1809 tests passed",
+    "ts": "2026-10-05T20:46:30Z"
+  },
+  {
+    "command": "npx eslint apps/mobile --max-warnings=0",
+    "exitCode": 0,
+    "summary": "Mobile eslint passed with zero warnings",
+    "ts": "2026-10-05T20:47:15Z"
+  },
+  {
+    "command": "yarn typecheck",
+    "exitCode": 0,
+    "summary": "Full repo typecheck passed across all workspaces",
+    "ts": "2026-10-05T20:47:45Z"
+  },
+  {
+    "command": "yarn test",
+    "exitCode": 0,
+    "summary": "Full repo test: 263 suites, 1809 tests passed (1m 37s)",
+    "ts": "2026-10-05T20:48:00Z"
+  },
+  {
+    "command": "yarn workspace @meetio/api test",
+    "exitCode": 0,
+    "summary": "API unit tests (55 suites, 466 tests), e2e (26 suites, 184 tests), integration (1 suite, 5 tests) all passed",
+    "ts": "2026-10-05T20:49:00Z"
+  },
+  {
+    "command": "cd apps/mobile/android && ./gradlew app:assembleDebug -q",
+    "exitCode": 0,
+    "summary": "Android debug build completed successfully",
+    "ts": "2026-10-05T20:52:30Z"
+  },
+  {
+    "command": "yarn workspace @meetio/mobile test --coverage (new files)",
+    "exitCode": 0,
+    "summary": "Coverage report generated for new files; all tests passed",
+    "ts": "2026-10-05T20:53:00Z"
+  },
+  {
+    "command": "yarn workspace @meetio/mobile test (rerun after adding widget-snapshot-file.test.ts)",
+    "exitCode": 0,
+    "summary": "Tests:       1812 passed, 1812 total",
+    "ts": "2026-10-05T13:49:47.747Z"
+  }
+]

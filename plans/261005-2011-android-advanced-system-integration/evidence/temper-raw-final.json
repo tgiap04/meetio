@@ -1,0 +1,62 @@
+[
+  {
+    "command": "yarn workspace @meetio/mobile typecheck",
+    "exitCode": 0,
+    "summary": "exit 0",
+    "ts": "2026-10-05T14:08:54.381Z"
+  },
+  {
+    "command": "yarn workspace @meetio/mobile test",
+    "exitCode": 0,
+    "summary": "Tests:       1828 passed, 1828 total",
+    "ts": "2026-10-05T14:09:02.999Z"
+  },
+  {
+    "command": "npx eslint apps/mobile --max-warnings=0",
+    "exitCode": 0,
+    "summary": "exit 0",
+    "ts": "2026-10-05T14:09:06.494Z"
+  },
+  {
+    "command": "cd apps/mobile/android && ./gradlew app:assembleDebug -q",
+    "exitCode": 0,
+    "summary": "exit 0",
+    "ts": "2026-10-05T14:09:17.074Z"
+  },
+  {
+    "command": "yarn workspace @meetio/mobile typecheck (after recents re-apply fix)",
+    "exitCode": 0,
+    "summary": "exit 0",
+    "ts": "2026-10-05T14:13:16.211Z"
+  },
+  {
+    "command": "yarn workspace @meetio/mobile test (after recents re-apply fix)",
+    "exitCode": 1,
+    "summary": "Tests:       1 failed, 1828 passed, 1829 total",
+    "ts": "2026-10-05T14:13:24.211Z"
+  },
+  {
+    "command": "npx eslint apps/mobile --max-warnings=0 (after recents re-apply fix)",
+    "exitCode": 0,
+    "summary": "exit 0",
+    "ts": "2026-10-05T14:13:27.435Z"
+  },
+  {
+    "command": "yarn workspace @meetio/mobile typecheck (final, after in-app privacy policy sync)",
+    "exitCode": 0,
+    "summary": "exit 0",
+    "ts": "2026-10-05T14:14:18.246Z"
+  },
+  {
+    "command": "yarn workspace @meetio/mobile test (final, after in-app privacy policy sync)",
+    "exitCode": 0,
+    "summary": "Tests:       1829 passed, 1829 total",
+    "ts": "2026-10-05T14:14:26.041Z"
+  },
+  {
+    "command": "npx eslint apps/mobile --max-warnings=0 (final, after in-app privacy policy sync)",
+    "exitCode": 0,
+    "summary": "exit 0",
+    "ts": "2026-10-05T14:14:28.855Z"
+  }
+]

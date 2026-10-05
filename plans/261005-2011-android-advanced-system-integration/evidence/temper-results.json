@@ -1,0 +1,32 @@
+{
+  "commands": [
+    {
+      "command": "yarn workspace @meetio/mobile typecheck (final, after in-app privacy policy sync)",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "exit 0",
+      "ts": "2026-10-05T14:14:18.246Z"
+    },
+    {
+      "command": "yarn workspace @meetio/mobile test (final, after in-app privacy policy sync)",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "Tests:       1829 passed, 1829 total",
+      "ts": "2026-10-05T14:14:26.041Z"
+    },
+    {
+      "command": "npx eslint apps/mobile --max-warnings=0 (final, after in-app privacy policy sync)",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "exit 0",
+      "ts": "2026-10-05T14:14:28.855Z"
+    },
+    {
+      "command": "cd apps/mobile/android && ./gradlew app:assembleDebug -q",
+      "exitCode": 0,
+      "status": "pass",
+      "summary": "exit 0",
+      "ts": "2026-10-05T14:09:17.074Z"
+    }
+  ]
+}

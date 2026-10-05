@@ -26,13 +26,15 @@ thiết bị, pipeline GraphRAG phía backend, hỏi đáp có trích dẫn ngu�
 **Phase 00:** Spike STT khung hoàn tất (46 test xanh). Đợi 60 phút audio Việt + chép tay để chạy đo 36 lượt Android/iOS. **Gate cứng:** kết quả Phase 00 quyết định Phase 07/08.
 **Tiếp theo:** Phase 09 (dịch song parallel), Phase 18 (STT máy chủ), Phase 19 (stream STT), Phase 20 (swipe delete) đã xong code, chờ device test trên Xiaomi. Phase 16 (siết NFR) đã implement, chặn bởi mục ngoài scope (thông tin pháp lý, TLS production, iOS 16.4+). Phase 17 (kiểm thử & nghiệm thu) sẵn sàng. Phase 12–14 chờ OQ-02/OQ-03 (bộ dữ liệu vàng từ người dùng thật).
 
-### Phạm vi mở rộng — Google Sign-In (NGOÀI spec 260917)
+### Phạm vi mở rộng (NGOÀI spec 260917)
 
-**Lối đăng nhập thứ hai: email/mật khẩu + Google Sign-In.** Không nằm trong spec 260917 nhưng đã xây dựng hoàn tất (plan [260919-2151-google-auth-and-auth-ui](../260919-2151-google-auth-and-auth-ui/plan.md)): 13 phase tự động + 1 manual (đợi QA máy thật); 37 test mới ở mobile, 12 test mới ở API. Quyết định thiết kế:
+**Lối đăng nhập thứ hai: email/mật khẩu + Google Sign-In.** Plan [260919-2151-google-auth-and-auth-ui](../260919-2151-google-auth-and-auth-ui/plan.md): 13 phase tự động + 1 manual (đợi QA máy thật); 37 test mới ở mobile, 12 test mới ở API. Quyết định thiết kế:
 - Khóa nối là Google `sub` (bất biến), không email (có thể đổi).
 - Tự liên kết email khi `email_verified === true` và email tồn tại ở tài khoản mật khẩu.
 - `password_hash` nullable; người chỉ-Google xóa tài khoản bằng ID token verified.
 - `POST /auth/google` dùng lại chuỗi token mà login mật khẩu phát (không kiểu, TTL mới, hay giới hạn riêng).
+
+**Tích hợp sâu Android.** Plan [261005-2011-android-advanced-system-integration](../261005-2011-android-advanced-system-integration/plan.md): Tính năng bảo vệ sinh trắc, shortcuts, home-screen widget, notification actions, pause on call — 5 phase triển khai xong, chờ device test.
 **Stack:** yarn 4 workspaces (`nodeLinker: node-modules`) · monorepo `apps/api` + `apps/mobile` +
 `packages/shared` · **NestJS 12 (ESM thuần)** + TypeORM + `@nestjs/swagger` · Expo/React Native + axios + TanStack
 Query + Zustand · PostgreSQL 15 + pgvector · BullMQ/Redis · Google Gemini.

@@ -1,0 +1,48 @@
+{
+  "task": "Add four Android system integrations to the Expo mobile app: biometric app lock + launcher shortcuts, home-screen widget, recording notification action buttons, auto-pause on phone calls",
+  "mode": "code",
+  "acceptanceCriteria": [
+    "app lock covers the (app) group without unmounting it or stopping a recording",
+    "app lock re-locks after 30s in background and needs auth to enable or disable",
+    "three launcher shortcuts route to recording setup, ask and actions through the (app) guard",
+    "widget renders signed-out, normal, recording and empty states from a stored snapshot",
+    "widget hides the meeting title when the app lock is on",
+    "notification buttons call session pause/resume/end and follow the phase",
+    "call interruption auto-resumes only a pause the call caused",
+    "existing mobile and api suites stay green and the Android build compiles"
+  ],
+  "touchpoints": [
+    "apps/mobile/index.ts",
+    "apps/mobile/app.config.ts",
+    "apps/mobile/app/_layout.tsx",
+    "apps/mobile/app/(app)/_layout.tsx",
+    "apps/mobile/app/(app)/(tabs)/settings.tsx",
+    "apps/mobile/app/(app)/recording-live.tsx",
+    "apps/mobile/src/security/",
+    "apps/mobile/src/components/security/app-lock-gate.tsx",
+    "apps/mobile/src/components/settings/settings-security-section.tsx",
+    "apps/mobile/src/navigation/app-shortcuts.ts",
+    "apps/mobile/src/widget/",
+    "apps/mobile/src/hooks/use-widget-snapshot-sync.ts",
+    "apps/mobile/src/hooks/use-app-lock-lifecycle.ts",
+    "apps/mobile/src/recording/recording-notification-actions.ts",
+    "apps/mobile/src/recording/call-interruption.ts",
+    "apps/mobile/src/recording/background-keepalive.ts",
+    "apps/mobile/src/recording/recording-runtime.ts",
+    "apps/mobile/src/recording/recording.store.ts",
+    "apps/mobile/modules/call-state/",
+    ".yarn/patches/react-native-background-actions-npm-4.1.0-b64a27cb35.patch"
+  ],
+  "blastRadius": [
+    "recording session pause/resume/end and the foreground service",
+    "app boot and the (app) route guard",
+    "settings screen controls",
+    "expo-router entry point",
+    "logout flow"
+  ],
+  "contracts": [
+    "RecordingSession pause/resume/end signatures unchanged",
+    "react-native-background-actions start/updateNotification options (adds optional actions)",
+    "deep links meetio://recording-setup, meetio://meeting-detail?id=, meetio://actions, meetio://recording-live"
+  ]
+}
