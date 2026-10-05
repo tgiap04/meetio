@@ -142,6 +142,16 @@ describe('(app)/recording-live screen', () => {
     expect(texts(render())).toContain('Máy chưa tải gói nhận diện offline cho ngôn ngữ này.');
   });
 
+  it('says the pause came from a phone call, and only for that pause', () => {
+    useRecordingStore.setState({ phase: 'paused', pausedAt: Date.now(), pausedBy: 'call' });
+    expect(texts(render()).join(' ')).toContain('tạm dừng vì có cuộc gọi');
+  });
+
+  it('shows no call notice for a pause the user chose', () => {
+    useRecordingStore.setState({ phase: 'paused', pausedAt: Date.now() });
+    expect(texts(render()).join(' ')).not.toContain('cuộc gọi');
+  });
+
   describe('translations (Phase 21, on the device)', () => {
     const line = (seq: number, text: string) => ({ seq, text, startedAtMs: seq * 1_000, endedAtMs: seq * 1_000 + 500, gapBeforeMs: null });
 

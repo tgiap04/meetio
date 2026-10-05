@@ -39,6 +39,8 @@ export interface RecordingState {
   problem: string | null;
   /** Set once the last meeting's `end` was accepted by the server — the screen moves on to it. */
   endedMeetingId: string | null;
+  /** `'call'` while paused because the phone rang (call-interruption.ts) — the only pause that resumes by itself. */
+  pausedBy: 'call' | null;
 }
 
 const INITIAL: RecordingState = {
@@ -55,6 +57,7 @@ const INITIAL: RecordingState = {
   sync: { pending: 0, online: true },
   problem: null,
   endedMeetingId: null,
+  pausedBy: null,
 };
 
 export const useRecordingStore = create<RecordingState>(() => INITIAL);

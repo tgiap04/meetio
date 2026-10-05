@@ -29,6 +29,7 @@ export default function RecordingLiveScreen() {
   const lines = useRecordingStore((s) => s.lines);
   const translations = useRecordingStore((s) => s.translations);
   const partial = useRecordingStore((s) => s.partial);
+  const pausedBy = useRecordingStore((s) => s.pausedBy);
   const volume = useRecordingStore((s) => s.volume);
   const quality = useRecordingStore((s) => s.quality);
   const sync = useRecordingStore((s) => s.sync);
@@ -70,6 +71,11 @@ export default function RecordingLiveScreen() {
           <Text style={styles.problemText}>{problem ?? error}</Text>
         </View>
       ) : null}
+      {paused && pausedBy === 'call' ? (
+        <View style={styles.problem} testID="recording-paused-by-call">
+          <Text style={styles.problemText}>Đã tạm dừng vì có cuộc gọi. Meetio tự ghi tiếp khi cuộc gọi kết thúc.</Text>
+        </View>
+      ) : null}
 
       {phase === 'ending' ? (
         <EndingPanel onLeave={leave} online={sync.online} pending={sync.pending} translating={translating} />
@@ -81,7 +87,7 @@ export default function RecordingLiveScreen() {
           <RecordingControls
             busy={busy}
             onEnd={confirmEnd}
-            onPauseToggle={() => void run((s) => (paused ? s.resume() : s.pause()))}
+            onPauseToggle={() => void run<unknown>((s) => (paused ? s.resume() : s.pause()))}
             paused={paused}
           />
         </>
